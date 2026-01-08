@@ -17,15 +17,22 @@ LLM разбивает текст на самодостаточные блоки
 | Размер chunk | 100-400 слов (оптимум 200-300) | Оптимально для embeddings |
 | Смысловая завершённость | Одна тема/мысль | Chunk понятен без контекста |
 | Overlap | Не требуется | LLM делает чанки самодостаточными |
-| Метаданные | topic + text | Минимум для простоты и надёжности |
+| Метаданные | topic + text + word_count | Минимум для простоты и надёжности |
 
 ## Класс SemanticChunker
 
 ```python
 class SemanticChunker:
-    """Сервис семантического разбиения транскриптов."""
+    """Semantic chunking service using Ollama LLM."""
 
     def __init__(self, ai_client: AIClient, settings: Settings):
+        """
+        Initialize chunker.
+
+        Args:
+            ai_client: AI client for LLM calls
+            settings: Application settings
+        """
         self.ai_client = ai_client
         self.settings = settings
         self.prompt_template = load_prompt("chunker", settings)
@@ -35,55 +42,130 @@ class SemanticChunker:
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
     ) -> TranscriptChunks:
-        """Разбивает очищенный транскрипт на смысловые чанки."""
-        text = cleaned_transcript.text
+        """
+        Split cleaned transcript into semantic chunks.
 
-        # Используем replace() вместо format() из-за JSON в промпте
-        prompt = self.prompt_template.replace("{transcript}", text)
-        response = await self.ai_client.generate(prompt)
+        Args:
+            cleaned_transcript: Cleaned transcript from cleaner service
+            metadata: Video metadata (for chunk IDs)
 
-        # Парсим JSON из ответа LLM
-        chunks = self._parse_chunks(response, metadata.video_id)
-
-        return TranscriptChunks(chunks=chunks)
+        Returns:
+            TranscriptChunks with list of semantic chunks
+        """
 ```
 
-**Использование:**
+## Пример использования
+
 ```python
 async with AIClient(settings) as client:
     chunker = SemanticChunker(client, settings)
     result = await chunker.chunk(cleaned_transcript, metadata)
-    print(f"Создано {result.total_chunks} чанков, avg {result.avg_chunk_size} слов")
+
+    print(f"Total chunks: {result.total_chunks}")
+    print(f"Average size: {result.avg_chunk_size} words")
+    for chunk in result.chunks:
+        print(f"  - {chunk.id}: {chunk.topic} ({chunk.word_count} words)")
 ```
 
 ## Модель данных
 
 ```python
 class TranscriptChunk(BaseModel):
-    """Один смысловой блок транскрипта."""
+    """Single semantic chunk of transcript."""
 
     id: str                # Формат: {video_id}_{index:03d}
     index: int             # Порядковый номер (1, 2, 3...)
     topic: str             # Краткая тема блока (3-7 слов)
     text: str              # Полный текст блока
-    word_count: int        # Количество слов (вычисляется)
+    word_count: int        # Количество слов (вычисляется автоматически)
 
 
 class TranscriptChunks(BaseModel):
-    """Результат chunking."""
+    """Collection of transcript chunks."""
 
     chunks: list[TranscriptChunk]
 
     @computed_field
+    @property
     def total_chunks(self) -> int:
+        """Total number of chunks."""
         return len(self.chunks)
 
     @computed_field
+    @property
     def avg_chunk_size(self) -> int:
+        """Average chunk size in words."""
         if not self.chunks:
             return 0
         return sum(c.word_count for c in self.chunks) // len(self.chunks)
 ```
+
+**Файл моделей:** [`backend/app/models/schemas.py`](../../backend/app/models/schemas.py)
+
+## Извлечение JSON из ответа LLM
+
+Метод `_extract_json()` обрабатывает различные форматы ответа LLM:
+
+1. **Markdown code blocks** — извлекает JSON из ` ```json ... ``` `
+2. **Поиск JSON-массива** — находит границы `[...]` в тексте
+3. **Bracket counting** — корректно определяет закрывающую скобку для вложенных структур
+
+```python
+def _extract_json(self, text: str) -> str:
+    """
+    Extract JSON from LLM response.
+
+    Handles:
+    - Markdown-wrapped JSON: ```json [...] ```
+    - Plain JSON array: [...]
+    - JSON embedded in text with surrounding content
+    """
+```
+
+**Алгоритм:**
+1. Пытается извлечь из markdown code block (regex)
+2. Если не markdown — ищет начало `[`
+3. Подсчитывает скобки для нахождения корректной закрывающей `]`
+
+## Логирование
+
+Сервис логирует ключевые события:
+
+```
+INFO: Chunking transcript: 2500 chars, 380 words
+INFO: Chunking complete: 3 chunks, avg size 127 words
+ERROR: Failed to parse JSON: ...
+DEBUG: Response was: ...
+```
+
+## Обработка ошибок
+
+При невалидном JSON выбрасывается `ValueError`:
+
+```python
+try:
+    data = json.loads(json_str)
+except json.JSONDecodeError as e:
+    logger.error(f"Failed to parse JSON: {e}")
+    raise ValueError(f"Invalid JSON in LLM response: {e}")
+```
+
+> **Примечание:** Retry-логика для chunker пока не реализована. При ошибке JSON нужно проверить промпт или повторить запрос вручную.
+
+## Тестирование
+
+Встроенные тесты запускаются командой:
+
+```bash
+python -m backend.app.services.chunker
+```
+
+**Тесты:**
+1. Загрузка промпта и проверка плейсхолдера `{transcript}`
+2. Извлечение JSON из plain-текста
+3. Извлечение JSON из markdown-обёртки
+4. Парсинг чанков с проверкой ID, topic, word_count
+5. Полный chunking с LLM (если Ollama доступен)
 
 ---
 
@@ -129,5 +211,5 @@ LLM определяет границы тем, финальное разбие�
 ## Связанные документы
 
 - **Код:** [`backend/app/services/chunker.py`](../../backend/app/services/chunker.py)
+- **Модели:** [`backend/app/models/schemas.py`](../../backend/app/models/schemas.py)
 - **Промпт:** [`config/prompts/chunker.md`](../../config/prompts/chunker.md)
-- **API:** [api-reference.md](../api-reference.md#ollama-api)

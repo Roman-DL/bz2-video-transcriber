@@ -11,16 +11,14 @@
 ## Класс VideoSummarizer
 
 ```python
-from app.services.summarizer import VideoSummarizer, VALID_SECTIONS
-
 class VideoSummarizer:
     """
-    Сервис саммаризации видео через Ollama LLM.
+    Video summarization service using Ollama LLM.
 
-    Создаёт структурированные саммари с ключевыми тезисами,
-    рекомендациями и классификацией для БЗ 2.0.
+    Creates structured summaries with key points, recommendations,
+    target audience, and classification for BZ 2.0 knowledge base.
 
-    Поддерживает динамический выбор промпта для итеративной настройки формата.
+    Supports dynamic prompt selection for iterative format tuning.
     """
 
     def __init__(
@@ -29,34 +27,37 @@ class VideoSummarizer:
         settings: Settings,
         prompt_name: str = "summarizer",  # Имя файла промпта
     ):
-        ...
+        """
+        Initialize summarizer.
+
+        Args:
+            ai_client: AI client for LLM calls
+            settings: Application settings
+            prompt_name: Name of prompt template file (without .md extension)
+        """
 
     async def summarize(
         self,
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
     ) -> VideoSummary:
-        """Создаёт саммари из очищенного транскрипта."""
-        ...
+        """Create structured summary from cleaned transcript."""
 
     def set_prompt(self, prompt_name: str) -> None:
-        """Смена промпта на лету без пересоздания объекта."""
-        ...
+        """Change prompt template on the fly."""
 ```
 
-## Использование
+## Пример использования
 
 ```python
-from app.config import get_settings
-from app.services.ai_client import AIClient
-from app.services.summarizer import VideoSummarizer
-
-settings = get_settings()
-
 async with AIClient(settings) as client:
     # Стандартное использование
     summarizer = VideoSummarizer(client, settings)
     summary = await summarizer.summarize(cleaned_transcript, metadata)
+
+    print(f"Section: {summary.section}")
+    print(f"Tags: {summary.tags}")
+    print(f"Access level: {summary.access_level}")
 
     # С альтернативным промптом
     summarizer = VideoSummarizer(client, settings, prompt_name="summarizer_v2")
@@ -65,18 +66,6 @@ async with AIClient(settings) as client:
     summarizer.set_prompt("summarizer_test")
     summary = await summarizer.summarize(cleaned_transcript, metadata)
 ```
-
-## Динамический выбор промпта
-
-Для итеративной настройки формата саммари можно создавать разные версии промптов:
-
-| Файл | Назначение |
-|------|------------|
-| `config/prompts/summarizer.md` | Основной промпт (по умолчанию) |
-| `config/prompts/summarizer_v2.md` | Тестовая версия |
-| `config/prompts/summarizer_compact.md` | Компактный формат |
-
-После подбора лучшего варианта — переименовать его в `summarizer.md`.
 
 ## Формат промпта
 
@@ -91,6 +80,28 @@ async with AIClient(settings) as client:
 | `{stream_name}` | `metadata.stream_full` |
 | `{transcript}` | `cleaned_transcript.text` |
 
+> **Почему `.replace()` вместо f-string?** Промпт содержит примеры JSON с фигурными скобками `{}`, которые конфликтуют с форматированием `str.format()`.
+
+**Русские названия месяцев:**
+```python
+RUSSIAN_MONTHS = [
+    "", "января", "февраля", "марта", "апреля", "мая", "июня",
+    "июля", "августа", "сентября", "октября", "ноября", "декабря"
+]
+```
+
+## Динамический выбор промпта
+
+Для итеративной настройки формата саммари можно создавать разные версии промптов:
+
+| Файл | Назначение |
+|------|------------|
+| `config/prompts/summarizer.md` | Основной промпт (по умолчанию) |
+| `config/prompts/summarizer_v2.md` | Тестовая версия |
+| `config/prompts/summarizer_compact.md` | Компактный формат |
+
+После подбора лучшего варианта — переименовать его в `summarizer.md`.
+
 ## Структура ответа LLM
 
 ```json
@@ -100,29 +111,25 @@ async with AIClient(settings) as client:
   "key_points": [
     "Ключевой тезис 1",
     "Ключевой тезис 2",
-    "Ключевой тезис 3",
-    "Ключевой тезис 4",
-    "Ключевой тезис 5"
+    "Ключевой тезис 3"
   ],
 
   "recommendations": [
     "Практическая рекомендация 1",
-    "Практическая рекомендация 2",
-    "Практическая рекомендация 3"
+    "Практическая рекомендация 2"
   ],
 
   "target_audience": "Для кого полезно это видео",
 
   "questions_answered": [
     "На какой вопрос отвечает видео 1?",
-    "На какой вопрос отвечает видео 2?",
-    "На какой вопрос отвечает видео 3?"
+    "На какой вопрос отвечает видео 2?"
   ],
 
   "classification": {
     "section": "Обучение|Продукты|Бизнес|Мотивация",
     "subsection": "Подкатегория внутри секции",
-    "tags": ["тег1", "тег2", "тег3", "тег4", "тег5"],
+    "tags": ["тег1", "тег2", "тег3"],
     "access_level": 1
   }
 }
@@ -131,10 +138,8 @@ async with AIClient(settings) as client:
 ## Модель данных
 
 ```python
-from pydantic import BaseModel, Field
-
 class VideoSummary(BaseModel):
-    """Саммари видео для БЗ 2.0."""
+    """Video summary for BZ 2.0."""
 
     # Контент
     summary: str                      # Краткое содержание (2-3 абзаца)
@@ -150,15 +155,61 @@ class VideoSummary(BaseModel):
     access_level: int = Field(ge=1, le=4, default=1)  # Уровень доступа
 ```
 
-## Валидация
+**Файл модели:** [`backend/app/models/schemas.py`](../../backend/app/models/schemas.py)
 
-### Секции (VALID_SECTIONS)
+## Обработка ответа LLM
+
+### Извлечение JSON
+
+Метод `_extract_json()` обрабатывает различные форматы ответа:
+
+1. **Markdown-wrapped JSON:** ` ```json {...} ``` `
+2. **Plain JSON object:** `{...}`
+3. **JSON с окружающим текстом:** находит границы `{...}` через bracket counting
+
+```python
+def _extract_json(self, text: str) -> str:
+    """
+    Extract JSON from LLM response.
+
+    Handles markdown code blocks and embedded JSON objects.
+    """
+```
+
+### Сглаживание структуры (flatten)
+
+Метод `_flatten_response()` извлекает поля classification на верхний уровень:
+
+```python
+def _flatten_response(self, data: dict) -> dict:
+    """
+    Flatten nested classification into top-level fields.
+
+    Fallback логика для полей classification:
+    1. Сначала проверяет data["classification"]["field"]
+    2. Затем data["field"] (если LLM вернул плоскую структуру)
+    3. Значение по умолчанию (пустая строка, [], 1 для access_level)
+    """
+```
+
+### Валидация секции
 
 ```python
 VALID_SECTIONS = ["Обучение", "Продукты", "Бизнес", "Мотивация"]
+
+# При невалидной секции — автоматическая замена на "Обучение"
+if section not in VALID_SECTIONS:
+    logger.warning(f"Invalid section value: '{section}', using default 'Обучение'")
+    summary_data["section"] = "Обучение"
 ```
 
-Если LLM вернёт невалидную секцию — автоматически подставляется "Обучение" с предупреждением в лог.
+### Создание VideoSummary
+
+Pydantic модель с валидацией `access_level: int = Field(ge=1, le=4, default=1)`.
+
+## Валидация
+
+### Секции (VALID_SECTIONS)
 
 | Секция | Описание |
 |--------|----------|
@@ -176,32 +227,55 @@ VALID_SECTIONS = ["Обучение", "Продукты", "Бизнес", "Мо�
 | 3 | TAB Team (управленческие темы) |
 | 4 | Администраторы (внутренняя информация) |
 
-## Обработка ответа LLM
+## Логирование
 
-1. **Извлечение JSON** — поддержка markdown-обёрток (` ```json ... ``` `)
-2. **Сглаживание структуры** — поля из `classification` перемещаются на верхний уровень
-3. **Валидация секции** — проверка на допустимые значения
-4. **Создание VideoSummary** — Pydantic модель с валидацией access_level
+Сервис логирует ключевые события:
+
+```
+INFO: Summarizing transcript: 2500 chars, prompt=summarizer
+INFO: Summarization complete: section=Продукты, tags=5, access_level=1
+INFO: Prompt changed to: summarizer_v2
+WARNING: Invalid section value: 'НеверныйРаздел', using default 'Обучение'
+ERROR: Failed to parse JSON: ...
+DEBUG: Response was: ...
+```
+
+## Обработка ошибок
+
+При невалидном JSON выбрасывается `ValueError`:
+
+```python
+try:
+    data = json.loads(json_str)
+except json.JSONDecodeError as e:
+    logger.error(f"Failed to parse JSON: {e}")
+    raise ValueError(f"Invalid JSON in LLM response: {e}")
+```
+
+## Конфигурация
+
+Timeout для LLM запросов: `llm_timeout: 300` секунд (5 минут) в `backend/app/config.py`.
 
 ## Тестирование
 
+Встроенные тесты запускаются командой:
+
 ```bash
-cd backend && .venv/bin/python -m app.services.summarizer
+python -m backend.app.services.summarizer
 ```
 
-Тесты:
-1. Загрузка промпта
-2. Извлечение JSON (plain)
-3. Извлечение JSON (markdown)
-4. Парсинг полей саммари
-5. Валидация секций (valid/invalid)
-6. Полная саммаризация с LLM
+**Тесты:**
+1. **Загрузка промпта** — проверка плейсхолдеров `{title}`, `{speaker}`, `{transcript}`
+2. **Извлечение JSON (plain)** — парсинг чистого JSON
+3. **Извлечение JSON (markdown)** — удаление ` ```json ``` ` обёртки
+4. **Парсинг полей саммари** — проверка всех полей включая вложенный classification
+5. **Валидация секций** — проверка valid/invalid значений, fallback на "Обучение"
+6. **Полная саммаризация с LLM** — интеграционный тест (если Ollama доступен)
 
 ---
 
 ## Связанные документы
 
 - **Код:** [`backend/app/services/summarizer.py`](../../backend/app/services/summarizer.py)
-- **Промпт:** [`config/prompts/summarizer.md`](../../config/prompts/summarizer.md)
 - **Модели:** [`backend/app/models/schemas.py`](../../backend/app/models/schemas.py)
-- **API:** [api-reference.md](../api-reference.md#ollama-api)
+- **Промпт:** [`config/prompts/summarizer.md`](../../config/prompts/summarizer.md)
