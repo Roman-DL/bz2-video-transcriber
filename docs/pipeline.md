@@ -682,113 +682,230 @@ CleanedTranscript(
 
 ### Назначение
 
-Разбиение очищенного транскрипта на смысловые блоки для RAG.
+Разбиение очищенного транскрипта на смысловые блоки для RAG-поиска в БЗ 2.0.
 
-### Принципы chunking
+### Текущая реализация: Простые чанки (Вариант A)
+
+**Выбранный подход:** LLM разбивает текст на самодостаточные блоки без дополнительных метаданных о контексте. Самодостаточность чанков обеспечивается инструкциями в промпте.
 
 | Критерий | Значение | Почему |
 |----------|----------|--------|
-| Размер chunk | 100-400 слов | Оптимально для embeddings |
+| Размер chunk | 100-400 слов (оптимум 200-300) | Оптимально для embeddings |
 | Смысловая завершённость | Одна тема/мысль | Chunk понятен без контекста |
-| Overlap | Не требуется | Очищенный текст структурирован |
+| Overlap | Не требуется | LLM делает чанки самодостаточными |
+| Метаданные | topic + text | Минимум для простоты и надёжности |
 
-### LLM Chunking (Ollama)
+### Класс SemanticChunker
 
 ```python
-async def chunk_transcript(
-    cleaned_text: str,
-    metadata: VideoMetadata,
-    client: AsyncClient
-) -> list[dict]:
-    """
-    Разбивает транскрипт на смысловые блоки через LLM.
-    
-    Returns:
-        List of chunks with topic and text
-    """
-    
-    prompt = load_prompt("config/prompts/chunker.md")
-    prompt = prompt.format(
-        title=metadata.title,
-        transcript=cleaned_text
-    )
-    
-    response = await client.chat(
-        model="qwen2.5:14b",
-        messages=[{"role": "user", "content": prompt}],
-        options={"temperature": 0.3},
-        format="json"  # Запрашиваем JSON ответ
-    )
-    
-    return json.loads(response["message"]["content"])["chunks"]
+class SemanticChunker:
+    """Сервис семантического разбиения транскриптов."""
+
+    def __init__(self, ai_client: AIClient, settings: Settings):
+        self.ai_client = ai_client
+        self.settings = settings
+        self.prompt_template = load_prompt("chunker", settings)
+
+    async def chunk(
+        self,
+        cleaned_transcript: CleanedTranscript,
+        metadata: VideoMetadata,
+    ) -> TranscriptChunks:
+        """
+        Разбивает очищенный транскрипт на смысловые чанки.
+
+        Args:
+            cleaned_transcript: Очищенный транскрипт от cleaner
+            metadata: Метаданные видео (для генерации ID чанков)
+
+        Returns:
+            TranscriptChunks со списком чанков
+        """
+        text = cleaned_transcript.text
+
+        # Используем replace() вместо format() из-за JSON в промпте
+        prompt = self.prompt_template.replace("{transcript}", text)
+        response = await self.ai_client.generate(prompt)
+
+        # Парсим JSON из ответа LLM
+        chunks = self._parse_chunks(response, metadata.video_id)
+
+        return TranscriptChunks(chunks=chunks)
+
+    def _parse_chunks(self, response: str, video_id: str) -> list[TranscriptChunk]:
+        """Парсит JSON ответ LLM в список TranscriptChunk."""
+        json_str = self._extract_json(response)
+        data = json.loads(json_str)
+
+        chunks = []
+        for item in data:
+            chunk = TranscriptChunk(
+                id=f"{video_id}_{item['index']:03d}",
+                index=item["index"],
+                topic=item["topic"],
+                text=item["text"],
+                word_count=len(item["text"].split()),
+            )
+            chunks.append(chunk)
+        return chunks
+
+    def _extract_json(self, text: str) -> str:
+        """Извлекает JSON из ответа LLM (обработка markdown-блоков)."""
+        # Удаляет ```json ... ``` обёртку если есть
+        # Находит JSON массив [...] в тексте
+        ...
+```
+
+**Использование:**
+```python
+async with AIClient(settings) as client:
+    chunker = SemanticChunker(client, settings)
+    result = await chunker.chunk(cleaned_transcript, metadata)
+    print(f"Создано {result.total_chunks} чанков, avg {result.avg_chunk_size} слов")
 ```
 
 ### Промпт chunking (config/prompts/chunker.md)
 
-```markdown
-Разбей транскрипт на смысловые блоки для поисковой системы.
+````markdown
+Ты — специалист по структурированию текста. Твоя задача — разбить транскрипт
+на смысловые блоки (chunks) для поисковой системы.
 
-**Видео:** {title}
+## Требования к блокам:
 
-**Требования к блокам:**
-1. Каждый блок — одна законченная тема или мысль
-2. Размер блока: 100-400 слов
-3. Блок должен быть понятен без контекста других блоков
-4. Сохрани весь контент, ничего не удаляй
+1. **Размер:** 100-400 слов (оптимально 200-300)
+2. **Смысловая завершённость:** каждый блок — одна законченная мысль или тема
+3. **Самодостаточность:** блок должен быть понятен без контекста других блоков
+4. **Без перекрытия:** блоки не должны повторять друг друга
 
-**Транскрипт:**
+## Правила разбиения:
 
-{transcript}
+- Разделяй по смене темы или подтемы
+- Не разрывай примеры и истории посередине
+- Сохраняй логические связки в начале блока ("Также важно...", "Ещё один момент...")
+- Если тема большая — раздели на подтемы
 
-**Формат ответа (JSON):**
+## Формат ответа:
+
+Верни JSON-массив объектов:
 
 ```json
-{
-  "chunks": [
-    {
-      "index": 1,
-      "topic": "Краткая тема блока (3-7 слов)",
-      "text": "Полный текст блока..."
-    },
-    {
-      "index": 2,
-      "topic": "...",
-      "text": "..."
-    }
-  ]
-}
+[
+  {"index": 1, "topic": "Краткая тема блока", "text": "Полный текст блока..."},
+  {"index": 2, "topic": "Следующая тема", "text": "Текст следующего блока..."}
+]
 ```
 
-**Ответ:**
-```
+ВАЖНО: Верни ТОЛЬКО валидный JSON без комментариев и markdown-разметки.
+
+---
+
+ТРАНСКРИПТ ДЛЯ РАЗБИЕНИЯ:
+
+{transcript}
+````
 
 ### Модель данных
 
 ```python
-@dataclass
-class TranscriptChunk:
+class TranscriptChunk(BaseModel):
     """Один смысловой блок транскрипта."""
-    
-    id: str                # {video_id}_{index:03d}
+
+    id: str                # Формат: {video_id}_{index:03d}
     index: int             # Порядковый номер (1, 2, 3...)
-    topic: str             # Краткая тема блока
-    text: str              # Текст блока
-    word_count: int        # Количество слов
-    
-    # Опционально (для будущего расширения)
-    # start_time: str | None = None
-    # end_time: str | None = None
+    topic: str             # Краткая тема блока (3-7 слов)
+    text: str              # Полный текст блока
+    word_count: int        # Количество слов (вычисляется)
 
 
-@dataclass 
-class TranscriptChunks:
+class TranscriptChunks(BaseModel):
     """Результат chunking."""
-    
-    video_id: str
+
     chunks: list[TranscriptChunk]
-    total_chunks: int
-    avg_chunk_size: int              # Средний размер в словах
+
+    @computed_field
+    def total_chunks(self) -> int:
+        return len(self.chunks)
+
+    @computed_field
+    def avg_chunk_size(self) -> int:
+        if not self.chunks:
+            return 0
+        return sum(c.word_count for c in self.chunks) // len(self.chunks)
 ```
+
+---
+
+### Альтернативные подходы (для будущего рассмотрения)
+
+Текущая реализация выбрана за баланс простоты и качества. Ниже — альтернативы, которые можно рассмотреть после тестирования на реальных данных.
+
+#### Вариант B: Чанки с контекстом
+
+**Идея:** Добавить поле `context` с кратким описанием места чанка в общей теме видео.
+
+```python
+class TranscriptChunk(BaseModel):
+    id: str
+    index: int
+    topic: str
+    text: str
+    word_count: int
+    context: str           # Новое: "В этом блоке спикер продолжает тему питания..."
+    related_topics: list[str]  # Новое: ["макронутриенты", "белки"]
+```
+
+| Плюсы | Минусы |
+|-------|--------|
+| Лучше для RAG-поиска | Сложнее промпт → больше ошибок LLM |
+| Чанк понятен автономно | Больше токенов → медленнее |
+| Связи между темами | Требует валидации структуры |
+
+**Когда использовать:** Если при тестировании RAG-поиска чанки оказываются недостаточно информативными без контекста всего видео.
+
+#### Вариант C: Двухэтапная обработка
+
+**Идея:** Сначала LLM создаёт "план" всего транскрипта (темы и их порядок), затем разбивает на чанки, ссылаясь на этот план.
+
+```python
+# Этап 1: Структурный анализ
+structure = await ai_client.generate(structure_prompt)
+# {"themes": ["Введение", "Питание", "Витамины", "Заключение"], ...}
+
+# Этап 2: Чанкование с контекстом структуры
+chunks = await ai_client.generate(chunk_prompt.format(
+    transcript=text,
+    structure=structure
+))
+```
+
+| Плюсы | Минусы |
+|-------|--------|
+| Максимальная точность | 2 вызова LLM вместо 1 |
+| Понимание общей структуры | Сильно усложняет реализацию |
+| Лучше для длинных видео | Дороже по токенам |
+
+**Когда использовать:** Если видео очень длинные (>1 час) и спикер сильно "прыгает" между темами, возвращаясь к ним несколько раз.
+
+#### Вариант D: Гибридный (LLM + эвристики)
+
+**Идея:** LLM определяет границы тем, но финальное разбиение делается программно по размеру.
+
+```python
+# LLM определяет логические границы
+boundaries = await ai_client.generate(boundaries_prompt)
+# [{"position": 0, "topic": "Введение"}, {"position": 450, "topic": "Питание"}, ...]
+
+# Программно разбиваем на чанки нужного размера
+chunks = split_by_boundaries_and_size(text, boundaries, max_words=400)
+```
+
+| Плюсы | Минусы |
+|-------|--------|
+| Контроль размера чанков | Сложнее логика |
+| Меньше нагрузка на LLM | Может разрезать середину мысли |
+| Предсказуемый результат | Теряем "умное" разбиение LLM |
+
+**Когда использовать:** Если LLM создаёт слишком большие или маленькие чанки, и нужен строгий контроль размера для RAG.
 
 ---
 
