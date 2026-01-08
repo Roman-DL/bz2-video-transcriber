@@ -1,0 +1,89 @@
+"""
+Application configuration and settings.
+"""
+
+from functools import lru_cache
+from pathlib import Path
+
+import yaml
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
+
+    # AI Services
+    ollama_url: str = "http://192.168.1.152:11434"
+    whisper_url: str = "http://192.168.1.152:9000"
+    llm_model: str = "qwen2.5:14b"
+    whisper_language: str = "ru"
+    llm_timeout: int = 300
+
+    # Paths
+    data_root: Path = Path("/data")
+    inbox_dir: Path = Path("/data/inbox")
+    archive_dir: Path = Path("/data/archive")
+    temp_dir: Path = Path("/data/temp")
+    config_dir: Path = Path("/app/config")
+
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Get cached settings instance."""
+    return Settings()
+
+
+def load_prompt(name: str, settings: Settings | None = None) -> str:
+    """
+    Load a prompt template from config/prompts/{name}.md.
+
+    Args:
+        name: Prompt name (without .md extension)
+        settings: Optional settings instance
+
+    Returns:
+        Prompt template content
+    """
+    if settings is None:
+        settings = get_settings()
+
+    prompt_path = settings.config_dir / "prompts" / f"{name}.md"
+    return prompt_path.read_text(encoding="utf-8")
+
+
+def load_glossary(settings: Settings | None = None) -> dict:
+    """
+    Load glossary from config/glossary.yaml.
+
+    Args:
+        settings: Optional settings instance
+
+    Returns:
+        Glossary dictionary with categories and terms
+    """
+    if settings is None:
+        settings = get_settings()
+
+    glossary_path = settings.config_dir / "glossary.yaml"
+    with open(glossary_path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def load_events_config(settings: Settings | None = None) -> dict:
+    """
+    Load events configuration from config/events.yaml.
+
+    Args:
+        settings: Optional settings instance
+
+    Returns:
+        Events configuration dictionary
+    """
+    if settings is None:
+        settings = get_settings()
+
+    events_path = settings.config_dir / "events.yaml"
+    with open(events_path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)

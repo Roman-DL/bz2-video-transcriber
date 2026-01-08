@@ -1,0 +1,988 @@
+# Terminology Glossary v3.0
+# Конвертировано из docs/Terminology_Glossary_v3.0.md
+# Дата: 2025-01-08
+# Терминов: 79
+
+version: "3.0"
+date: "2025-01-08"
+total_terms: 79
+
+# =============================================================================
+# СТАТУСЫ И КВАЛИФИКАЦИИ (14 терминов)
+# =============================================================================
+statuses:
+  - canonical: "Квалифицированный продюссер"
+    english: "Qualified Producer"
+    description: "Базовый квалификационный уровень (500+ VP в месяц)"
+    variations:
+      - "квалифицированный продюссер"
+      - "квалпродюссер"
+      - "КП"
+      - "кью пи"
+      - "кьюпи"
+      - "QP"
+      - "qualified producer"
+
+  - canonical: "Супервайзер"
+    english: "Supervisor"
+    description: "Первый квалификационный уровень (2500 VP + группа)"
+    variations:
+      - "супервайзер"
+      - "супервизер"
+      - "супервайзор"
+      - "СВ"
+      - "скпервайзер"
+      - "super visor"
+      - "SV"
+
+  - canonical: "Активный Супервайзер"
+    english: "Active Supervisor"
+    description: "Супервайзер с объемом 500+ VP в текущем месяце"
+    variations:
+      - "активный супервайзер"
+      - "активный СВ"
+      - "АСВ"
+      - "активные супервайзеры"
+      - "active supervisor"
+      - "ASV"
+    context: "из 47 супервайзеров только 22 активных (ASV)"
+
+  - canonical: "Спящий супервайзер"
+    english: "Sleeping Supervisor"
+    description: "Супервайзер с объемом 0-500 VP"
+    variations:
+      - "спящий супервайзер"
+      - "неактивный супервайзер"
+      - "спящие СВ"
+      - "inactive supervisor"
+    context: "из 47 супервайзеров 25 спящих"
+
+  - canonical: "Ворлд-тим"
+    english: "World Team"
+    description: "Квалификация 10,000+ Organization VP"
+    variations:
+      - "ворлд тим"
+      - "всемирная команда"
+      - "ВТ"
+      - "ворлдтим"
+      - "ворд тим"
+      - "WT"
+      - "WorldTeam"
+
+  - canonical: "ГЕТ"
+    english: "GET"
+    description: "Квалификационный статус (10,000 Group VP + 3 линии по 2500+ VP)"
+    variations:
+      - "гет"
+      - "гет тим"
+      - "гет-тим"
+      - "ГЕТ"
+      - "генты"
+      - "Get Team"
+      - "GetTeam"
+      - "get team"
+      - "GET"
+    context: "я уже 5 лет ГЕТ"
+
+  - canonical: "ГЕТ 2500"
+    english: "GET 2500"
+    description: "Следующий уровень после ГЕТ"
+    variations:
+      - "гет плюс"
+      - "ГЕТ+"
+      - "гет 2500"
+      - "ГЕТ 2500"
+      - "генты плюс"
+      - "GET Plus"
+      - "GET+"
+      - "Get Plus"
+
+  - canonical: "Миллионер"
+    english: "Millionaire Team"
+    description: "Высокий квалификационный уровень"
+    variations:
+      - "миллионер"
+      - "миллионёр"
+      - "миллионер тим"
+      - "МТ"
+      - "millionaire"
+      - "MillionaireTeam"
+
+  - canonical: "Миллионер 7500"
+    english: "Millionaire Team 7500"
+    description: "Уровень после Миллионер"
+    variations:
+      - "миллионер плюс"
+      - "МТ+"
+      - "миллионер 7500"
+      - "МТ 7500"
+      - "Millionaire Team Plus"
+      - "MT+"
+
+  - canonical: "Президент"
+    english: "President's Team"
+    description: "Топовый квалификационный уровень"
+    variations:
+      - "президент"
+      - "президент тим"
+      - "ПТ"
+      - "президенты"
+      - "president"
+      - "PT"
+      - "PresidentTeam"
+      - "член команды президентов"
+
+  - canonical: "Чарманс Клаб"
+    english: "Chairman's Club"
+    description: "Престижный статус (5 линий с President Team в каждой)"
+    variations:
+      - "чарманс клаб"
+      - "чэрманс клаб"
+      - "клуб председателя"
+      - "Chairman's Club"
+      - "chairmans club"
+      - "CC"
+
+  - canonical: "Фаундер Серкл"
+    english: "Founder's Circle"
+    description: "Высший элитный статус (10 линий с President Team)"
+    variations:
+      - "фаундер серкл"
+      - "фаундерс серкл"
+      - "круг основателей"
+      - "Founder's Circle"
+      - "founders circle"
+      - "FC"
+
+  - canonical: "TAB Team"
+    english: "TAB Team"
+    description: "Элитная группа консультантов (GET, Millionaire Team, President's Team)"
+    variations:
+      - "таб тим"
+      - "таб-тим"
+      - "табтим"
+      - "ТАБ"
+      - "ТАБТим"
+      - "Tab Team"
+      - "T.A.B."
+    context: "вышел на TAB Team"
+
+# =============================================================================
+# ОБЪЕМЫ И МЕТРИКИ (4 термина)
+# =============================================================================
+volumes:
+  - canonical: "VP"
+    english: "VP"
+    description: "Единица измерения объема продаж (Volume Point)"
+    variations:
+      - "вольюм поинт"
+      - "волюм поинт"
+      - "ВП"
+      - "очки"
+      - "очки продаж"
+      - "баллы"
+      - "объем"
+      - "Volume Point"
+      - "volume point"
+      - "V.P."
+      - "VolumePoint"
+    context: "2500 VP в месяц"
+
+  - canonical: "Личный объем (PPV)"
+    english: "Personal Production Volume"
+    description: "Объем личных закупок консультанта"
+    variations:
+      - "ППВ"
+      - "личный объем"
+      - "персональный объем"
+      - "личный объем производства"
+      - "личная продукция"
+      - "PPV"
+      - "personal production volume"
+    context: "PPV 500 для квалификации QP"
+
+  - canonical: "Групповой объем"
+    english: "Group Volume"
+    description: "Объем группы под консультантом"
+    variations:
+      - "групповой объем"
+      - "группа"
+      - "объем группы"
+      - "ГВ"
+      - "группа VP"
+      - "Group Volume"
+      - "group volume"
+      - "GV"
+      - "GroupVolume"
+
+  - canonical: "Организационный объем"
+    english: "Organization Volume"
+    description: "Суммарный объем всей организации"
+    variations:
+      - "организационный объем"
+      - "объем организации"
+      - "орг объем"
+      - "оргобъем"
+      - "ОВ"
+      - "Organization Volume"
+      - "organization volume"
+      - "OV"
+      - "OrgVolume"
+
+# =============================================================================
+# РОЛИ И УЧАСТНИКИ (8 терминов)
+# =============================================================================
+roles:
+  - canonical: "Привилегированный клиент"
+    english: "Preferred Member"
+    description: "Покупатель со скидкой (~25%), без бизнес-активности"
+    variations:
+      - "привилегированный клиент"
+      - "преферед мембер"
+      - "преф клиент"
+      - "префер"
+      - "preferred member"
+      - "pref member"
+      - "PreferredMember"
+
+  - canonical: "Независимый партнер"
+    english: "Independent Member"
+    description: "Начальный бизнес-уровень с правом строить структуру"
+    variations:
+      - "независимый партнер"
+      - "независимый член"
+      - "НП"
+      - "индепендент мембер"
+      - "Independent Member"
+      - "independent member"
+      - "indie member"
+      - "IndependentMember"
+    context: "регистрация как независимый партнер"
+
+  - canonical: "Партнер"
+    english: "Partner"
+    description: "Консультант с 500-2000 VP (НЕ супервайзер)"
+    variations:
+      - "партнёр (статус)"
+      - "партнер (статус)"
+    context: "партнер с 1000 VP"
+
+  - canonical: "Консультант"
+    english: "Consultant"
+    description: "Независимый дистрибьютор Herbalife"
+    variations:
+      - "консультант"
+      - "дистрибьютор"
+      - "дистрибьютер"
+      - "диструбьютор"
+      - "Distributor"
+      - "distributor"
+
+  - canonical: "Клиент"
+    english: "Client"
+    description: "Покупатель продукции (не консультант)"
+    variations:
+      - "клиент"
+      - "покупатель"
+      - "потребитель"
+      - "Customer"
+      - "customer"
+
+  - canonical: "Спонсор"
+    english: "Sponsor"
+    description: "Вышестоящий консультант в структуре"
+    variations:
+      - "спонсор"
+      - "вышестоящий спонсор"
+      - "апплайн"
+      - "наставник"
+      - "Upline"
+      - "upline"
+
+  - canonical: "Даунлайн"
+    english: "Downline"
+    description: "Нижестоящие консультанты в структуре"
+    variations:
+      - "даунлайн"
+      - "нижестоящие (структура)"
+      - "down line"
+      - "down-line"
+    context: "мой даунлайн 47 человек"
+
+  - canonical: "Линия"
+    english: "Line"
+    description: "Ветка структуры под консультантом"
+    variations:
+      - "линия"
+      - "ветка"
+      - "нога (разговорное)"
+      - "leg"
+      - "branch"
+    context: "3 линии по 2500 VP"
+
+# =============================================================================
+# СИСТЕМЫ И ИНСТРУМЕНТЫ (1 термин)
+# =============================================================================
+systems:
+  - canonical: "BizWorks"
+    english: "BizWorks"
+    description: "Система управления бизнесом консультанта"
+    variations:
+      - "безборка"
+      - "бизборд"
+      - "бизворкс"
+      - "бизвокс"
+      - "Biz-Board"
+      - "bizboard"
+      - "Bizworks"
+
+# =============================================================================
+# МЕРОПРИЯТИЯ И СОБЫТИЯ (10 терминов)
+# =============================================================================
+events:
+  - canonical: "Презентация"
+    english: "Presentation"
+    description: "Продуктовая или бизнес-презентация"
+    variations:
+      - "презентация"
+      - "презент"
+      - "презенташка"
+      - "СТС"
+      - "STS"
+      - "business presentation"
+
+  - canonical: "Семинар"
+    english: "Seminar"
+    description: "Обучающий семинар для консультантов"
+    variations:
+      - "семинар"
+      - "сем"
+      - "бизнес-семинар"
+      - "семинар для партнеров"
+      - "business seminar"
+      - "partner seminar"
+    context: "семинар для партнеров (4 часа)"
+
+  - canonical: "Школа Супервайзеров"
+    english: "School of Supervisors"
+    description: "Школа для супервайзеров"
+    variations:
+      - "школа супервайзеров"
+      - "школа для супервайзеров"
+      - "школа СВ"
+      - "супервайзорская школа"
+      - "Supervisor School"
+      - "SV School"
+
+  - canonical: "ШБМ"
+    english: "School of Future Millionaires"
+    description: "Школа будущих миллионеров"
+    variations:
+      - "школа будущих миллионеров"
+      - "школа миллионеров"
+      - "школа лидеров"
+      - "SFM"
+      - "Millionaire School"
+
+  - canonical: "Экстраваганза"
+    english: "Extravaganza"
+    description: "Корпоративное мероприятие компании"
+    variations:
+      - "экстраваганза"
+      - "экстравагантная"
+      - "экстраваганса"
+      - "extravaganza"
+      - "Extravagansa"
+
+  - canonical: "Домашние кружки"
+    english: "Home Circles"
+    description: "Встречи с клиентами в домашней обстановке"
+    variations:
+      - "домашние кружки"
+      - "дом кружки"
+      - "домашние встречи"
+      - "дом. кружки"
+      - "home circles"
+      - "home meetings"
+
+  - canonical: "Марафон"
+    english: "Marathon"
+    description: "Система регулярных онлайн-мероприятий"
+    variations:
+      - "марафон"
+      - "онлайн марафон"
+      - "марафоны"
+      - "marathon"
+      - "online marathon"
+    context: "10-дневный марафон"
+
+  - canonical: "ВВК"
+    english: "COP"
+    description: "Встреча Возможностей для Клиентов"
+    variations:
+      - "ВВК"
+      - "встреча возможностей"
+      - "ВДВ (старое)"
+      - "встреча деловых возможностей"
+      - "COP"
+      - "client opportunity"
+      - "opportunity meeting"
+
+  - canonical: "Фестиваль"
+    english: "Festival"
+    description: "Мероприятие для признания клиентов с лучшими результатами"
+    variations:
+      - "фестиваль"
+      - "фест"
+      - "фестиваль клиентов"
+      - "client festival"
+      - "results festival"
+
+  - canonical: "Группа поддержки"
+    english: "Support Group"
+    description: "Регулярные встречи команды консультантов"
+    variations:
+      - "группа поддержки"
+      - "гп"
+      - "групповая поддержка"
+      - "support group"
+
+# =============================================================================
+# КЛИЕНТСКИЙ СЕРВИС (3 термина)
+# =============================================================================
+services:
+  - canonical: "Клуб"
+    english: "Nutrition Club"
+    description: "Офлайн-помещение для оказания сервиса клиентам"
+    variations:
+      - "клуб"
+      - "нутришн клуб"
+      - "клуб здоровья"
+      - "продуктовый клуб"
+      - "nutrition club"
+      - "wellness club"
+      - "health club"
+    context: "открыть клуб"
+
+  - canonical: "ЭО"
+    english: "Express Assessment"
+    description: "Экспресс-оценка — первая встреча с клиентом"
+    variations:
+      - "экспресс оценка"
+      - "экспресс-оценка"
+      - "экспрессоценка"
+      - "express assessment"
+      - "quick assessment"
+
+  - canonical: "ПО"
+    english: "Full Assessment"
+    description: "Полная оценка — встреча для составления программы"
+    variations:
+      - "полная оценка"
+      - "полная программа"
+      - "full assessment"
+      - "complete assessment"
+
+# =============================================================================
+# СИСТЕМЫ И ПРОГРАММЫ (2 термина)
+# =============================================================================
+programs:
+  - canonical: "Система Клубов"
+    english: "Club System"
+    description: "Система мотивации по объемам"
+    variations:
+      - "система клубов"
+      - "клубы (система)"
+      - "club system"
+      - "Clubs"
+
+  - canonical: "Система 10 городов"
+    english: "10 Cities System"
+    description: "Программа расширения по географии"
+    variations:
+      - "система городов"
+      - "10 городов"
+      - "десять городов"
+      - "Ten Cities"
+      - "System of 10 Cities"
+
+# =============================================================================
+# ПРОДУКТЫ (31 термин)
+# =============================================================================
+products:
+  - canonical: "Формула 1"
+    english: "Formula 1"
+    description: "Протеиновый коктейль для контроля веса"
+    variations:
+      - "формула 1"
+      - "формула один"
+      - "Ф1"
+      - "F1"
+      - "коктейль"
+      - "шейк"
+      - "Formula 1"
+      - "formula one"
+      - "F1 shake"
+      - "питательный коктейльный микс"
+      - "Формула1"
+    context: "2 коктейля Формула 1 в день"
+
+  - canonical: "Вечерний коктейль Формула 1"
+    english: "Formula 1 Evening Shake"
+    description: "Протеиновый коктейль с L-триптофаном для ужина"
+    variations:
+      - "вечерний коктейль"
+      - "ночной коктейль"
+      - "формула 1 вечерний"
+      - "F1 evening"
+      - "evening shake"
+      - "night shake"
+      - "вечерняя формула 1"
+
+  - canonical: "Формула 2"
+    english: "Formula 2"
+    description: "Комплекс витаминов и минералов"
+    variations:
+      - "формула 2"
+      - "формула два"
+      - "Ф2"
+      - "F2"
+      - "витамины"
+      - "мультивитамин"
+      - "Formula 2"
+      - "multivitamin complex"
+      - "Формула2"
+
+  - canonical: "Формула 3"
+    english: "Formula 3"
+    description: "Протеиновый порошок для дополнительного белка"
+    variations:
+      - "формула 3"
+      - "формула три"
+      - "Ф3"
+      - "F3"
+      - "протеиновый порошок"
+      - "protein powder"
+      - "Formula 3"
+      - "персонализированный протеин"
+      - "Формула3"
+
+  - canonical: "ПДМ"
+    english: "PDM"
+    description: "Protein Drink Mix — протеиновый напиток (15г белка + 22 микронутриента)"
+    variations:
+      - "ПДМ"
+      - "PDM"
+      - "Protein Drink Mix"
+      - "протеин дринк микс"
+      - "протеиновый напиток"
+      - "пдм"
+
+  - canonical: "Протеиновый кофе Латте Макиато"
+    english: "Protein Coffee Latte Macchiato"
+    description: "Кофейный напиток с 15г белка и 80мг кофеина"
+    variations:
+      - "протеиновый кофе"
+      - "кофе латте"
+      - "латте макиато"
+      - "protein coffee"
+      - "latte macchiato"
+      - "айс-кофе"
+      - "протеиновое латте"
+
+  - canonical: "Овсяно-яблочный напиток"
+    english: "Oat Apple Drink"
+    description: "Питательный напиток на основе овсяных хлопьев и яблока"
+    variations:
+      - "овсяный напиток"
+      - "овсяно яблочный"
+      - "oat apple"
+      - "овсянка"
+      - "oat drink"
+      - "овсяно-яблочный"
+
+  - canonical: "CR7 Drive"
+    english: "CR7 Drive"
+    description: "Спортивный напиток для гидратации (линейка Криштиану Роналду)"
+    variations:
+      - "ЦР7 драйв"
+      - "си ар севен"
+      - "криштиану роналду"
+      - "CR7"
+      - "CR-7"
+      - "растительный напиток CR7"
+      - "Cristiano Ronaldo"
+      - "цр7"
+
+  - canonical: "Термо Комплит"
+    english: "Thermo Complete"
+    description: "Комплекс для ускорения метаболизма и контроля веса"
+    variations:
+      - "термо комплит"
+      - "термокомплит"
+      - "термоджетикс"
+      - "термо"
+      - "термоджетик"
+      - "желтые таблетки"
+      - "thermo complete"
+      - "thermogenics"
+      - "TC"
+      - "термо-комплит"
+
+  - canonical: "Концентрат Травяного напитка"
+    english: "Herbal Tea Concentrate"
+    description: "Растворимый порошок с кофеином и экстрактами трав"
+    variations:
+      - "травяной напиток"
+      - "концентрат"
+      - "зеленый чай"
+      - "черный чай"
+      - "herbal tea"
+      - "tea concentrate"
+      - "HTC"
+      - "классический"
+      - "травяной чай"
+
+  - canonical: "Чай N-R-G"
+    english: "N-R-G Tea"
+    description: "Растворимый порошок для энергетического чая"
+    variations:
+      - "НРГ"
+      - "энерджи"
+      - "NRG"
+      - "энергетик"
+      - "чай NRG"
+      - "чай энерджи"
+      - "N.R.G."
+      - "порошок NRG"
+      - "energy tea"
+      - "нрг"
+
+  - canonical: "Лифтофф"
+    english: "Liftoff"
+    description: "Шипучие таблетки для энергии с кофеином и витаминами"
+    variations:
+      - "лифтофф"
+      - "лифт офф"
+      - "lift off"
+      - "энергетик"
+      - "шипучка"
+      - "апельсин лифтофф"
+      - "lemon lime liftoff"
+      - "шипучие таблетки"
+
+  - canonical: "Концентрат Алоэ"
+    english: "Aloe Concentrate"
+    description: "Напиток с экстрактом алоэ вера для пищеварения"
+    variations:
+      - "алоэ"
+      - "алое"
+      - "концентрат алоэ"
+      - "aloe"
+      - "aloe vera"
+      - "aloe concentrate"
+      - "растительный напиток алоэ"
+      - "херб алоэ"
+      - "herbal aloe"
+      - "алоэ вера"
+
+  - canonical: "Комплекс пищевых волокон"
+    english: "Fiber Complex"
+    description: "Комплекс растворимых и нерастворимых пищевых волокон"
+    variations:
+      - "комплекс пищевых волокон"
+      - "комплекс клетчатки"
+      - "fiber complex"
+      - "волокна комплекс"
+      - "клетчатка"
+
+  - canonical: "Протеиновые батончики"
+    english: "Protein Bars"
+    description: "Батончики с высоким содержанием белка"
+    variations:
+      - "протеиновые батончики"
+      - "протбатончики"
+      - "батончики"
+      - "protein bars"
+      - "nutrition bars"
+      - "батон"
+
+  - canonical: "Протеиновый батончик"
+    english: "Protein Bar"
+    description: "Батончик с высоким содержанием белка (различные вкусы)"
+    variations:
+      - "протеиновый батончик"
+      - "батончик"
+      - "protein bar"
+      - "лимонный батончик"
+      - "шоколадный батончик"
+      - "протеиновый лимонный"
+
+  - canonical: "Протеиновые мини-батончики"
+    english: "Protein Mini Bars"
+    description: "Мини-батончики с протеином (28 шт)"
+    variations:
+      - "мини-батончики"
+      - "мини батончики"
+      - "протеиновые мини"
+      - "mini bars"
+      - "ваниль карамель"
+      - "vanilla caramel"
+      - "мини"
+
+  - canonical: "Батончик Формула 1 Экспресс"
+    english: "Formula 1 Express Bar"
+    description: "Батончик Формула 1 с темным шоколадом (7 шт)"
+    variations:
+      - "формула 1 экспресс"
+      - "F1 экспресс"
+      - "батончик экспресс"
+      - "темный шоколад батончик"
+      - "F1 express bar"
+      - "экспресс бар"
+
+  - canonical: "Протеиновые чипсы"
+    english: "Protein Chips"
+    description: "Снеки с повышенным содержанием белка"
+    variations:
+      - "протеиновые чипсы"
+      - "чипсы"
+      - "протчипсы"
+      - "protein chips"
+      - "chips"
+      - "протеиновый чипс"
+      - "хрустяшки"
+
+  - canonical: "Протеиновая смесь для выпечки"
+    english: "Protein Bake Mix"
+    description: "Высокобелковая основа для выпечки (панкейки, маффины)"
+    variations:
+      - "протеиновая смесь выпечки"
+      - "бейк микс"
+      - "protein bake mix"
+      - "смесь для блинов"
+      - "baking mix"
+      - "протеиновая выпечка"
+
+  - canonical: "Гербалайфлайн Макс"
+    english: "Herbalifeline Max"
+    description: "Комплекс омега-3 жирных кислот"
+    variations:
+      - "гербалайфлайн"
+      - "гербалайфлайн макс"
+      - "омега-3"
+      - "herbalifeline"
+      - "omega-3"
+      - "herbalifeline max"
+      - "рыбий жир"
+      - "омега3"
+
+  - canonical: "Клеточный Активатор"
+    english: "Cell Activator"
+    description: "Комплекс для улучшения усвоения питательных веществ"
+    variations:
+      - "клеточный активатор"
+      - "активатор"
+      - "cell activator"
+      - "CA"
+      - "селл активатор"
+      - "клеточная активация"
+
+  - canonical: "Найтворкс"
+    english: "Niteworks"
+    description: "Комплекс для поддержки сердечно-сосудистой системы"
+    variations:
+      - "найтворкс"
+      - "нитроворкс"
+      - "ночная формула"
+      - "niteworks"
+      - "nighttime formula"
+      - "оксид азота"
+      - "найт воркс"
+
+  - canonical: "Cell-U-Loss"
+    english: "Cell-U-Loss"
+    description: "Комплекс для поддержки баланса жидкости"
+    variations:
+      - "селл ю лосс"
+      - "селлюлосс"
+      - "cell u loss"
+      - "целлюлосс"
+      - "баланс жидкости"
+      - "селл-ю-лосс"
+
+  - canonical: "Фито Комплит"
+    english: "Phyto Complete"
+    description: "Комплекс фитонутриентов из растительных источников"
+    variations:
+      - "фито комплит"
+      - "фитокомплит"
+      - "phyto complete"
+      - "зеленые суперфуды"
+      - "растительный комплекс"
+      - "фито-комплит"
+
+  - canonical: "Шизандра Эдванс"
+    english: "Schizandra Advance"
+    description: "Комплекс с лимонником китайским для стрессоустойчивости"
+    variations:
+      - "шизандра"
+      - "шизандра эдванс"
+      - "лимонник"
+      - "schizandra"
+      - "schisandra advance"
+      - "адаптоген"
+      - "шизандра адванс"
+
+  - canonical: "Экстра-Каль"
+    english: "Xtra-Cal"
+    description: "Комплекс кальция и витамина D"
+    variations:
+      - "экстра каль"
+      - "экстра-кал"
+      - "xtra cal"
+      - "кальций"
+      - "xtra-cal"
+      - "дополнительный кальций"
+      - "экстра кальций"
+
+  - canonical: "Грин Макс Селект"
+    english: "Green Max Select"
+    description: "Комплекс зелени и антиоксидантов"
+    variations:
+      - "грин макс"
+      - "зеленый макс"
+      - "green max"
+      - "green max select"
+      - "зелень"
+      - "greens"
+      - "грин макс селект"
+
+  - canonical: "Микробиотик Макс"
+    english: "Microbiotic Max"
+    description: "Комплекс пробиотиков для здоровья кишечника"
+    variations:
+      - "микробиотик"
+      - "микробиотик макс"
+      - "пробиотик"
+      - "microbiotic"
+      - "microbiotic max"
+      - "полезные бактерии"
+      - "пробиотики"
+
+  - canonical: "Иммуно Бустер"
+    english: "Immune Booster"
+    description: "Комплекс для поддержки иммунной системы"
+    variations:
+      - "иммуно бустер"
+      - "иммунобустер"
+      - "усилитель иммунитета"
+      - "immune booster"
+      - "immunity support"
+      - "иммунитет"
+      - "иммуно-бустер"
+
+  - canonical: "Коллаген"
+    english: "Collagen"
+    description: "Комплекс для поддержки кожи, волос и ногтей"
+    variations:
+      - "коллаген"
+      - "коллагеновый комплекс"
+      - "collagen"
+      - "beauty collagen"
+      - "коллаген бьюти"
+      - "коллаген для кожи"
+
+# =============================================================================
+# ПРОГРАММЫ ПИТАНИЯ (4 термина)
+# =============================================================================
+nutrition:
+  - canonical: "Программа снижения веса"
+    english: "Weight Loss Program"
+    description: "Замена 2 приемов пищи на коктейль Формула 1"
+    variations:
+      - "программа похудения"
+      - "программа снижения веса"
+      - "снижение веса"
+      - "weight loss program"
+      - "weight reduction"
+      - "похудение"
+
+  - canonical: "Программа поддержания веса"
+    english: "Weight Maintenance Program"
+    description: "Замена 1 приема пищи на коктейль Формула 1"
+    variations:
+      - "программа поддержания"
+      - "поддержание веса"
+      - "weight maintenance"
+      - "weight support"
+      - "поддержка веса"
+
+  - canonical: "Программа набора массы"
+    english: "Muscle Gain Program"
+    description: "Использование коктейлей как дополнительного приема пищи"
+    variations:
+      - "программа набора мышечной массы"
+      - "набор массы"
+      - "набор мышц"
+      - "muscle gain program"
+      - "bulking program"
+      - "набор веса"
+
+  - canonical: "Базовая программа питания"
+    english: "Basic Nutrition Program"
+    description: "Стандартный набор продуктов (Формула 1 + добавки)"
+    variations:
+      - "базовая программа"
+      - "основная программа"
+      - "базовое питание"
+      - "basic program"
+      - "foundation program"
+      - "стандартная программа"
+
+# =============================================================================
+# ТЕХНИЧЕСКИЕ ТЕРМИНЫ (2 термина)
+# =============================================================================
+technical:
+  - canonical: "Дупликация"
+    english: "Duplication"
+    description: "Воспроизведение системы обучения"
+    variations:
+      - "дупликация"
+      - "дублирование"
+      - "воспроизведение"
+      - "копирование системы"
+      - "replication"
+      - "system duplication"
+
+  - canonical: "Активизация"
+    english: "Activation"
+    description: "Возвращение к активности неактивного консультанта"
+    variations:
+      - "активизация"
+      - "активация"
+      - "пробуждение"
+      - "возвращение"
+      - "reactivation"
+    context: "активизация спящих супервайзеров"
+
+# =============================================================================
+# БРЕНД (2 термина)
+# =============================================================================
+brand:
+  - canonical: "Herbalife"
+    english: "Herbalife"
+    description: "Название компании"
+    variations:
+      - "гербалайф"
+      - "гербо лайф"
+      - "хербалайф"
+      - "herbal life"
+      - "херба лайф"
+
+  - canonical: "Herbalife Nutrition"
+    english: "Herbalife Nutrition"
+    description: "Полное название компании"
+    variations:
+      - "гербалайф нутришн"
+      - "herbalife nutrition"
