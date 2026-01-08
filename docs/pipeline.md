@@ -420,214 +420,260 @@ RawTranscript
 
 ### 3a. Применение глоссария
 
+Метод `_apply_glossary()` класса `TranscriptCleaner`:
+
 ```python
-import yaml
-import re
-from pathlib import Path
-
-def load_glossary(path: Path = Path("config/glossary.yaml")) -> dict:
-    """Загружает глоссарий терминов."""
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
-
-def apply_glossary(text: str, glossary: dict) -> str:
+def _apply_glossary(self, text: str) -> tuple[str, list[str]]:
     """
-    Заменяет вариации терминов на каноническую форму.
-    
-    Порядок важен: сначала длинные фразы, потом короткие.
+    Применяет замены терминов по глоссарию.
+
+    Возвращает:
+        tuple: (обработанный текст, список замен)
     """
+    corrections = []
     replacements = []
-    
-    # Собираем все замены из всех категорий
-    for category in glossary.values():
-        for term in category:
-            canonical = term["canonical"]
-            for variation in term["variations"]:
+
+    # Собираем замены из всех категорий
+    # Пропускаем служебные ключи (version, date, total_terms)
+    for category_name, terms in self.glossary.items():
+        if not isinstance(terms, list):
+            continue
+
+        for term in terms:
+            canonical = term.get("canonical")
+            variations = term.get("variations", [])
+
+            if not canonical or not variations:
+                continue
+
+            for variation in variations:
+                # Пропускаем если вариация совпадает с каноником
+                if variation.lower() == canonical.lower():
+                    continue
                 replacements.append((variation, canonical))
-    
+
     # Сортируем по длине (длинные первыми)
     replacements.sort(key=lambda x: len(x[0]), reverse=True)
-    
+
     # Применяем замены
     for variation, canonical in replacements:
-        # Regex с границами слов, регистронезависимо
-        pattern = rf'\b{re.escape(variation)}\b'
-        text = re.sub(pattern, canonical, text, flags=re.IGNORECASE)
-    
-    return text
+        pattern = rf"\b{re.escape(variation)}\b"
+        matches = re.findall(pattern, text, flags=re.IGNORECASE)
+        if matches:
+            text = re.sub(pattern, canonical, text, flags=re.IGNORECASE)
+            for match in matches:
+                corrections.append(f"{match} -> {canonical}")
+
+    return text, corrections
 ```
 
+**Особенности:**
+- Возвращает список конкретных замен (напр. `["гербалайф -> Herbalife", "СВ -> Супервайзер"]`)
+- Пропускает служебные ключи глоссария (`version`, `date`, `total_terms`)
+- Пропускает вариации, совпадающие с каноническим написанием
+- Регистронезависимый поиск с границами слов (`\b`)
+
 ### Структура glossary.yaml
+
+Глоссарий содержит расширенную структуру с дополнительными полями для контекста:
 
 ```yaml
 # config/glossary.yaml
 
+version: "3.0"
+date: "2025-01-08"
+total_terms: 79
+
+# Категории терминов
+statuses:
+  - canonical: "Супервайзер"
+    english: "Supervisor"
+    description: "Первый квалификационный уровень (2500 VP + группа)"
+    variations:
+      - "супервайзер"
+      - "супервизер"
+      - "супервайзор"
+      - "СВ"
+      - "super visor"
+      - "SV"
+    context: "вышел на супервайзера"
+
+  - canonical: "ГЕТ"
+    english: "GET"
+    description: "Квалификационный статус (10,000 Group VP + 3 линии по 2500+ VP)"
+    variations:
+      - "гет"
+      - "гет тим"
+      - "гет-тим"
+      - "Get Team"
+      - "GET"
+    context: "я уже 5 лет ГЕТ"
+
 products:
   - canonical: "Формула 1"
+    english: "Formula 1"
+    description: "Протеиновый коктейль для контроля веса"
     variations:
-      - "формула один"
       - "формула 1"
+      - "формула один"
       - "Ф1"
-      - "ф-1"
-      - "formula 1"
-      - "formula one"
-  
-  - canonical: "Формула 2"
-    variations:
-      - "формула два"
-      - "формула 2"
-      - "Ф2"
-      - "ф-2"
-  
-  - canonical: "Протеиновая смесь"
-    variations:
-      - "протеин микс"
-      - "протеин шейк"
-      - "protein mix"
-      - "белковая смесь"
+      - "F1"
+      - "коктейль"
+      - "шейк"
 
 brand:
   - canonical: "Herbalife"
+    english: "Herbalife"
+    description: "Название компании"
     variations:
       - "гербалайф"
       - "гербо лайф"
       - "хербалайф"
       - "herbal life"
       - "херба лайф"
-
-business:
-  - canonical: "Группа поддержки"
-    variations:
-      - "группа поддержки"
-      - "гп"
-      - "групповая поддержка"
-  
-  - canonical: "Понедельничная Школа"
-    variations:
-      - "понедельничная школа"
-      - "пш"
-      - "школа понедельника"
-      - "monday school"
-
-roles:
-  - canonical: "Супервайзер"
-    variations:
-      - "супервайзер"
-      - "супервизор"
-      - "св"
-      - "supervisor"
-  
-  - canonical: "Независимый партнёр"
-    variations:
-      - "независимый партнер"
-      - "нп"
-      - "партнер"
-      - "independent partner"
 ```
+
+**Поля термина:**
+| Поле | Обязательное | Описание |
+|------|--------------|----------|
+| `canonical` | Да | Каноническое написание для замены |
+| `variations` | Да | Список вариаций для поиска |
+| `english` | Нет | Английское название (информационное) |
+| `description` | Нет | Описание термина (информационное) |
+| `context` | Нет | Пример использования (информационное) |
+
+> **Примечание:** Для замены используются только `canonical` и `variations`. Остальные поля — справочные.
 
 ### 3b. LLM Clean (Ollama)
 
+Класс `TranscriptCleaner` использует `AIClient` для вызова Ollama:
+
 ```python
-from ollama import AsyncClient
+class TranscriptCleaner:
+    """Сервис очистки транскриптов."""
 
-LLM_CLEAN_CONFIG = {
-    "model": "qwen2.5:14b",
-    "temperature": 0.3,          # Низкая для консистентности
-    "num_ctx": 16384,            # Большой контекст для длинных транскриптов
-}
+    def __init__(self, ai_client: AIClient, settings: Settings):
+        self.ai_client = ai_client
+        self.settings = settings
+        self.prompt_template = load_prompt("cleaner", settings)
+        self.glossary = load_glossary(settings)
 
-async def llm_clean_transcript(
-    text: str,
-    metadata: VideoMetadata,
-    client: AsyncClient
-) -> str:
-    """
-    Очищает транскрипт через LLM.
-    
-    Удаляет:
-    - Слова-паразиты
-    - Отвлечения от темы
-    - Повторы и заикания
-    
-    Сохраняет:
-    - Весь смысловой контент
-    - Структуру изложения
-    """
-    
-    prompt = load_prompt("config/prompts/cleaner.md")
-    prompt = prompt.format(
-        title=metadata.title,
-        speaker=metadata.speaker,
-        transcript=text
-    )
-    
-    response = await client.chat(
-        model="qwen2.5:14b",
-        messages=[{"role": "user", "content": prompt}],
-        options={
-            "temperature": LLM_CLEAN_CONFIG["temperature"],
-            "num_ctx": LLM_CLEAN_CONFIG["num_ctx"],
-        }
-    )
-    
-    return response["message"]["content"]
+    async def clean(
+        self,
+        raw_transcript: RawTranscript,
+        metadata: VideoMetadata,
+    ) -> CleanedTranscript:
+        """
+        Очищает транскрипт в два этапа:
+        1. Применение глоссария
+        2. LLM очистка через Ollama
+        """
+        original_text = raw_transcript.full_text
+        original_length = len(original_text)
+
+        # Шаг 1: Применение глоссария
+        text_after_glossary, corrections = self._apply_glossary(original_text)
+
+        # Шаг 2: LLM очистка
+        prompt = self._build_prompt(text_after_glossary, metadata)
+        cleaned_text = await self.ai_client.generate(prompt)
+        cleaned_text = cleaned_text.strip()
+
+        return CleanedTranscript(
+            text=cleaned_text,
+            original_length=original_length,
+            cleaned_length=len(cleaned_text),
+            corrections_made=corrections,
+        )
+
+    def _build_prompt(self, text: str, metadata: VideoMetadata) -> str:
+        """Подставляет текст в шаблон промпта."""
+        return self.prompt_template.format(transcript=text)
+```
+
+**Использование:**
+```python
+async with AIClient(settings) as client:
+    cleaner = TranscriptCleaner(client, settings)
+    cleaned = await cleaner.clean(raw_transcript, metadata)
+    print(f"Очищено: {cleaned.original_length} -> {cleaned.cleaned_length} символов")
+    print(f"Замены: {cleaned.corrections_made}")
 ```
 
 ### Промпт очистки (config/prompts/cleaner.md)
 
+Промпт использует единственную переменную `{transcript}`:
+
 ```markdown
-Ты — редактор транскриптов обучающих видео.
+Ты — редактор транскриптов обучающих видео. Твоя задача — очистить текст от речевого мусора, сохранив весь смысловой контент.
 
-**Видео:** {title}
-**Спикер:** {speaker}
+## Что УДАЛИТЬ:
 
-**Твоя задача — очистить транскрипт:**
+1. **Слова-паразиты:** "ну", "вот", "как бы", "типа", "короче", "значит", "так сказать", "в общем", "на самом деле", "собственно", "допустим", "скажем так"
 
-1. **Удали слова-паразиты:**
-   - "ну", "вот", "как бы", "типа", "значит"
-   - "эээ", "ммм", "ааа" и подобные
-   - Избыточные "то есть", "так сказать"
+2. **Заполнители пауз:** "э-э-э", "м-м-м", "а-а-а", повторы слов, незаконченные фразы
 
-2. **Удали отвлечения от темы:**
-   - Личные истории, не относящиеся к теме
-   - Организационные моменты ("подождите, сейчас настрою")
-   - Приветствия и прощания (если не несут смысла)
+3. **Технические фразы:** "вы меня слышите?", "видно экран?", "сейчас покажу", "подождите секунду", "так, где это...", "ой, не туда нажал"
 
-3. **Исправь очевидные ошибки речи:**
-   - Оборванные предложения — заверши или удали
-   - Повторы слов — оставь один раз
-   - Самокоррекции ("нет, не так, а вот так") — оставь финальный вариант
+4. **Отвлечения:** обсуждение технических проблем со связью, посторонние разговоры, комментарии не по теме
 
-4. **СОХРАНИ:**
-   - Весь смысловой контент
-   - Примеры и истории по теме
-   - Структуру изложения
-   - Профессиональную терминологию
+## Что СОХРАНИТЬ:
 
-**Транскрипт для очистки:**
+1. **Весь смысловой контент** — факты, советы, примеры, истории
+2. **Структуру изложения** — порядок тем, логические переходы
+3. **Профессиональную терминологию** — названия продуктов, бизнес-термины
+4. **Прямую речь и цитаты** — если спикер кого-то цитирует
+5. **Числа и конкретику** — даты, проценты, количества
+
+## Правила:
+
+- НЕ добавляй ничего от себя
+- НЕ меняй смысл высказываний
+- НЕ удаляй повторения, если они для усиления ("очень-очень важно")
+- Сохраняй разговорный стиль, не делай текст "книжным"
+- Исправляй очевидные ошибки распознавания речи
+
+## Формат ответа:
+
+Верни ТОЛЬКО очищенный текст без комментариев и пояснений.
+
+---
+
+ТРАНСКРИПТ ДЛЯ ОЧИСТКИ:
 
 {transcript}
-
-**Ответ:**
-Очищенный транскрипт (только текст, без комментариев):
 ```
+
+> **Примечание:** Метаданные видео (`{title}`, `{speaker}`) не используются в текущей версии промпта.
 
 ### Модель данных
 
 ```python
-@dataclass
-class CleanedTranscript:
-    """Очищенный транскрипт."""
-    
-    text: str                         # Очищенный текст
-    original_length: int              # Длина до очистки (символы)
-    cleaned_length: int               # Длина после очистки
-    glossary_replacements: int        # Количество замен по глоссарию
-    
-    @property
-    def reduction_percent(self) -> float:
-        """Процент сокращения текста."""
-        return (1 - self.cleaned_length / self.original_length) * 100
+class CleanedTranscript(BaseModel):
+    """Очищенный транскрипт после обработки."""
+
+    text: str                              # Очищенный текст
+    original_length: int                   # Длина до очистки (символы)
+    cleaned_length: int                    # Длина после очистки
+    corrections_made: list[str] = []       # Список замен глоссария
+
+# Пример corrections_made:
+# [
+#     "гербалайф -> Herbalife",
+#     "формула один -> Формула 1",
+#     "СВ -> Супервайзер"
+# ]
+```
+
+**Пример результата:**
+```python
+CleanedTranscript(
+    text="Сегодня мы поговорим о Herbalife. Формула 1 — это основной продукт.",
+    original_length=164,
+    cleaned_length=90,
+    corrections_made=["гербалайф -> Herbalife", "формула один -> Формула 1"]
+)
+# Сокращение: 46%
 ```
 
 ---
