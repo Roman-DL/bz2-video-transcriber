@@ -100,11 +100,11 @@ priority: high
 
 | Документ                                      | Описание                                  |
 | --------------------------------------------- | ----------------------------------------- |
-| **[architecture.md](docs/architecture.md)**   | Этот документ — схема системы, компоненты |
-| **[pipeline.md](docs/pipeline.md)**           | Детальный pipeline обработки (6 этапов)   |
-| **[data-formats.md](docs/data-formats.md)**   | Форматы файлов для БЗ 2.0                 |
-| **[llm-prompts.md](docs/llm-prompts.md)**     | Промпты для Ollama с примерами            |
-| **[api-reference.md](docs/api-reference.md)**   | HTTP API для Ollama и Whisper             |
+| **[architecture.md](architecture.md)**        | Этот документ — схема системы, компоненты |
+| **[pipeline/](pipeline/)**                    | Детальный pipeline обработки (6 этапов)   |
+| **[data-formats.md](data-formats.md)**        | Форматы файлов для БЗ 2.0                 |
+| **[deployment.md](deployment.md)**            | Развёртывание на TrueNAS                  |
+| **[api-reference.md](api-reference.md)**      | HTTP API для Ollama и Whisper             |
 
 ---
 
@@ -195,7 +195,7 @@ priority: high
 
 ## Pipeline обработки
 
-> **Детальное описание:** [docs/pipeline.md](docs/pipeline.md)
+> **Детальное описание:** [pipeline/](pipeline/)
 
 ### Краткая схема
 
@@ -496,10 +496,10 @@ business:
 bz2-video-transcriber/
 ├── CLAUDE.md                    # Entry point для Claude Code
 ├── docs/
-│   ├── architecture.md          # Этот документ (копия)
-│   ├── pipeline.md              # Детальный pipeline
+│   ├── architecture.md          # Этот документ
+│   ├── pipeline/                # Детальный pipeline (6 этапов)
 │   ├── data-formats.md          # Форматы файлов
-│   └── llm-prompts.md           # Все промпты
+│   └── deployment.md            # Развёртывание
 │
 ├── backend/
 │   ├── app/

@@ -72,7 +72,7 @@
    python-multipart==0.0.6
    tenacity==8.2.3
 
-4. .env.example (из DEPLOYMENT.md):
+4. .env.example (из docs/deployment.md):
    OLLAMA_URL=http://192.168.1.152:11434
    WHISPER_URL=http://192.168.1.152:9000
    LLM_MODEL=qwen2.5:14b
@@ -135,7 +135,7 @@ tree backend/
 ### Запрос для Claude Code
 
 ```
-Прочитай docs/pipeline.md — секции "Модель данных" каждого этапа.
+Прочитай docs/pipeline/ — секции "Модель данных" в файлах каждого этапа.
 
 Создай backend/app/models/schemas.py с Pydantic v2 моделями:
 
@@ -248,7 +248,7 @@ from backend.app.models.schemas import (
 ### Запрос для Claude Code
 
 ```
-Прочитай DEPLOYMENT.md — секцию "Переменные окружения".
+Прочитай docs/deployment.md — секцию "Переменные окружения".
 
 Создай backend/app/config.py:
 
@@ -292,7 +292,7 @@ from backend.app.models.schemas import (
 
 ```
 Создай config/prompts/cleaner.md, config/prompts/chunker.md, 
-config/prompts/summarizer.md из docs/llm-prompts.md.
+config/prompts/summarizer.md.
 
 Создай config/glossary.yaml и config/events.yaml 
 из docs/architecture.md (секция "Конфигурация").
@@ -329,7 +329,7 @@ print(len(prompt) > 0)  # True
 ### Запрос для Claude Code
 
 ```
-Прочитай docs/pipeline.md — "Этап 1: Parse Filename".
+Прочитай docs/pipeline/01-parse.md.
 
 Создай backend/app/services/parser.py:
 
@@ -463,7 +463,7 @@ asyncio.run(test())
 ### Запрос для Claude Code
 
 ```
-Прочитай docs/pipeline.md — "Этап 2: Transcribe" (исправленную версию с HTTP API).
+Прочитай docs/pipeline/02-transcribe.md.
 Прочитай docs/api-reference.md — секцию "Whisper API".
 
 Создай backend/app/services/transcriber.py:
@@ -516,8 +516,8 @@ print(f"Segments: {len(transcript.segments)}")
 ### Запрос для Claude Code
 
 ```
-Прочитай docs/pipeline.md — "Этап 3: Clean".
-Прочитай docs/llm-prompts.md — промпт cleaner.
+Прочитай docs/pipeline/03-clean.md.
+Прочитай config/prompts/cleaner.md.
 
 Создай backend/app/services/cleaner.py:
 
@@ -569,8 +569,8 @@ print(f"Original: {cleaned.original_length}, Cleaned: {cleaned.cleaned_length}")
 ### Запрос для Claude Code
 
 ```
-Прочитай docs/pipeline.md — "Этап 4: Chunk".
-Прочитай docs/llm-prompts.md — промпт chunker.
+Прочитай docs/pipeline/04-chunk.md.
+Прочитай config/prompts/chunker.md.
 
 Создай backend/app/services/chunker.py:
 
@@ -621,8 +621,8 @@ print(f"Chunks: {chunks.total_chunks}, Avg size: {chunks.avg_chunk_size}")
 ### Запрос для Claude Code
 
 ```
-Прочитай docs/pipeline.md — "Этап 5: Summarize".
-Прочитай docs/llm-prompts.md — промпт summarizer.
+Прочитай docs/pipeline/05-summarize.md.
+Прочитай config/prompts/summarizer.md.
 
 Создай backend/app/services/summarizer.py:
 
@@ -676,7 +676,7 @@ print(f"Tags: {summary.tags}")
 ### Запрос для Claude Code
 
 ```
-Прочитай docs/pipeline.md — "Этап 6: Save Files".
+Прочитай docs/pipeline/06-save.md.
 Прочитай docs/data-formats.md — форматы файлов.
 
 Создай backend/app/services/saver.py:
@@ -745,7 +745,7 @@ print(f"Created: {files}")
 ### Запрос для Claude Code
 
 ```
-Прочитай docs/pipeline.md — "Полный Pipeline Flow".
+Прочитай docs/pipeline/README.md — раздел "Полный Pipeline Flow".
 
 Создай backend/app/services/pipeline.py:
 
@@ -886,7 +886,7 @@ curl http://localhost:8801/api/files/inbox
 ### Запрос для Claude Code
 
 ```
-Прочитай DEPLOYMENT.md.
+Прочитай docs/deployment.md.
 
 Создай backend/Dockerfile:
 - FROM python:3.11-slim
@@ -894,9 +894,9 @@ curl http://localhost:8801/api/files/inbox
 - Копировать код
 - CMD uvicorn
 
-Создай docker-compose.yml (из DEPLOYMENT.md).
+Создай docker-compose.yml (из docs/deployment.md).
 
-Создай scripts/deploy.sh (из DEPLOYMENT.md).
+Создай scripts/deploy.sh (из docs/deployment.md).
 ```
 
 ### Критерий готовности
