@@ -74,7 +74,7 @@ curl -s http://100.64.0.1:9000/health && echo " ✓ Whisper"
 ### Структура хранилища
 
 ```
-/mnt/main/media/bz2-transcriber/     ← Данные приложения
+/mnt/main/work/bz2/video/            ← Данные приложения
 ├── inbox/                           ← Входящие видео (watcher мониторит)
 ├── archive/                         ← Обработанные (структура по датам)
 │   └── {год}/{месяц}/{тип}.{поток}/{тема} ({спикер})/
@@ -95,11 +95,18 @@ curl -s http://100.64.0.1:9000/health && echo " ✓ Whisper"
 └── docker-compose.yml
 ```
 
+### SMB доступ к данным
+
+| Способ | Адрес |
+|--------|-------|
+| Локально | `smb://nas.local/Work/bz2/video` |
+| Tailscale | `smb://100.64.0.1/Work/bz2/video` |
+
 ### Volumes для Docker
 
 | Host путь | Container путь | Режим | Назначение |
 |-----------|----------------|-------|------------|
-| `/mnt/main/media/bz2-transcriber` | `/data` | `rw` | inbox, archive, temp |
+| `/mnt/main/work/bz2/video` | `/data` | `rw` | inbox, archive, temp |
 | `./config` | `/app/config` | `ro` | Промпты, глоссарий |
 
 ---
@@ -117,7 +124,7 @@ services:
     ports:
       - "8801:80"
     volumes:
-      - /mnt/main/media/bz2-transcriber:/data:rw
+      - /mnt/main/work/bz2/video:/data:rw
       - ./config:/app/config:ro
     environment:
       - OLLAMA_URL=http://192.168.1.152:11434
@@ -162,10 +169,10 @@ services:
 ```bash
 ssh truenas_admin@192.168.1.152
 
-# Создать структуру данных
-sudo mkdir -p /mnt/main/media/bz2-transcriber/{inbox,archive,temp}
-sudo chown -R apps:apps /mnt/main/media/bz2-transcriber
-sudo chmod -R 755 /mnt/main/media/bz2-transcriber
+# Создать структуру данных (если ещё не создана)
+sudo mkdir -p /mnt/main/work/bz2/video/{inbox,archive,temp}
+sudo chown -R roman:family /mnt/main/work/bz2
+sudo chmod -R 775 /mnt/main/work/bz2
 ```
 
 ### Через Dockge (рекомендуется)
@@ -342,7 +349,7 @@ DEPLOY_PATH=/mnt/apps-pool/dev/projects/bz2-video-transcribe
 
 ```bash
 # На хосте
-rm -rf /mnt/main/media/bz2-transcriber/temp/*
+rm -rf /mnt/main/work/bz2/video/temp/*
 
 # В контейнере
 sudo docker exec bz2-transcriber rm -rf /data/temp/*
