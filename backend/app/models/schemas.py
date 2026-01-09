@@ -34,6 +34,7 @@ class VideoMetadata(BaseModel):
     video_id: str
     source_path: Path
     archive_path: Path
+    duration_seconds: float | None = None  # Video duration from ffprobe
 
     @computed_field
     @property

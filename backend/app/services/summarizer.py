@@ -7,6 +7,7 @@ Creates structured summaries from cleaned transcripts using Ollama LLM.
 import json
 import logging
 import re
+import time
 from typing import Any
 
 from app.config import Settings, get_settings, load_prompt
@@ -14,6 +15,7 @@ from app.models.schemas import CleanedTranscript, VideoMetadata, VideoSummary
 from app.services.ai_client import AIClient
 
 logger = logging.getLogger(__name__)
+perf_logger = logging.getLogger("app.perf")
 
 # Valid section values for classification
 VALID_SECTIONS = ["Обучение", "Продукты", "Бизнес", "Мотивация"]
@@ -90,13 +92,17 @@ class VideoSummarizer:
             VideoSummary with structured content and classification
         """
         text = cleaned_transcript.text
-        text_length = len(text)
+        input_chars = len(text)
 
-        logger.info(f"Summarizing transcript: {text_length} chars, prompt={self.prompt_name}")
+        logger.info(f"Summarizing transcript: {input_chars} chars, prompt={self.prompt_name}")
+
+        start_time = time.time()
 
         # Build prompt and call LLM
         prompt = self._build_prompt(text, metadata)
         response = await self.ai_client.generate(prompt)
+
+        elapsed = time.time() - start_time
 
         # Parse LLM response into VideoSummary
         summary = self._parse_summary(response)
@@ -104,6 +110,13 @@ class VideoSummarizer:
         logger.info(
             f"Summarization complete: section={summary.section}, "
             f"tags={len(summary.tags)}, access_level={summary.access_level}"
+        )
+
+        # Performance metrics for progress estimation
+        perf_logger.info(
+            f"PERF | summarize | "
+            f"input_chars={input_chars} | "
+            f"time={elapsed:.1f}s"
         )
 
         return summary

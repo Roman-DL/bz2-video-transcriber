@@ -6,6 +6,7 @@ Provides async HTTP client with retry logic for:
 - Whisper: audio/video transcription
 """
 
+import asyncio
 import logging
 import time
 from pathlib import Path
@@ -112,6 +113,38 @@ class AIClient:
             "ollama_version": ollama_version,
         }
 
+    def _sync_transcribe(
+        self,
+        file_path: Path,
+        language: str,
+        whisper_url: str,
+    ) -> httpx.Response:
+        """
+        Synchronous file upload to Whisper API.
+
+        Runs in a thread pool to avoid blocking the event loop.
+
+        Args:
+            file_path: Path to audio/video file
+            language: Language code
+            whisper_url: Whisper API URL
+
+        Returns:
+            httpx.Response from Whisper API
+        """
+        with httpx.Client(timeout=7200.0) as sync_client:
+            with open(file_path, "rb") as f:
+                files = {"file": (file_path.name, f, "application/octet-stream")}
+                data = {
+                    "language": language,
+                    "response_format": "verbose_json",
+                }
+                return sync_client.post(
+                    f"{whisper_url}/v1/audio/transcriptions",
+                    files=files,
+                    data=data,
+                )
+
     @RETRY_DECORATOR
     async def transcribe(
         self,
@@ -120,6 +153,9 @@ class AIClient:
     ) -> dict:
         """
         Transcribe audio/video file using Whisper API.
+
+        Uses thread pool for file upload to avoid blocking the event loop,
+        allowing progress ticker to update during long transcriptions.
 
         Args:
             file_path: Path to audio/video file
@@ -146,19 +182,14 @@ class AIClient:
         start_time = time.time()
 
         try:
-            with open(file_path, "rb") as f:
-                files = {"file": (file_path.name, f, "application/octet-stream")}
-                data = {
-                    "language": language,
-                    "response_format": "verbose_json",
-                }
-
-                response = await self.http_client.post(
-                    f"{self.settings.whisper_url}/v1/audio/transcriptions",
-                    files=files,
-                    data=data,
-                    timeout=7200.0,  # 2 hours for long videos
-                )
+            # Run synchronous file upload in thread pool to not block event loop
+            # This allows progress ticker to update during long transcriptions
+            response = await asyncio.to_thread(
+                self._sync_transcribe,
+                file_path,
+                language,
+                self.settings.whisper_url,
+            )
 
             elapsed = time.time() - start_time
             logger.debug(f"Whisper response: {response.status_code}, elapsed: {elapsed:.1f}s")

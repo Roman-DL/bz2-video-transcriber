@@ -5,6 +5,7 @@ Transcribes video/audio files via Whisper HTTP API.
 """
 
 import logging
+import time
 from pathlib import Path
 
 from app.config import Settings, get_settings
@@ -12,6 +13,7 @@ from app.models.schemas import RawTranscript, TranscriptSegment
 from app.services.ai_client import AIClient
 
 logger = logging.getLogger(__name__)
+perf_logger = logging.getLogger("app.perf")
 
 
 class WhisperTranscriber:
@@ -51,8 +53,11 @@ class WhisperTranscriber:
             httpx.HTTPStatusError: If API returns error
         """
         video_path = Path(video_path)
+        file_size_mb = video_path.stat().st_size / 1024 / 1024
 
         logger.info(f"Starting transcription: {video_path.name}")
+
+        start_time = time.time()
 
         # Call Whisper API via AIClient
         response_data = await self.ai_client.transcribe(
@@ -60,12 +65,22 @@ class WhisperTranscriber:
             language=self.settings.whisper_language,
         )
 
+        elapsed = time.time() - start_time
+
         # Parse response into models
         transcript = self._parse_response(response_data)
 
         logger.info(
             f"Transcription complete: {len(transcript.segments)} segments, "
             f"{transcript.duration_seconds:.1f}s duration"
+        )
+
+        # Performance metrics for progress estimation
+        perf_logger.info(
+            f"PERF | transcribe | "
+            f"size={file_size_mb:.1f}MB | "
+            f"duration={transcript.duration_seconds:.0f}s | "
+            f"time={elapsed:.1f}s"
         )
 
         return transcript

@@ -7,11 +7,13 @@ Supports both full pipeline execution and step-by-step mode for testing.
 
 import asyncio
 import logging
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Awaitable, Callable
 
 from app.config import Settings, get_settings
+from app.services.progress_estimator import ProgressEstimator
 from app.models.schemas import (
     CleanedTranscript,
     ProcessingResult,
@@ -31,6 +33,41 @@ from app.services.summarizer import VideoSummarizer
 from app.services.transcriber import WhisperTranscriber
 
 logger = logging.getLogger(__name__)
+
+
+def get_video_duration(video_path: Path) -> float | None:
+    """
+    Get video duration using ffprobe.
+
+    Args:
+        video_path: Path to video file
+
+    Returns:
+        Duration in seconds, or None if ffprobe fails
+    """
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "quiet",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "csv=p=0",
+                str(video_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return float(result.stdout.strip())
+    except Exception as e:
+        logger.warning(f"ffprobe failed for {video_path.name}: {e}")
+
+    return None
+
 
 # Type alias for progress callback
 # Signature: (status, progress_percent, message) -> None
@@ -82,13 +119,14 @@ class PipelineOrchestrator:
     """
 
     # Progress weights for each stage (must sum to 100)
+    # Based on actual times: transcribe=87s, clean=7.5s, chunk+summarize=18s, save<1s
     STAGE_WEIGHTS = {
-        ProcessingStatus.PARSING: 2,
-        ProcessingStatus.TRANSCRIBING: 45,
-        ProcessingStatus.CLEANING: 15,
-        ProcessingStatus.CHUNKING: 13,
-        ProcessingStatus.SUMMARIZING: 13,
-        ProcessingStatus.SAVING: 12,
+        ProcessingStatus.PARSING: 2,       # 0-2%: instant
+        ProcessingStatus.TRANSCRIBING: 50, # 2-52%: dominant stage (~77% of time)
+        ProcessingStatus.CLEANING: 13,     # 52-65%
+        ProcessingStatus.CHUNKING: 16,     # 65-81%: parallel with SUMMARIZING
+        ProcessingStatus.SUMMARIZING: 16,  # 65-97%: combined = 32%
+        ProcessingStatus.SAVING: 3,        # 97-100%: instant
     }
 
     def __init__(self, settings: Settings | None = None):
@@ -99,6 +137,7 @@ class PipelineOrchestrator:
             settings: Application settings (uses defaults if None)
         """
         self.settings = settings or get_settings()
+        self.estimator = ProgressEstimator(self.settings)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Full Pipeline
@@ -149,11 +188,21 @@ class PipelineOrchestrator:
         except FilenameParseError as e:
             raise PipelineError(ProcessingStatus.PARSING, str(e), e)
 
+        # Get video duration for progress estimation
+        metadata.duration_seconds = get_video_duration(video_path)
+        if metadata.duration_seconds is None:
+            # Fallback: estimate from file size (~5MB per minute)
+            metadata.duration_seconds = video_path.stat().st_size / 83333
+            logger.info(
+                f"Using estimated duration: {metadata.duration_seconds:.0f}s "
+                f"(from file size {video_path.stat().st_size / 1024 / 1024:.1f}MB)"
+            )
+
         await self._update_progress(
             progress_callback,
             ProcessingStatus.PARSING,
             100,
-            f"Parsed: {metadata.video_id}",
+            f"Parsed: {metadata.video_id} ({metadata.duration_seconds:.0f}s)",
         )
 
         # Stages 2-5: Require AI client
@@ -167,7 +216,7 @@ class PipelineOrchestrator:
 
             # Stage 2: Transcribe
             raw_transcript = await self._do_transcribe(
-                transcriber, video_path, progress_callback
+                transcriber, video_path, metadata.duration_seconds, progress_callback
             )
 
             # Stage 3: Clean
@@ -331,29 +380,39 @@ class PipelineOrchestrator:
         self,
         transcriber: WhisperTranscriber,
         video_path: Path,
+        video_duration: float,
         callback: ProgressCallback | None,
     ) -> RawTranscript:
-        """Execute transcription stage with progress updates."""
-        await self._update_progress(
-            callback,
-            ProcessingStatus.TRANSCRIBING,
-            0,
-            f"Transcribing: {video_path.name}",
-        )
+        """Execute transcription stage with progress ticker."""
+        estimate = self.estimator.estimate_transcribe(video_duration)
+
+        # Start progress ticker
+        ticker = None
+        if callback:
+            ticker = await self.estimator.start_ticker(
+                stage=ProcessingStatus.TRANSCRIBING,
+                estimated_seconds=estimate.estimated_seconds,
+                message=f"Transcribing: {video_path.name}",
+                callback=lambda s, p, m: self._update_progress(callback, s, p, m),
+            )
 
         try:
             result = await transcriber.transcribe(video_path)
         except Exception as e:
+            if ticker:
+                ticker.cancel()
             raise PipelineError(
                 ProcessingStatus.TRANSCRIBING, f"Transcription failed: {e}", e
             )
 
-        await self._update_progress(
-            callback,
-            ProcessingStatus.TRANSCRIBING,
-            100,
-            f"Transcribed: {len(result.segments)} segments, {result.duration_seconds:.0f}s",
-        )
+        # Stop ticker and send 100%
+        if callback:
+            await self.estimator.stop_ticker(
+                ticker,
+                ProcessingStatus.TRANSCRIBING,
+                lambda s, p, m: self._update_progress(callback, s, p, m),
+                f"Transcribed: {len(result.segments)} segments, {result.duration_seconds:.0f}s",
+            )
 
         return result
 
@@ -364,27 +423,37 @@ class PipelineOrchestrator:
         metadata: VideoMetadata,
         callback: ProgressCallback | None,
     ) -> CleanedTranscript:
-        """Execute cleaning stage with progress updates."""
-        await self._update_progress(
-            callback,
-            ProcessingStatus.CLEANING,
-            0,
-            "Cleaning transcript with glossary and LLM",
-        )
+        """Execute cleaning stage with progress ticker."""
+        input_chars = len(raw_transcript.full_text)
+        estimate = self.estimator.estimate_clean(input_chars)
+
+        # Start progress ticker
+        ticker = None
+        if callback:
+            ticker = await self.estimator.start_ticker(
+                stage=ProcessingStatus.CLEANING,
+                estimated_seconds=estimate.estimated_seconds,
+                message="Cleaning transcript with glossary and LLM",
+                callback=lambda s, p, m: self._update_progress(callback, s, p, m),
+            )
 
         try:
             result = await cleaner.clean(raw_transcript, metadata)
         except Exception as e:
+            if ticker:
+                ticker.cancel()
             raise PipelineError(
                 ProcessingStatus.CLEANING, f"Cleaning failed: {e}", e
             )
 
-        await self._update_progress(
-            callback,
-            ProcessingStatus.CLEANING,
-            100,
-            f"Cleaned: {result.original_length} -> {result.cleaned_length} chars",
-        )
+        # Stop ticker and send 100%
+        if callback:
+            await self.estimator.stop_ticker(
+                ticker,
+                ProcessingStatus.CLEANING,
+                lambda s, p, m: self._update_progress(callback, s, p, m),
+                f"Cleaned: {result.original_length} -> {result.cleaned_length} chars",
+            )
 
         return result
 
@@ -396,13 +465,26 @@ class PipelineOrchestrator:
         metadata: VideoMetadata,
         callback: ProgressCallback | None,
     ) -> tuple[TranscriptChunks, VideoSummary]:
-        """Execute chunking and summarization in parallel with fallbacks."""
-        await self._update_progress(
-            callback,
-            ProcessingStatus.CHUNKING,
-            0,
-            "Starting parallel chunking and summarization",
+        """Execute chunking and summarization in parallel with progress ticker."""
+        input_chars = len(cleaned_transcript.text)
+
+        # Calculate estimates for both stages, use max for combined progress
+        chunk_estimate = self.estimator.estimate_chunk(input_chars)
+        summarize_estimate = self.estimator.estimate_summarize(input_chars)
+        combined_estimated = max(
+            chunk_estimate.estimated_seconds,
+            summarize_estimate.estimated_seconds,
         )
+
+        # Start progress ticker for combined parallel operation
+        ticker = None
+        if callback:
+            ticker = await self.estimator.start_ticker(
+                stage=ProcessingStatus.CHUNKING,
+                estimated_seconds=combined_estimated,
+                message="Chunking and summarizing in parallel",
+                callback=lambda s, p, m: self._update_progress(callback, s, p, m),
+            )
 
         # Create tasks for parallel execution
         chunk_task = asyncio.create_task(
@@ -438,6 +520,8 @@ class PipelineOrchestrator:
 
         # If both failed, raise error
         if chunks is None and summary is None:
+            if ticker:
+                ticker.cancel()
             raise PipelineError(
                 ProcessingStatus.CHUNKING,
                 f"Both chunking and summarization failed: {'; '.join(errors)}",
@@ -452,12 +536,14 @@ class PipelineOrchestrator:
             logger.warning("Using fallback summary due to summarizer failure")
             summary = self._create_fallback_summary(metadata)
 
-        await self._update_progress(
-            callback,
-            ProcessingStatus.SUMMARIZING,
-            100,
-            f"Completed: {chunks.total_chunks} chunks, summary ready",
-        )
+        # Stop ticker and send 100%
+        if callback:
+            await self.estimator.stop_ticker(
+                ticker,
+                ProcessingStatus.SUMMARIZING,
+                lambda s, p, m: self._update_progress(callback, s, p, m),
+                f"Completed: {chunks.total_chunks} chunks, summary ready",
+            )
 
         return chunks, summary
 
@@ -470,25 +556,34 @@ class PipelineOrchestrator:
         summary: VideoSummary,
         callback: ProgressCallback | None,
     ) -> list[str]:
-        """Execute save stage with progress updates."""
-        await self._update_progress(
-            callback,
-            ProcessingStatus.SAVING,
-            0,
-            f"Saving to: {metadata.archive_path}",
-        )
+        """Execute save stage with progress ticker."""
+        estimated = self.estimator.get_fixed_stage_time("save")
+
+        # Start progress ticker
+        ticker = None
+        if callback:
+            ticker = await self.estimator.start_ticker(
+                stage=ProcessingStatus.SAVING,
+                estimated_seconds=estimated,
+                message=f"Saving to: {metadata.archive_path}",
+                callback=lambda s, p, m: self._update_progress(callback, s, p, m),
+            )
 
         try:
             files = await saver.save(metadata, raw_transcript, chunks, summary)
         except Exception as e:
+            if ticker:
+                ticker.cancel()
             raise PipelineError(ProcessingStatus.SAVING, f"Save failed: {e}", e)
 
-        await self._update_progress(
-            callback,
-            ProcessingStatus.SAVING,
-            100,
-            f"Saved {len(files)} files",
-        )
+        # Stop ticker and send 100%
+        if callback:
+            await self.estimator.stop_ticker(
+                ticker,
+                ProcessingStatus.SAVING,
+                lambda s, p, m: self._update_progress(callback, s, p, m),
+                f"Saved {len(files)} files",
+            )
 
         return files
 

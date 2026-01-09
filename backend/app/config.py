@@ -99,3 +99,23 @@ def load_events_config(settings: Settings | None = None) -> dict:
     events_path = settings.config_dir / "events.yaml"
     with open(events_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+def load_performance_config(settings: Settings | None = None) -> dict:
+    """
+    Load performance coefficients from config/performance.yaml.
+
+    Used by ProgressEstimator to calculate estimated processing time.
+
+    Args:
+        settings: Optional settings instance
+
+    Returns:
+        Performance configuration with stage coefficients
+    """
+    if settings is None:
+        settings = get_settings()
+
+    perf_path = settings.config_dir / "performance.yaml"
+    with open(perf_path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)

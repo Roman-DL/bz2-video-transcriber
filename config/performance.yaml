@@ -1,0 +1,55 @@
+# Performance coefficients for progress estimation
+#
+# Used by ProgressEstimator to calculate estimated processing time
+# and show progress percentage during video processing.
+#
+# How to update:
+# 1. Run processing on test files of different sizes
+# 2. Check PERF logs: docker logs bz2-transcriber | grep "PERF |"
+# 3. Calculate new coefficients and update this file
+#
+# Coefficients are based on test data from 2026-01-09:
+# - 5 min file (301s, 50.3MB): transcribe=87.1s, clean=8.0s, chunk=10.3s, summarize=17.1s
+# - 55 min file (3308s, 273.7MB): transcribe=892.9s (clean had issues, data excluded)
+
+version: 1
+updated: "2026-01-09"
+notes: "Initial coefficients based on 5-min test file"
+
+# Transcription: depends on video duration
+# Formula: estimated_time = base_time + (video_duration_seconds * factor)
+transcribe:
+  # Seconds of processing per second of video
+  # Measured: 87.1s / 301s = 0.289, 892.9s / 3308s = 0.270
+  # Average: ~0.28
+  factor_per_video_second: 0.29
+  base_time: 5.0  # GPU warmup, file loading overhead
+
+# Text cleaning (LLM): depends on input text length
+# Formula: estimated_time = base_time + (input_chars / 1000 * factor)
+clean:
+  # Seconds per 1000 input characters
+  # Measured: 8.0s / 4.535k = 1.76
+  factor_per_1k_chars: 1.8
+  base_time: 2.0
+
+# Semantic chunking (LLM): depends on input text length
+# Formula: estimated_time = base_time + (input_chars / 1000 * factor)
+chunk:
+  # Seconds per 1000 input characters
+  # Measured: 10.3s / 1.699k = 6.06
+  factor_per_1k_chars: 6.0
+  base_time: 2.0
+
+# Summarization (LLM): depends on input text length
+# Formula: estimated_time = base_time + (input_chars / 1000 * factor)
+summarize:
+  # Seconds per 1000 input characters
+  # Measured: 17.1s / 1.699k = 10.06
+  factor_per_1k_chars: 10.0
+  base_time: 3.0
+
+# Fixed-time stages (not estimated dynamically)
+fixed_stages:
+  parse: 1.0   # Metadata extraction, very fast
+  save: 2.0    # File operations, depends on disk speed

@@ -7,6 +7,7 @@ Splits cleaned transcripts into semantic chunks using Ollama LLM.
 import json
 import logging
 import re
+import time
 
 from app.config import Settings, get_settings, load_prompt
 from app.models.schemas import (
@@ -18,6 +19,7 @@ from app.models.schemas import (
 from app.services.ai_client import AIClient
 
 logger = logging.getLogger(__name__)
+perf_logger = logging.getLogger("app.perf")
 
 
 class SemanticChunker:
@@ -62,9 +64,12 @@ class SemanticChunker:
             TranscriptChunks with list of semantic chunks
         """
         text = cleaned_transcript.text
+        input_chars = len(text)
         word_count = len(text.split())
 
-        logger.info(f"Chunking transcript: {len(text)} chars, {word_count} words")
+        logger.info(f"Chunking transcript: {input_chars} chars, {word_count} words")
+
+        start_time = time.time()
 
         # Build prompt and call LLM
         prompt = self._build_prompt(text)
@@ -73,11 +78,21 @@ class SemanticChunker:
         # Parse LLM response into chunks
         chunks = self._parse_chunks(response, metadata.video_id)
 
+        elapsed = time.time() - start_time
+
         result = TranscriptChunks(chunks=chunks)
 
         logger.info(
             f"Chunking complete: {result.total_chunks} chunks, "
             f"avg size {result.avg_chunk_size} words"
+        )
+
+        # Performance metrics for progress estimation
+        perf_logger.info(
+            f"PERF | chunk | "
+            f"input_chars={input_chars} | "
+            f"chunks={result.total_chunks} | "
+            f"time={elapsed:.1f}s"
         )
 
         return result

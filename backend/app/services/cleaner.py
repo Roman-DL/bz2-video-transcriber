@@ -6,12 +6,14 @@ Cleans raw transcripts using glossary term replacement and Ollama LLM.
 
 import logging
 import re
+import time
 
 from app.config import Settings, get_settings, load_glossary, load_prompt
 from app.models.schemas import CleanedTranscript, RawTranscript, VideoMetadata
 from app.services.ai_client import AIClient
 
 logger = logging.getLogger(__name__)
+perf_logger = logging.getLogger("app.perf")
 
 
 class TranscriptCleaner:
@@ -65,6 +67,8 @@ class TranscriptCleaner:
             f"{len(raw_transcript.segments)} segments"
         )
 
+        start_time = time.time()
+
         # Step 1: Apply glossary replacements
         text_after_glossary, corrections = self._apply_glossary(original_text)
         logger.debug(f"Glossary applied: {len(corrections)} corrections")
@@ -73,6 +77,8 @@ class TranscriptCleaner:
         prompt = self._build_prompt(text_after_glossary, metadata)
         cleaned_text = await self.ai_client.generate(prompt)
 
+        elapsed = time.time() - start_time
+
         # Clean up LLM response (remove any leading/trailing whitespace)
         cleaned_text = cleaned_text.strip()
         cleaned_length = len(cleaned_text)
@@ -80,6 +86,14 @@ class TranscriptCleaner:
         logger.info(
             f"Cleaning complete: {original_length} -> {cleaned_length} chars "
             f"({100 - cleaned_length * 100 // original_length}% reduction)"
+        )
+
+        # Performance metrics for progress estimation
+        perf_logger.info(
+            f"PERF | clean | "
+            f"input_chars={original_length} | "
+            f"output_chars={cleaned_length} | "
+            f"time={elapsed:.1f}s"
         )
 
         return CleanedTranscript(
