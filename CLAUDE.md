@@ -73,4 +73,8 @@ cd frontend && npm install && npm run dev
 
 ## Деплой
 
-См. [docs/deployment.md](docs/deployment.md)
+```bash
+./scripts/deploy.sh
+```
+
+Подробнее: [docs/deployment.md](docs/deployment.md)

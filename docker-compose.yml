@@ -1,0 +1,31 @@
+services:
+  bz2-transcriber:
+    build: ./backend
+    container_name: bz2-transcriber
+    restart: unless-stopped
+    ports:
+      - "8801:80"
+    volumes:
+      # Data - videos and processing results
+      - /mnt/main/media/bz2-transcriber:/data:rw
+      # Configuration - prompts, glossary
+      - ./config:/app/config:ro
+    environment:
+      # AI services
+      - OLLAMA_URL=http://192.168.1.152:11434
+      - WHISPER_URL=http://192.168.1.152:9000
+      - LLM_MODEL=qwen2.5:14b
+      # Paths
+      - DATA_ROOT=/data
+      - INBOX_DIR=/data/inbox
+      - ARCHIVE_DIR=/data/archive
+      - TEMP_DIR=/data/temp
+      - CONFIG_DIR=/app/config
+      # Settings
+      - WHISPER_LANGUAGE=ru
+      - LLM_TIMEOUT=300
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

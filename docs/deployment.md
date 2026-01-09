@@ -110,7 +110,7 @@ curl -s http://100.64.0.1:9000/health && echo " ✓ Whisper"
 ```yaml
 services:
   bz2-transcriber:
-    build: .
+    build: ./backend
     container_name: bz2-transcriber
     restart: unless-stopped
     ports:
@@ -135,7 +135,7 @@ services:
       - WHISPER_LANGUAGE=ru
       - LLM_TIMEOUT=300
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -269,8 +269,11 @@ sudo docker exec -it bz2-transcriber ls -la /app/config/
 ### Health endpoint
 
 ```bash
-curl http://100.64.0.1:8801/api/health
-# Должен вернуть статус приложения и AI сервисов
+curl http://100.64.0.1:8801/health
+# {"status":"ok"}
+
+curl http://100.64.0.1:8801/health/services
+# {"whisper":true,"ollama":true,...}
 ```
 
 ---
@@ -281,33 +284,27 @@ curl http://100.64.0.1:8801/api/health
 
 ```bash
 #!/bin/bash
-# scripts/deploy.sh
+# scripts/deploy.sh — rsync + docker compose
 
 set -e
 
-# Загрузить credentials
-source .env.local
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+source "$PROJECT_DIR/.env.local"
 
-echo "🚀 Deploying bz2-video-transcriber..."
+echo "Deploying bz2-video-transcriber..."
 
 # Синхронизация файлов
-echo "📦 Syncing files..."
 sshpass -p "$DEPLOY_PASSWORD" rsync -avz --delete \
-  --exclude 'node_modules' \
-  --exclude '.git' \
-  --exclude '.env.local' \
-  --exclude 'temp' \
-  --exclude '__pycache__' \
-  --exclude '.venv' \
-  ./ ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
+  --exclude 'node_modules' --exclude '.git' --exclude '.env.local' \
+  --exclude '__pycache__' --exclude '.venv' --exclude '*.pyc' \
+  "$PROJECT_DIR/" "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
 
 # Пересборка и перезапуск
-echo "🔨 Rebuilding container..."
-sshpass -p "$DEPLOY_PASSWORD" ssh ${DEPLOY_USER}@${DEPLOY_HOST} \
-  "cd ${DEPLOY_PATH} && sudo docker compose up -d --build"
+sshpass -p "$DEPLOY_PASSWORD" ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
+  "cd ${DEPLOY_PATH} && echo '$DEPLOY_PASSWORD' | sudo -S docker compose up -d --build"
 
-echo "✅ Deployed successfully!"
-echo "🌐 App: http://100.64.0.1:8801"
+echo "Deployed: http://100.64.0.1:8801"
 ```
 
 ### Credentials (.env.local)
