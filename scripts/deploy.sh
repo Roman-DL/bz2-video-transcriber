@@ -33,6 +33,7 @@ echo "Target: $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"
 echo "Syncing files..."
 sshpass -p "$DEPLOY_PASSWORD" rsync -avz --delete \
     --exclude 'node_modules' \
+    --exclude 'frontend/dist' \
     --exclude '.git' \
     --exclude '.env.local' \
     --exclude 'temp' \
