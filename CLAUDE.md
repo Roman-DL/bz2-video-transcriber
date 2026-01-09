@@ -26,8 +26,8 @@ curl http://100.64.0.1:9000/health        # Whisper
 docker-compose up -d
 
 # Web UI
-http://localhost:8802       # Frontend
-http://localhost:8801       # Backend API
+http://100.64.0.1:8802      # Frontend
+http://100.64.0.1:8801      # Backend API
 ```
 
 ## Архитектура

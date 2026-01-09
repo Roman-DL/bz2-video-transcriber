@@ -19,7 +19,7 @@
 
 | Параметр | Значение |
 |----------|----------|
-| Путь проекта | `/mnt/apps-pool/dev/projects/bz2-video-transcriber/` |
+| Путь проекта | `/mnt/apps-pool/dev/projects/bz2-video-transcribe/` |
 | Управление контейнерами | Dockge UI (http://100.64.0.1:5001) |
 | Порт Backend (API) | 8801 |
 | Порт Frontend (Web UI) | 8802 |
@@ -325,7 +325,7 @@ echo "  Backend:  http://100.64.0.1:8801"
 DEPLOY_HOST=192.168.1.152
 DEPLOY_USER=truenas_admin
 DEPLOY_PASSWORD=<пароль>
-DEPLOY_PATH=/mnt/apps-pool/dev/projects/bz2-video-transcriber
+DEPLOY_PATH=/mnt/apps-pool/dev/projects/bz2-video-transcribe
 ```
 
 ### Использование

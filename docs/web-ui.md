@@ -131,17 +131,24 @@ npm install
 npm run dev
 ```
 
-Dev-сервер запускается на http://localhost:5173 с proxy на backend:
+Dev-сервер запускается на http://localhost:5173 с proxy на backend (через Tailscale):
 
 ```typescript
 // vite.config.ts
 export default defineConfig({
   server: {
     proxy: {
-      '/api': 'http://localhost:8801',
+      '/api': {
+        target: 'http://100.64.0.1:8801',
+        changeOrigin: true
+      },
       '/ws': {
-        target: 'ws://localhost:8801',
+        target: 'ws://100.64.0.1:8801',
         ws: true
+      },
+      '/health': {
+        target: 'http://100.64.0.1:8801',
+        changeOrigin: true
       }
     }
   }
