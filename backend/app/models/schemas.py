@@ -167,3 +167,69 @@ class ProcessingJob(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     completed_at: datetime | None = None
     result: ProcessingResult | None = None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# API Request/Response Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class ProcessRequest(BaseModel):
+    """Request to start video processing."""
+
+    video_filename: str = Field(
+        ...,
+        description="Video filename in inbox directory",
+        examples=["2025.01.09 ПШ.SV Title (Speaker).mp4"],
+    )
+
+
+class ProgressMessage(BaseModel):
+    """WebSocket progress message."""
+
+    status: ProcessingStatus
+    progress: float = Field(ge=0, le=100)
+    message: str
+    timestamp: datetime
+    result: ProcessingResult | None = None
+    error: str | None = None
+
+
+class StepParseRequest(BaseModel):
+    """Request for /step/parse endpoint."""
+
+    video_filename: str
+
+
+class StepCleanRequest(BaseModel):
+    """Request for /step/clean endpoint."""
+
+    raw_transcript: RawTranscript
+    metadata: VideoMetadata
+
+
+class StepChunkRequest(BaseModel):
+    """Request for /step/chunk endpoint."""
+
+    cleaned_transcript: CleanedTranscript
+    metadata: VideoMetadata
+
+
+class StepSummarizeRequest(BaseModel):
+    """Request for /step/summarize endpoint."""
+
+    cleaned_transcript: CleanedTranscript
+    metadata: VideoMetadata
+    prompt_name: str = Field(
+        default="summarizer",
+        description="Prompt name from config/prompts/",
+    )
+
+
+class StepSaveRequest(BaseModel):
+    """Request for /step/save endpoint."""
+
+    metadata: VideoMetadata
+    raw_transcript: RawTranscript
+    chunks: TranscriptChunks
+    summary: VideoSummary

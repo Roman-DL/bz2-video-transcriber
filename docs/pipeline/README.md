@@ -37,11 +37,12 @@
 | 5 | Summarize | [05-summarize.md](05-summarize.md) | Ollama | `CleanedTranscript` | `Summary` + classification |
 | 6 | Save | [06-save.md](06-save.md) | Python | All data | Files in archive |
 
-## Оркестрация
+## Оркестрация и API
 
 | Компонент | Документ | Описание |
 |-----------|----------|----------|
 | PipelineOrchestrator | [07-orchestrator.md](07-orchestrator.md) | Координация этапов, progress callback, error handling |
+| FastAPI | [08-api.md](08-api.md) | HTTP API, WebSocket, пошаговый режим |
 
 ## Полный Pipeline Flow
 
