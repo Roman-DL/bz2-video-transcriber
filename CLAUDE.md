@@ -26,7 +26,8 @@ curl http://100.64.0.1:9000/health        # Whisper
 docker-compose up -d
 
 # Web UI
-http://localhost:8801
+http://localhost:8802       # Frontend
+http://localhost:8801       # Backend API
 ```
 
 ## Архитектура
@@ -49,6 +50,8 @@ Video → Parse → Whisper → Clean → Chunk → Summarize → Save
 
 ```
 backend/app/services/   # Сервисы pipeline
+backend/app/api/        # FastAPI endpoints
+frontend/src/           # React + Vite + Tailwind
 config/prompts/         # LLM промпты
 config/glossary.yaml    # Терминология
 ```

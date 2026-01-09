@@ -21,7 +21,8 @@
 |----------|----------|
 | Путь проекта | `/mnt/apps-pool/dev/projects/bz2-video-transcriber/` |
 | Управление контейнерами | Dockge UI (http://100.64.0.1:5001) |
-| Порт приложения | 8801 |
+| Порт Backend (API) | 8801 |
+| Порт Frontend (Web UI) | 8802 |
 | Диапазон dev-портов | 8800-8899 |
 
 ---
@@ -116,26 +117,35 @@ services:
     ports:
       - "8801:80"
     volumes:
-      # Данные — видео и результаты обработки
       - /mnt/main/media/bz2-transcriber:/data:rw
-      # Конфигурация — промпты, глоссарий
       - ./config:/app/config:ro
     environment:
-      # AI сервисы
       - OLLAMA_URL=http://192.168.1.152:11434
       - WHISPER_URL=http://192.168.1.152:9000
       - LLM_MODEL=qwen2.5:14b
-      # Пути
       - DATA_ROOT=/data
       - INBOX_DIR=/data/inbox
       - ARCHIVE_DIR=/data/archive
       - TEMP_DIR=/data/temp
       - CONFIG_DIR=/app/config
-      # Настройки
       - WHISPER_LANGUAGE=ru
       - LLM_TIMEOUT=300
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  bz2-frontend:
+    build: ./frontend
+    container_name: bz2-frontend
+    restart: unless-stopped
+    ports:
+      - "8802:80"
+    depends_on:
+      - bz2-transcriber
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -179,10 +189,10 @@ sudo docker compose up -d --build
 
 ### URL приложения
 
-| Откуда | URL |
-|--------|-----|
-| Локальная сеть | http://192.168.1.152:8801 |
-| Через Tailscale | http://100.64.0.1:8801 |
+| Сервис | Локальная сеть | Tailscale |
+|--------|----------------|-----------|
+| Frontend (Web UI) | http://192.168.1.152:8802 | http://100.64.0.1:8802 |
+| Backend (API) | http://192.168.1.152:8801 | http://100.64.0.1:8801 |
 
 ### HTTPS через Traefik (опционально)
 
@@ -304,7 +314,9 @@ sshpass -p "$DEPLOY_PASSWORD" rsync -avz --delete \
 sshpass -p "$DEPLOY_PASSWORD" ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
   "cd ${DEPLOY_PATH} && echo '$DEPLOY_PASSWORD' | sudo -S docker compose up -d --build"
 
-echo "Deployed: http://100.64.0.1:8801"
+echo "Deployed:"
+echo "  Frontend: http://100.64.0.1:8802"
+echo "  Backend:  http://100.64.0.1:8801"
 ```
 
 ### Credentials (.env.local)
@@ -342,7 +354,8 @@ sudo docker exec bz2-transcriber rm -rf /data/temp/*
 
 | Ресурс | URL |
 |--------|-----|
-| Приложение | http://100.64.0.1:8801 |
+| Frontend (Web UI) | http://100.64.0.1:8802 |
+| Backend (API) | http://100.64.0.1:8801 |
 | Dockge (управление) | http://100.64.0.1:5001 |
 | Ollama API | http://100.64.0.1:11434 |
 | Whisper API | http://100.64.0.1:9000 |

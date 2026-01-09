@@ -29,3 +29,17 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  bz2-frontend:
+    build: ./frontend
+    container_name: bz2-frontend
+    restart: unless-stopped
+    ports:
+      - "8802:80"
+    depends_on:
+      - bz2-transcriber
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
