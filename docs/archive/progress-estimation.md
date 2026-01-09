@@ -166,23 +166,23 @@ STAGE_WEIGHTS = {
 ## Коэффициенты производительности
 
 ```yaml
-# config/performance.yaml
+# config/performance.yaml (v2, 2026-01-10)
 transcribe:
   factor_per_video_second: 0.29  # 87s на 301s видео
   base_time: 5.0
   # Формула: 5 + duration * 0.29
 
 clean:
-  factor_per_1k_chars: 1.8
+  factor_per_1k_chars: 0.9      # v1: 1.8 → v2: 0.9
   base_time: 2.0
-  # Формула: 2 + chars/1000 * 1.8
+  # Формула: 2 + chars/1000 * 0.9
 
 chunk:
-  factor_per_1k_chars: 6.0
+  factor_per_1k_chars: 4.0      # v1: 6.0 → v2: 4.0
   base_time: 2.0
 
 summarize:
-  factor_per_1k_chars: 10.0
+  factor_per_1k_chars: 3.0      # v1: 10.0 → v2: 3.0
   base_time: 3.0
 
 fixed_stages:
@@ -192,20 +192,26 @@ fixed_stages:
 
 **Обновление коэффициентов:** Ручное, на основе PERF логов.
 
+### История калибровок
+
+| Версия | Дата | Источник | clean | chunk | summarize |
+|--------|------|----------|-------|-------|-----------|
+| v1 | 2026-01-09 | Full Pipeline | 1.8 | 6.0 | 10.0 |
+| v2 | 2026-01-10 | Step-by-Step SSE | 0.9 | 4.0 | 3.0 |
+
+**Причина v2:** Step-by-Step тест показал что коэффициенты были завышены:
+- clean: дошёл до 49% (завышен 2x)
+- chunk: дошёл до 70% (завышен 1.4x)
+- summarize: дошёл до 37% (завышен 2.7x)
+
 ---
 
 ## Тестовые данные
 
+### v1 (2026-01-09, Full Pipeline)
+
 **5-минутный файл (301s, 50.3MB):**
 
-```
-Started ticker for transcribing, estimated: 92.4s
-Started ticker for cleaning, estimated: 10.2s
-Started ticker for chunking, estimated: 20.7s
-Started ticker for saving, estimated: 2.0s
-```
-
-**PERF логи:**
 ```
 PERF | transcribe | size=50.3MB | duration=301s | time=87.0s
 PERF | clean | input_chars=4535 | output_chars=1770 | time=7.5s
@@ -213,7 +219,18 @@ PERF | chunk | input_chars=1770 | chunks=11 | time=18.3s
 PERF | summarize | input_chars=1770 | time=6.6s
 ```
 
-**Логи ticker (после всех исправлений):**
+### v2 (2026-01-10, Step-by-Step SSE)
+
+**5-минутный файл (301s, 50.3MB):**
+
+```
+PERF | transcribe | size=50.3MB | duration=301s | time=87.0s
+PERF | clean | input_chars=4535 | output_chars=1335 | time=6.0s
+PERF | chunk | input_chars=1335 | chunks=6 | time=7.4s
+PERF | summarize | input_chars=1335 | time=7.1s
+```
+
+**Логи ticker (v1):**
 ```
 Ticker transcribing: 75.8% (tick #71, elapsed=70.0s)
 ...
@@ -235,10 +252,12 @@ Chunking complete: 11 chunks
 
 ## Известные ограничения
 
-### 1. Step-by-Step без прогресса
+### 1. ~~Step-by-Step без прогресса~~ (решено)
 
-HTTP endpoints не могут отправлять промежуточные обновления.
-Прогресс работает только в Full Pipeline режиме.
+~~HTTP endpoints не могут отправлять промежуточные обновления.~~
+~~Прогресс работает только в Full Pipeline режиме.~~
+
+**Решено 2026-01-10:** Добавлен SSE прогресс для Step-by-Step режима.
 
 ### 2. Точность оценки
 
@@ -260,6 +279,76 @@ HTTP endpoints не могут отправлять промежуточные �
 - [x] Веса этапов сбалансированы (SAVING 12% → 3%)
 - [x] FullPipeline показывает плавный % прогресса
 - [x] Протестировано на 5-минутном файле
+
+---
+
+## Step-by-Step SSE прогресс (добавлено 2026-01-10)
+
+### Проблема
+
+Step-by-Step режим не поддерживал прогресс — HTTP endpoints не могли отправлять промежуточные обновления.
+
+### Решение
+
+Добавлен SSE (Server-Sent Events) прогресс для всех долгих операций:
+- `/api/step/transcribe` — SSE с прогрессом транскрипции
+- `/api/step/clean` — SSE с прогрессом очистки
+- `/api/step/chunk` — SSE с прогрессом чанкинга
+- `/api/step/summarize` — SSE с прогрессом суммаризации
+
+### Архитектура
+
+```
+POST /api/step/transcribe
+         ↓
+    StreamingResponse (text/event-stream)
+         ↓
+    ProgressEstimator.start_ticker() ← Тот же ProgressEstimator что в Full Pipeline
+         ↓
+    SSE callback → yield f"data: {json}\n\n"
+         ↓
+    await orchestrator.transcribe()
+         ↓
+    ProgressEstimator.stop_ticker()
+         ↓
+    yield f"data: {result_json}\n\n"
+```
+
+### Формат SSE событий
+
+```json
+// Прогресс
+{"type": "progress", "status": "transcribing", "progress": 45.5, "message": "Transcribing: video.mp4"}
+
+// Результат
+{"type": "result", "data": {...}}
+
+// Ошибка
+{"type": "error", "error": "..."}
+```
+
+### Файлы
+
+| Файл | Описание |
+|------|----------|
+| `backend/app/api/step_routes.py` | SSE endpoints с `run_with_sse_progress()` |
+| `frontend/src/api/sse.ts` | SSE клиент `fetchWithProgress()` |
+| `frontend/src/api/hooks/useSteps.ts` | React hooks с прогрессом |
+| `frontend/src/components/processing/StepByStep.tsx` | UI с ProgressBar |
+
+### Тестирование
+
+```bash
+# curl тест SSE
+curl -N -X POST http://localhost:8801/api/step/clean \
+  -H "Content-Type: application/json" \
+  -d '{"raw_transcript": {...}, "metadata": {...}}'
+
+# Ожидаемый вывод:
+data: {"type": "progress", "status": "cleaning", "progress": 0.0, "message": "..."}
+data: {"type": "progress", "status": "cleaning", "progress": 48.2, "message": "..."}
+data: {"type": "result", "data": {...}}
+```
 
 ---
 

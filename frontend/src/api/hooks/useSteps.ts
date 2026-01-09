@@ -1,5 +1,7 @@
+import { useState, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { apiClient } from '../client';
+import { fetchWithProgress } from '../sse';
 import type {
   VideoMetadata,
   RawTranscript,
@@ -13,6 +15,119 @@ import type {
   StepSaveRequest,
 } from '../types';
 
+/**
+ * Hook state for step with progress tracking.
+ */
+interface UseStepWithProgressState<T> {
+  data: T | null;
+  error: Error | null;
+  isLoading: boolean;
+  progress: number | null;
+  message: string | null;
+}
+
+/**
+ * Hook return type for step with progress.
+ */
+interface UseStepWithProgress<T, R> {
+  mutate: (request: R) => Promise<T>;
+  data: T | null;
+  error: Error | null;
+  isLoading: boolean;
+  isPending: boolean;
+  progress: number | null;
+  message: string | null;
+  reset: () => void;
+}
+
+/**
+ * Create a step hook with SSE progress tracking.
+ */
+function createStepWithProgress<T, R>(endpoint: string) {
+  return function useStepWithProgress(): UseStepWithProgress<T, R> {
+    const [state, setState] = useState<UseStepWithProgressState<T>>({
+      data: null,
+      error: null,
+      isLoading: false,
+      progress: null,
+      message: null,
+    });
+
+    const mutate = useCallback(async (request: R): Promise<T> => {
+      setState({
+        data: null,
+        error: null,
+        isLoading: true,
+        progress: 0,
+        message: 'Starting...',
+      });
+
+      try {
+        const result = await fetchWithProgress<T>(
+          endpoint,
+          request as object,
+          (progress, message) => {
+            setState((prev) => ({
+              ...prev,
+              progress,
+              message,
+            }));
+          }
+        );
+
+        setState({
+          data: result,
+          error: null,
+          isLoading: false,
+          progress: 100,
+          message: 'Complete',
+        });
+
+        return result;
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        setState({
+          data: null,
+          error,
+          isLoading: false,
+          progress: null,
+          message: null,
+        });
+        throw error;
+      }
+    }, []);
+
+    const reset = useCallback(() => {
+      setState({
+        data: null,
+        error: null,
+        isLoading: false,
+        progress: null,
+        message: null,
+      });
+    }, []);
+
+    return {
+      mutate,
+      data: state.data,
+      error: state.error,
+      isLoading: state.isLoading,
+      isPending: state.isLoading, // Alias for react-query compatibility
+      progress: state.progress,
+      message: state.message,
+      reset,
+    };
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Step Hooks (Parse and Save are fast - no SSE needed)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Parse video filename to extract metadata.
+ * Fast operation - uses regular HTTP.
+ */
 export function useStepParse() {
   return useMutation({
     mutationFn: async (request: StepParseRequest) => {
@@ -22,42 +137,42 @@ export function useStepParse() {
   });
 }
 
-export function useStepTranscribe() {
-  return useMutation({
-    mutationFn: async (request: StepParseRequest) => {
-      const { data } = await apiClient.post<RawTranscript>('/api/step/transcribe', request);
-      return data;
-    },
-  });
-}
+/**
+ * Transcribe video using Whisper API.
+ * Long-running operation - uses SSE with progress.
+ */
+export const useStepTranscribe = createStepWithProgress<RawTranscript, StepParseRequest>(
+  '/api/step/transcribe'
+);
 
-export function useStepClean() {
-  return useMutation({
-    mutationFn: async (request: StepCleanRequest) => {
-      const { data } = await apiClient.post<CleanedTranscript>('/api/step/clean', request);
-      return data;
-    },
-  });
-}
+/**
+ * Clean raw transcript using glossary and LLM.
+ * Uses SSE with progress.
+ */
+export const useStepClean = createStepWithProgress<CleanedTranscript, StepCleanRequest>(
+  '/api/step/clean'
+);
 
-export function useStepChunk() {
-  return useMutation({
-    mutationFn: async (request: StepChunkRequest) => {
-      const { data } = await apiClient.post<TranscriptChunks>('/api/step/chunk', request);
-      return data;
-    },
-  });
-}
+/**
+ * Split cleaned transcript into semantic chunks.
+ * Uses SSE with progress.
+ */
+export const useStepChunk = createStepWithProgress<TranscriptChunks, StepChunkRequest>(
+  '/api/step/chunk'
+);
 
-export function useStepSummarize() {
-  return useMutation({
-    mutationFn: async (request: StepSummarizeRequest) => {
-      const { data } = await apiClient.post<VideoSummary>('/api/step/summarize', request);
-      return data;
-    },
-  });
-}
+/**
+ * Create structured summary from cleaned transcript.
+ * Uses SSE with progress.
+ */
+export const useStepSummarize = createStepWithProgress<VideoSummary, StepSummarizeRequest>(
+  '/api/step/summarize'
+);
 
+/**
+ * Save all processing results to archive.
+ * Fast operation - uses regular HTTP.
+ */
 export function useStepSave() {
   return useMutation({
     mutationFn: async (request: StepSaveRequest) => {

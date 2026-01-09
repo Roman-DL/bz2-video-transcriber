@@ -18,6 +18,7 @@ import type {
 import { PIPELINE_STEPS, STEP_LABELS } from '@/api/types';
 import { Button } from '@/components/common/Button';
 import { Spinner } from '@/components/common/Spinner';
+import { ProgressBar } from '@/components/common/ProgressBar';
 import { CollapsibleCard } from '@/components/common/CollapsibleCard';
 import { MetadataView } from '@/components/results/MetadataView';
 import {
@@ -77,6 +78,7 @@ export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) 
     setExpandedBlocks(new Set([block]));
   };
 
+  // Hooks
   const stepParse = useStepParse();
   const stepTranscribe = useStepTranscribe();
   const stepClean = useStepClean();
@@ -91,6 +93,24 @@ export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) 
     stepChunk.isPending ||
     stepSummarize.isPending ||
     stepSave.isPending;
+
+  // Get current progress from active hook
+  const getCurrentProgress = (): { progress: number | null; message: string | null } => {
+    switch (currentStep) {
+      case 'transcribe':
+        return { progress: stepTranscribe.progress, message: stepTranscribe.message };
+      case 'clean':
+        return { progress: stepClean.progress, message: stepClean.message };
+      case 'chunk':
+        return { progress: stepChunk.progress, message: stepChunk.message };
+      case 'summarize':
+        return { progress: stepSummarize.progress, message: stepSummarize.message };
+      default:
+        return { progress: null, message: null };
+    }
+  };
+
+  const { progress, message } = getCurrentProgress();
 
   const currentStepIndex = PIPELINE_STEPS.indexOf(currentStep);
   const isComplete = data.savedFiles !== undefined;
@@ -110,7 +130,7 @@ export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) 
           break;
 
         case 'transcribe':
-          const rawTranscript = await stepTranscribe.mutateAsync({
+          const rawTranscript = await stepTranscribe.mutate({
             video_filename: filename,
           });
           setData((prev) => ({ ...prev, rawTranscript }));
@@ -120,7 +140,7 @@ export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) 
 
         case 'clean':
           if (!data.rawTranscript || !data.metadata) return;
-          const cleanedTranscript = await stepClean.mutateAsync({
+          const cleanedTranscript = await stepClean.mutate({
             raw_transcript: data.rawTranscript,
             metadata: data.metadata,
           });
@@ -131,7 +151,7 @@ export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) 
 
         case 'chunk':
           if (!data.cleanedTranscript || !data.metadata) return;
-          const chunks = await stepChunk.mutateAsync({
+          const chunks = await stepChunk.mutate({
             cleaned_transcript: data.cleanedTranscript,
             metadata: data.metadata,
           });
@@ -142,7 +162,7 @@ export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) 
 
         case 'summarize':
           if (!data.cleanedTranscript || !data.metadata) return;
-          const summary = await stepSummarize.mutateAsync({
+          const summary = await stepSummarize.mutate({
             cleaned_transcript: data.cleanedTranscript,
             metadata: data.metadata,
           });
@@ -166,7 +186,7 @@ export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) 
             summary: data.summary,
           });
           setData((prev) => ({ ...prev, savedFiles }));
-          // Свернуть все блоки после сохранения
+          // Collapse all blocks after save
           setExpandedBlocks(new Set());
           break;
       }
@@ -225,18 +245,18 @@ export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) 
       {!isComplete && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="flex-1 mr-4">
               <h4 className="text-sm font-medium text-blue-900">
                 Шаг {currentStepIndex + 1}: {STEP_LABELS[currentStep]}
               </h4>
               <p className="text-xs text-blue-700 mt-1">
-                {getStepDescription(currentStep)}
+                {isLoading && message ? message : getStepDescription(currentStep)}
               </p>
             </div>
             <Button
               onClick={() => runStep(currentStep)}
               disabled={isLoading}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 shrink-0"
             >
               {isLoading ? (
                 <Spinner size="sm" className="text-white" />
@@ -248,6 +268,13 @@ export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) 
               {isLoading ? 'Выполняется...' : 'Выполнить'}
             </Button>
           </div>
+
+          {/* Progress bar for long-running operations */}
+          {isLoading && progress !== null && (
+            <div className="mt-3">
+              <ProgressBar progress={progress} size="sm" />
+            </div>
+          )}
         </div>
       )}
 

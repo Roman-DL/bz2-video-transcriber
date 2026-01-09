@@ -140,6 +140,38 @@ asyncio.run(monitor_job("abc123"))
 
 Для тестирования промптов и глоссария без повторной транскрипции.
 
+### SSE прогресс
+
+Step-by-step endpoints возвращают SSE поток с оценочным прогрессом выполнения.
+
+**Формат событий:**
+
+```json
+// Прогресс (каждую секунду)
+{"type": "progress", "status": "transcribing", "progress": 45.5, "message": "Transcribing: video.mp4"}
+
+// Результат (после завершения)
+{"type": "result", "data": {...}}
+
+// Ошибка
+{"type": "error", "error": "..."}
+```
+
+**curl тест SSE:**
+
+```bash
+curl -N -X POST http://localhost:8801/api/step/transcribe \
+  -H "Content-Type: application/json" \
+  -d '{"video_filename": "test.mp4"}'
+
+# Ожидаемый вывод:
+data: {"type": "progress", "status": "transcribing", "progress": 0.0, "message": "..."}
+data: {"type": "progress", "status": "transcribing", "progress": 48.2, "message": "..."}
+data: {"type": "result", "data": {...}}
+```
+
+> **Архитектура прогресса:** [docs/pipeline/07-orchestrator.md#progressestimator](07-orchestrator.md#progressestimator)
+
 ### Сценарий тестирования промптов
 
 ```python

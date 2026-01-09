@@ -8,20 +8,19 @@
 # 2. Check PERF logs: docker logs bz2-transcriber | grep "PERF |"
 # 3. Calculate new coefficients and update this file
 #
-# Coefficients are based on test data from 2026-01-09:
-# - 5 min file (301s, 50.3MB): transcribe=87.1s, clean=8.0s, chunk=10.3s, summarize=17.1s
-# - 55 min file (3308s, 273.7MB): transcribe=892.9s (clean had issues, data excluded)
+# Coefficients based on test data:
+# v1 (2026-01-09): 5 min file, transcribe=87.1s, clean=8.0s, chunk=10.3s, summarize=17.1s
+# v2 (2026-01-10): 5 min file, clean=6.0s/4535chars, chunk=7.4s/1335chars, summarize=7.1s/1335chars
 
-version: 1
-updated: "2026-01-09"
-notes: "Initial coefficients based on 5-min test file"
+version: 2
+updated: "2026-01-10"
+notes: "Recalibrated clean/chunk/summarize based on Step-by-Step test"
 
 # Transcription: depends on video duration
 # Formula: estimated_time = base_time + (video_duration_seconds * factor)
 transcribe:
   # Seconds of processing per second of video
-  # Measured: 87.1s / 301s = 0.289, 892.9s / 3308s = 0.270
-  # Average: ~0.28
+  # Measured: 87.0s / 301s = 0.289
   factor_per_video_second: 0.29
   base_time: 5.0  # GPU warmup, file loading overhead
 
@@ -29,24 +28,30 @@ transcribe:
 # Formula: estimated_time = base_time + (input_chars / 1000 * factor)
 clean:
   # Seconds per 1000 input characters
-  # Measured: 8.0s / 4.535k = 1.76
-  factor_per_1k_chars: 1.8
+  # v1: 8.0s / 4.535k = 1.76 → 1.8
+  # v2: 6.0s / 4.535k = 1.32 → 0.9
+  # Progress reached 49% → factor was ~2x too high
+  factor_per_1k_chars: 0.9
   base_time: 2.0
 
 # Semantic chunking (LLM): depends on input text length
 # Formula: estimated_time = base_time + (input_chars / 1000 * factor)
 chunk:
   # Seconds per 1000 input characters
-  # Measured: 10.3s / 1.699k = 6.06
-  factor_per_1k_chars: 6.0
+  # v1: 10.3s / 1.699k = 6.06 → 6.0
+  # v2: 7.4s / 1.335k = 4.04 → 4.0
+  # Progress reached 70% → factor was ~1.4x too high
+  factor_per_1k_chars: 4.0
   base_time: 2.0
 
 # Summarization (LLM): depends on input text length
 # Formula: estimated_time = base_time + (input_chars / 1000 * factor)
 summarize:
   # Seconds per 1000 input characters
-  # Measured: 17.1s / 1.699k = 10.06
-  factor_per_1k_chars: 10.0
+  # v1: 17.1s / 1.699k = 10.06 → 10.0
+  # v2: 7.1s / 1.335k = 3.07 → 3.0
+  # Progress reached 37% → factor was ~2.7x too high
+  factor_per_1k_chars: 3.0
   base_time: 3.0
 
 # Fixed-time stages (not estimated dynamically)

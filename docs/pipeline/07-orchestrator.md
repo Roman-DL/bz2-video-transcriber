@@ -142,11 +142,13 @@ async def callback(
 | Этап | Вес | Накопительный % | Обоснование |
 |------|-----|-----------------|-------------|
 | PARSING | 2% | 0-2% | Синхронный regex |
-| TRANSCRIBING | 45% | 2-47% | Whisper (самый долгий) |
-| CLEANING | 15% | 47-62% | Один LLM вызов |
-| CHUNKING | 13% | 62-75% | Параллельно с SUMMARIZING |
-| SUMMARIZING | 13% | 62-75% | Параллельно с CHUNKING |
-| SAVING | 12% | 88-100% | Файловые операции |
+| TRANSCRIBING | 50% | 2-52% | Whisper (самый долгий, ~77% времени) |
+| CLEANING | 13% | 52-65% | Один LLM вызов |
+| CHUNKING | 16% | 65-81% | Параллельно с SUMMARIZING |
+| SUMMARIZING | 16% | 65-97% | Параллельно с CHUNKING |
+| SAVING | 3% | 97-100% | Мгновенно (<1s) |
+
+> **Калибровка весов:** Веса сбалансированы по реальному времени выполнения, чтобы прогресс рос плавно. См. [справочник калибровки](../reference/progress-calibration.md).
 
 ### Пример вывода
 
@@ -162,6 +164,66 @@ async def callback(
 [saving] 88% - Saving to: /archive/2025/01/ПШ.SV/Video Title (Speaker)
 [saving] 100% - Saved 4 files
 ```
+
+---
+
+## ProgressEstimator
+
+Сервис оценки времени выполнения каждого этапа. Используется для показа % прогресса.
+
+### Архитектура
+
+```
+Pipeline._do_*()
+    │
+    ├─ estimator.estimate_*(input) → TimeEstimate
+    │       ↓
+    │   {estimated_seconds: 92.3, formula: "5 + 301 * 0.29"}
+    │
+    ├─ estimator.start_ticker(stage, estimated_seconds, callback)
+    │   └─ asyncio.Task (обновляет % каждую секунду)
+    │
+    ├─ await operation()  ← asyncio.to_thread() для Whisper
+    │
+    └─ estimator.stop_ticker() → 100%
+```
+
+### Оценка времени
+
+Время выполнения оценивается по входным данным:
+
+| Этап | Входные данные | Формула |
+|------|----------------|---------|
+| transcribe | video duration (сек) | `base_time + duration * factor` |
+| clean | input chars | `base_time + chars/1000 * factor` |
+| chunk | input chars | `base_time + chars/1000 * factor` |
+| summarize | input chars | `base_time + chars/1000 * factor` |
+
+Коэффициенты хранятся в `config/performance.yaml`.
+
+### Ticker
+
+Ticker — asyncio.Task, который каждую секунду вызывает callback с обновлённым %:
+
+```python
+async def _ticker_loop(self, ...):
+    while elapsed < estimated_seconds * 1.5:
+        progress = min(99.0, (elapsed / estimated_seconds) * 100)
+        await callback(stage, progress, message)
+        await asyncio.sleep(1.0)
+        elapsed += 1.0
+```
+
+**Важно:** Ticker ограничен 99% — финальные 100% устанавливает `stop_ticker()` после завершения операции.
+
+### Ключевые файлы
+
+| Файл | Описание |
+|------|----------|
+| `backend/app/services/progress_estimator.py` | ProgressEstimator сервис |
+| `config/performance.yaml` | Коэффициенты оценки времени |
+
+> **Калибровка коэффициентов:** [docs/reference/progress-calibration.md](../reference/progress-calibration.md)
 
 ---
 

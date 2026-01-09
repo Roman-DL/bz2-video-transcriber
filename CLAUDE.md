@@ -67,12 +67,31 @@ config/glossary.yaml    # Терминология
 
 ## Разработка
 
-```bash
-# Backend
-cd backend && pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8801
+### Особенности macOS
 
-# Frontend
+На macOS используй `python3` вместо `python`:
+
+```bash
+# Проверка синтаксиса Python
+python3 -m py_compile backend/app/api/step_routes.py
+
+# Установка зависимостей
+cd backend && pip3 install -r requirements.txt
+
+# Запуск сервера
+python3 -m uvicorn app.main:app --reload --port 8801
+```
+
+### Backend
+
+```bash
+cd backend && pip3 install -r requirements.txt
+python3 -m uvicorn app.main:app --reload --port 8801
+```
+
+### Frontend
+
+```bash
 cd frontend && npm install && npm run dev
 ```
 

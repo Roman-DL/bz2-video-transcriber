@@ -39,6 +39,7 @@
 | [api-reference.md](api-reference.md) | HTTP API для Ollama и Whisper |
 | [data-formats.md](data-formats.md) | Форматы входных/выходных файлов |
 | [reference/terminology.md](reference/terminology.md) | Глоссарий терминологии Herbalife |
+| [reference/progress-calibration.md](reference/progress-calibration.md) | Калибровка прогресса обработки |
 
 ## Гайдлайны
 
