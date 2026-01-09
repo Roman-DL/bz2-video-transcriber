@@ -7,6 +7,7 @@ Provides async HTTP client with retry logic for:
 """
 
 import logging
+import time
 from pathlib import Path
 
 import httpx
@@ -136,27 +137,58 @@ class AIClient:
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        logger.info(f"Transcribing: {file_path.name}")
+        file_size_mb = file_path.stat().st_size / 1024 / 1024
+        logger.info(f"Transcribing: {file_path.name} ({file_size_mb:.1f} MB)")
+        logger.debug(f"Whisper URL: {self.settings.whisper_url}, language: {language}")
 
-        with open(file_path, "rb") as f:
-            files = {"file": (file_path.name, f, "application/octet-stream")}
-            data = {
-                "language": language,
-                "response_format": "verbose_json",
-            }
+        start_time = time.time()
 
-            response = await self.http_client.post(
-                f"{self.settings.whisper_url}/v1/audio/transcriptions",
-                files=files,
-                data=data,
-                timeout=7200.0,  # 2 hours for long videos
+        try:
+            with open(file_path, "rb") as f:
+                files = {"file": (file_path.name, f, "application/octet-stream")}
+                data = {
+                    "language": language,
+                    "response_format": "verbose_json",
+                }
+
+                response = await self.http_client.post(
+                    f"{self.settings.whisper_url}/v1/audio/transcriptions",
+                    files=files,
+                    data=data,
+                    timeout=7200.0,  # 2 hours for long videos
+                )
+
+            elapsed = time.time() - start_time
+            logger.debug(f"Whisper response: {response.status_code}, elapsed: {elapsed:.1f}s")
+
+            response.raise_for_status()
+            result = response.json()
+
+            duration = result.get("duration", 0)
+            segments = len(result.get("segments", []))
+            logger.info(
+                f"Transcription complete: {segments} segments, "
+                f"duration: {duration:.0f}s, elapsed: {elapsed:.1f}s"
             )
+            return result
 
-        response.raise_for_status()
-        result = response.json()
+        except httpx.TimeoutException as e:
+            elapsed = time.time() - start_time
+            logger.error(f"Transcription timeout after {elapsed:.1f}s: {e}")
+            raise
 
-        logger.info(f"Transcription complete: {len(result.get('segments', []))} segments")
-        return result
+        except httpx.HTTPStatusError as e:
+            elapsed = time.time() - start_time
+            logger.error(
+                f"Transcription HTTP error after {elapsed:.1f}s: "
+                f"{e.response.status_code} - {e.response.text[:200]}"
+            )
+            raise
+
+        except Exception as e:
+            elapsed = time.time() - start_time
+            logger.error(f"Transcription failed after {elapsed:.1f}s: {type(e).__name__}: {e}")
+            raise
 
     @RETRY_DECORATOR
     async def generate(

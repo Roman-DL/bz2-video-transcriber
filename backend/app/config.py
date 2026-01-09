@@ -26,6 +26,18 @@ class Settings(BaseSettings):
     temp_dir: Path = Path("/data/temp")
     config_dir: Path = Path("/app/config")
 
+    # Logging
+    log_level: str = "INFO"
+    log_format: str = "structured"  # "simple" or "structured"
+
+    # Per-module log levels (optional overrides)
+    log_level_ai_client: str | None = None
+    log_level_pipeline: str | None = None
+    log_level_transcriber: str | None = None
+    log_level_cleaner: str | None = None
+    log_level_chunker: str | None = None
+    log_level_summarizer: str | None = None
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

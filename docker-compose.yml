@@ -24,6 +24,10 @@ services:
       # Settings
       - WHISPER_LANGUAGE=ru
       - LLM_TIMEOUT=300
+      # Logging
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=structured
+      - LOG_LEVEL_AI_CLIENT=DEBUG
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 30s

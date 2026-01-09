@@ -12,13 +12,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import routes, step_routes, websocket
 from app.config import get_settings
+from app.logging_config import setup_logging
 from app.services.ai_client import AIClient
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
+# Configure logging before anything else
+settings = get_settings()
+setup_logging(settings)
 logger = logging.getLogger(__name__)
 
 
@@ -29,8 +28,8 @@ async def lifespan(app: FastAPI):
 
     Logs startup info and checks AI services availability.
     """
-    settings = get_settings()
-    logger.info(f"Starting Video Transcriber API")
+    logger.info("Starting Video Transcriber API")
+    logger.info(f"Log level: {settings.log_level}")
     logger.info(f"Inbox directory: {settings.inbox_dir}")
     logger.info(f"Archive directory: {settings.archive_dir}")
 
