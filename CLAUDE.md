@@ -40,7 +40,8 @@ Video → Parse → Whisper → Clean → Chunk → Summarize → Save
 
 | Тема | Документ |
 |------|----------|
-| Обзор системы | [docs/architecture.md](docs/architecture.md) |
+| Обзор системы | [docs/overview.md](docs/overview.md) |
+| Архитектура | [docs/architecture.md](docs/architecture.md) |
 | Pipeline (этапы) | [docs/pipeline/](docs/pipeline/) |
 | Форматы данных | [docs/data-formats.md](docs/data-formats.md) |
 | API сервисов | [docs/api-reference.md](docs/api-reference.md) |

@@ -2,18 +2,22 @@
 
 Система автоматической транскрипции и саммаризации видеозаписей для БЗ 2.0.
 
-## Навигация
-
-### Основные документы
+## Быстрый старт
 
 | Документ | Описание |
 |----------|----------|
-| [architecture.md](architecture.md) | Схема системы, компоненты, Docker |
-| [api-reference.md](api-reference.md) | HTTP API для Ollama и Whisper |
-| [data-formats.md](data-formats.md) | Форматы входных/выходных файлов |
-| [deployment.md](deployment.md) | Развёртывание на TrueNAS |
+| [overview.md](overview.md) | Обзор системы — что это и зачем |
+| [deployment.md](deployment.md) | Как запустить |
 
-### Pipeline обработки
+## Архитектура и разработка
+
+| Документ | Описание |
+|----------|----------|
+| [architecture.md](architecture.md) | Техническая архитектура, схемы |
+| [web-ui.md](web-ui.md) | Документация Web UI |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Процесс разработки новых функций |
+
+## Pipeline обработки
 
 | Этап | Документ | Описание |
 |------|----------|----------|
@@ -24,19 +28,23 @@
 | 4 | [pipeline/04-chunk.md](pipeline/04-chunk.md) | Семантический chunking |
 | 5 | [pipeline/05-summarize.md](pipeline/05-summarize.md) | Саммаризация + классификация |
 | 6 | [pipeline/06-save.md](pipeline/06-save.md) | Сохранение файлов |
+| 7 | [pipeline/07-orchestrator.md](pipeline/07-orchestrator.md) | Оркестрация pipeline |
+| 8 | [pipeline/08-api.md](pipeline/08-api.md) | FastAPI endpoints |
 | - | [pipeline/error-handling.md](pipeline/error-handling.md) | Обработка ошибок |
 
-### Справочные материалы
+## Справочники
 
 | Документ | Описание |
 |----------|----------|
+| [api-reference.md](api-reference.md) | HTTP API для Ollama и Whisper |
+| [data-formats.md](data-formats.md) | Форматы входных/выходных файлов |
 | [reference/terminology.md](reference/terminology.md) | Глоссарий терминологии Herbalife |
 
-### Разработка
+## Гайдлайны
 
 | Документ | Описание |
 |----------|----------|
-| [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | План реализации (фазы 0-13) |
+| [DOCUMENTATION_GUIDELINES.md](DOCUMENTATION_GUIDELINES.md) | Правила документирования кода |
 
 ## Быстрые ссылки
 
