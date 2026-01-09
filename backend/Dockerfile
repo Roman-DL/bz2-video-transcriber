@@ -12,8 +12,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application
 COPY app/ ./app/
 
-# Create non-root user
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+# Create non-root user with uid/gid matching host (roman:family = 3000:3000)
+RUN groupadd -g 3000 appgroup && \
+    useradd -m -u 3000 -g 3000 appuser && \
+    chown -R appuser:appgroup /app
 USER appuser
 
 EXPOSE 80

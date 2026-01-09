@@ -50,12 +50,18 @@ class StructuredFormatter(logging.Formatter):
 
         timestamp = self.formatTime(record, "%Y-%m-%d %H:%M:%S")
 
-        return (
+        message = (
             f"{timestamp} | "
             f"{record.levelname:8} | "
             f"{logger_name:15} | "
             f"{record.getMessage()}"
         )
+
+        # Add exception traceback if present
+        if record.exc_info:
+            message += "\n" + self.formatException(record.exc_info)
+
+        return message
 
 
 def setup_logging(settings: "Settings") -> None:

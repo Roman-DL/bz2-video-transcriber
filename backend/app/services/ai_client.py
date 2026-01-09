@@ -48,7 +48,9 @@ class AIClient:
             settings: Application settings with AI service URLs
         """
         self.settings = settings
-        self.http_client = httpx.AsyncClient(timeout=settings.llm_timeout)
+        # No global timeout - each request sets its own timeout explicitly
+        # This avoids conflicts between short LLM timeouts and long Whisper timeouts
+        self.http_client = httpx.AsyncClient(timeout=None)
 
     async def __aenter__(self) -> "AIClient":
         """Context manager entry."""
@@ -221,6 +223,7 @@ class AIClient:
                 "prompt": prompt,
                 "stream": False,
             },
+            timeout=self.settings.llm_timeout,  # 5 min for LLM generation
         )
 
         response.raise_for_status()
@@ -264,6 +267,7 @@ class AIClient:
                 "messages": messages,
                 "temperature": temperature,
             },
+            timeout=self.settings.llm_timeout,  # 5 min for LLM generation
         )
 
         response.raise_for_status()
