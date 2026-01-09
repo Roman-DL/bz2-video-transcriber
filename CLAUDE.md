@@ -22,8 +22,8 @@
 curl http://100.64.0.1:11434/api/version  # Ollama
 curl http://100.64.0.1:9000/health        # Whisper
 
-# Запуск
-docker-compose up -d
+# Деплой на сервер (локальный docker-compose не работает!)
+./scripts/deploy.sh
 
 # Web UI
 http://100.64.0.1:8802      # Frontend
@@ -77,8 +77,10 @@ cd frontend && npm install && npm run dev
 
 ## Деплой
 
+**Локальный docker-compose не работает** — пути к данным (`/mnt/main/work/bz2/video`) существуют только на сервере.
+
 ```bash
-./scripts/deploy.sh
+./scripts/deploy.sh   # Единственный способ деплоя
 ```
 
 Подробнее: [docs/deployment.md](docs/deployment.md)

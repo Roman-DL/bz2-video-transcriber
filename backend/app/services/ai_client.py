@@ -149,7 +149,7 @@ class AIClient:
                 f"{self.settings.whisper_url}/v1/audio/transcriptions",
                 files=files,
                 data=data,
-                timeout=600.0,  # 10 minutes for long videos
+                timeout=7200.0,  # 2 hours for long videos
             )
 
         response.raise_for_status()
