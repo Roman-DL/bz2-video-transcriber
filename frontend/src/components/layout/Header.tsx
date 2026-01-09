@@ -10,6 +10,9 @@ export function Header() {
           <h1 className="text-xl font-semibold text-gray-900">
             БЗ2 Транскрибатор
           </h1>
+          <span className="text-xs text-gray-400">
+            v{__APP_VERSION__} • {__BUILD_TIME__}
+          </span>
         </div>
         <ServiceStatus />
       </div>
