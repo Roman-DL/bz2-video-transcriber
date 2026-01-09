@@ -7,16 +7,19 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      VIDEO PROCESSING PIPELINE                  │
+│                                                                 │
+│           Координируется PipelineOrchestrator                   │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐       │
-│  │ 1.PARSE │───▶│2.WHISPER│───▶│3.CLEAN  │───▶│4.CHUNK  │       │
-│  │ filename│    │transcr. │    │ + gloss │    │semantic │       │
-│  └─────────┘    └─────────┘    └─────────┘    └─────────┘       │
-│                                                   │             │
-│                                                   ▼             │
-│                              ┌─────────┐    ┌─────────┐         │
-│                              │6.SAVE   │◀───│5.SUMMAR.│         │
+│  │ 1.PARSE │───▶│2.WHISPER│───▶│3.CLEAN  │───▶│4.CHUNK  │──┐    │
+│  │ filename│    │transcr. │    │ + gloss │    │semantic │  │    │
+│  └─────────┘    └─────────┘    └─────────┘    └────┬────┘  │    │
+│                                                    │       │    │
+│                                               параллельно  │    │
+│                                                    │       │    │
+│                              ┌─────────┐    ┌─────┴───┐    │    │
+│                              │6.SAVE   │◀───│5.SUMMAR.│◀───┘    │
 │                              │ files   │    │ + class │         │
 │                              └─────────┘    └─────────┘         │
 │                                                                 │
@@ -34,42 +37,57 @@
 | 5 | Summarize | [05-summarize.md](05-summarize.md) | Ollama | `CleanedTranscript` | `Summary` + classification |
 | 6 | Save | [06-save.md](06-save.md) | Python | All data | Files in archive |
 
+## Оркестрация
+
+| Компонент | Документ | Описание |
+|-----------|----------|----------|
+| PipelineOrchestrator | [07-orchestrator.md](07-orchestrator.md) | Координация этапов, progress callback, error handling |
+
 ## Полный Pipeline Flow
 
 ```python
+from app.services.pipeline import PipelineOrchestrator
+
 async def process_video(video_path: Path) -> ProcessingResult:
     """Полный pipeline обработки видео."""
+    orchestrator = PipelineOrchestrator()
+    return await orchestrator.process(video_path)
 
-    # 1. Parse filename
-    metadata = parse_filename(video_path.name)
-    video_id = generate_video_id(metadata)
 
-    # 2. Transcribe
-    raw_transcript = await transcribe(video_path, WHISPER_CONFIG)
+# С отслеживанием прогресса
+async def process_with_progress(video_path: Path) -> ProcessingResult:
+    """Pipeline с callback для UI."""
 
-    # 3. Clean
-    glossary = load_glossary()
-    text_with_glossary = apply_glossary(raw_transcript.full_text, glossary)
-    cleaned_text = await llm_clean_transcript(text_with_glossary, metadata)
+    async def on_progress(status, progress, message):
+        print(f"[{status.value}] {progress:.0f}% - {message}")
 
-    # 4. Chunk
-    chunks = await chunk_transcript(cleaned_text, metadata)
+    orchestrator = PipelineOrchestrator()
+    return await orchestrator.process(video_path, progress_callback=on_progress)
 
-    # 5. Summarize
-    summary = await summarize_transcript(cleaned_text, metadata)
 
-    # 6. Save
-    archive_path = create_archive_path(metadata)
-    shutil.move(video_path, archive_path / video_path.name)
-    save_transcript_chunks(video_id, metadata, raw_transcript, chunks, archive_path)
-    save_summary_md(video_id, metadata, raw_transcript, summary, archive_path)
-    save_raw_transcript(raw_transcript, archive_path)
+# Пошаговый режим (для тестирования промптов)
+async def process_step_by_step(video_path: Path) -> ProcessingResult:
+    """Пошаговое выполнение с возможностью повторения этапов."""
+    orchestrator = PipelineOrchestrator()
+
+    # Тяжёлые этапы — один раз
+    metadata = orchestrator.parse(video_path)
+    raw = await orchestrator.transcribe(video_path)
+    cleaned = await orchestrator.clean(raw, metadata)
+    chunks = await orchestrator.chunk(cleaned, metadata)
+
+    # Тестируем разные промпты
+    summary = await orchestrator.summarize(cleaned, metadata, "summarizer_v2")
+
+    # Сохраняем
+    files = await orchestrator.save(metadata, raw, chunks, summary)
 
     return ProcessingResult(
-        video_id=video_id,
-        archive_path=archive_path,
-        chunks_count=len(chunks),
-        duration=raw_transcript.duration_seconds,
+        video_id=metadata.video_id,
+        archive_path=metadata.archive_path,
+        chunks_count=chunks.total_chunks,
+        duration_seconds=raw.duration_seconds,
+        files_created=files,
     )
 ```
 

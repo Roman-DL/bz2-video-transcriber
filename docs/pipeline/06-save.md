@@ -1,6 +1,6 @@
 # Этап 6: Save Files
 
-[< Назад: Summarize](05-summarize.md) | [Обзор Pipeline](README.md)
+[< Назад: Summarize](05-summarize.md) | [Обзор Pipeline](README.md) | [Далее: Orchestrator >](07-orchestrator.md)
 
 ---
 
