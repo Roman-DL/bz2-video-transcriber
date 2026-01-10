@@ -1,6 +1,6 @@
 # RFC: Упрощение архитектуры — удаление системы задач
 
-> **Статус:** In Progress (Этапы 1-2 завершены)
+> **Статус:** ✅ Completed
 > **Автор:** Claude + Roman
 > **Дата:** 2026-01-10
 
@@ -94,12 +94,14 @@ GET /api/archive — возвращает дерево папок архива
 
 ---
 
-### Этап 3: Каталог архива
+### Этап 3: Каталог архива ✅ ЗАВЕРШЁН
 
-**Задачи:**
-- [ ] Создать API эндпоинт `GET /api/archive`
-- [ ] Создать компонент `ArchiveCatalog`
-- [ ] Добавить на главную страницу вместо пустого места
+**Изменённые файлы:**
+- [x] `backend/app/api/routes.py` — добавлен эндпоинт `GET /api/archive`
+- [x] `frontend/src/api/types.ts` — добавлены типы `ArchiveItem`, `ArchiveResponse`
+- [x] `frontend/src/api/hooks/useArchive.ts` — новый hook
+- [x] `frontend/src/components/archive/ArchiveCatalog.tsx` — новый компонент
+- [x] `frontend/src/App.tsx` — интеграция ArchiveCatalog
 
 ---
 
@@ -120,4 +122,4 @@ GET /api/archive — возвращает дерево папок архива
 | Файлы системы задач | ~12 | 0 | 0 ✅ |
 | Протоколы реального времени | WebSocket + SSE | Только SSE | Только SSE ✅ |
 | Компоненты обработки | 2 | 1 (step-by-step + auto-run) | 1 ✅ |
-| Главная страница | Inbox + Tasks | Inbox + пусто | Inbox + Archive |
+| Главная страница | Inbox + Tasks | Inbox + Archive | Inbox + Archive ✅ |

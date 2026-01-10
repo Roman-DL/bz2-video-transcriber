@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Layout } from '@/components/layout/Layout';
 import { InboxList } from '@/components/inbox/InboxList';
+import { ArchiveCatalog } from '@/components/archive/ArchiveCatalog';
 import { ProcessingModal } from '@/components/processing/ProcessingModal';
 
 const queryClient = new QueryClient({
@@ -21,8 +22,7 @@ function Dashboard() {
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <InboxList onProcessVideo={setSelectedVideo} />
-          {/* TODO: ArchiveCatalog will be added here in Stage 3 */}
-          <div className="hidden lg:block" />
+          <ArchiveCatalog />
         </div>
       </div>
 

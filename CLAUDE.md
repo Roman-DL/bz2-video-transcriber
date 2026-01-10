@@ -164,8 +164,9 @@ source .env.local && sshpass -p "$DEPLOY_PASSWORD" ssh "${DEPLOY_USER}@${DEPLOY_
 curl -s http://localhost:8801/health
 curl -s http://localhost:8801/health/services
 
-# Список файлов в inbox
-ls -la /mnt/main/work/bz2/video/inbox/
+# Список файлов в inbox и архиве
+curl -s http://localhost:8801/api/inbox
+curl -s http://localhost:8801/api/archive
 
 # Логи контейнера
 sudo docker logs bz2-transcriber --tail 50

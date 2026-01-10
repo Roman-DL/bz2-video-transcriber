@@ -119,7 +119,7 @@ priority: high
 | Компонент | Технология | Назначение |
 |-----------|------------|------------|
 | **Web UI** | React + Vite + TanStack Query + Tailwind | Интерфейс управления |
-| **Backend** | FastAPI + WebSocket | API, оркестрация |
+| **Backend** | FastAPI + SSE | API, оркестрация |
 | **Transcriber** | HTTP → faster-whisper API | Вызов внешнего сервиса |
 | **Cleaner** | HTTP → Ollama API | Очистка транскрипта |
 | **Chunker** | HTTP → Ollama API | Смысловое разбиение |
@@ -146,18 +146,16 @@ bz2-video-transcriber/
 │   ├── app/
 │   │   ├── main.py              # FastAPI app
 │   │   ├── config.py            # Настройки
-│   │   ├── routers/
-│   │   │   ├── files.py         # API для файлов
-│   │   │   ├── jobs.py          # API для задач
-│   │   │   ├── settings.py      # API настроек
-│   │   │   └── websocket.py     # WebSocket прогресс
+│   │   ├── api/
+│   │   │   ├── routes.py        # API: inbox, archive
+│   │   │   └── step_routes.py   # Step API с SSE прогрессом
 │   │   ├── services/
 │   │   │   ├── parser.py        # Парсинг имени файла
-│   │   │   ├── watcher.py       # Мониторинг inbox
 │   │   │   ├── transcriber.py   # HTTP → Whisper API
 │   │   │   ├── cleaner.py       # HTTP → Ollama API
 │   │   │   ├── chunker.py       # HTTP → Ollama API
 │   │   │   ├── summarizer.py    # HTTP → Ollama API
+│   │   │   ├── saver.py         # Сохранение в архив
 │   │   │   └── pipeline.py      # Оркестрация
 │   │   └── models/
 │   │       └── schemas.py       # Pydantic модели
@@ -165,26 +163,25 @@ bz2-video-transcriber/
 │
 ├── frontend/
 │   ├── Dockerfile               # Docker образ (node build → nginx)
-│   ├── nginx.conf               # Proxy для API и WebSocket
+│   ├── nginx.conf               # Proxy для API
 │   ├── package.json
 │   ├── vite.config.ts           # Vite + proxy + path alias
 │   ├── tailwind.config.js
 │   └── src/
-│       ├── App.tsx              # Главный компонент
+│       ├── App.tsx              # Главный компонент (Dashboard)
 │       ├── main.tsx
 │       ├── index.css            # Tailwind imports
 │       ├── api/
 │       │   ├── types.ts         # TypeScript типы (из backend schemas)
 │       │   ├── client.ts        # Axios instance
-│       │   ├── websocket.ts     # WebSocket hook
 │       │   └── hooks/           # TanStack Query hooks
 │       └── components/
 │           ├── layout/          # Header, Layout
-│           ├── common/          # Button, Card, Badge, ProgressBar
+│           ├── common/          # Button, Card, Modal, ProgressBar
 │           ├── services/        # ServiceStatus (Whisper/Ollama)
 │           ├── inbox/           # InboxList, VideoItem
-│           ├── jobs/            # JobList, JobCard
-│           ├── processing/      # ProcessingModal, FullPipeline, StepByStep
+│           ├── archive/         # ArchiveCatalog
+│           ├── processing/      # ProcessingModal, StepByStep
 │           └── results/         # MetadataView, TranscriptView, etc.
 │
 ├── config/
@@ -206,24 +203,22 @@ bz2-video-transcriber/
 
 ## API Endpoints
 
-### Inbox & Jobs
+### Inbox & Archive
 
 | Method | Endpoint | Описание |
 |--------|----------|----------|
 | GET | `/api/inbox` | Список видео в inbox |
-| GET | `/api/jobs` | Список всех задач |
-| GET | `/api/jobs/{id}` | Статус задачи |
-| POST | `/api/process` | Запуск полного pipeline |
+| GET | `/api/archive` | Дерево папок архива |
 
-### Step-by-step (пошаговый режим)
+### Step API (SSE прогресс)
 
 | Method | Endpoint | Описание |
 |--------|----------|----------|
 | POST | `/api/step/parse` | Парсинг метаданных |
-| POST | `/api/step/transcribe` | Транскрипция (Whisper) |
-| POST | `/api/step/clean` | Очистка текста |
-| POST | `/api/step/chunk` | Разбиение на чанки |
-| POST | `/api/step/summarize` | Саммаризация |
+| POST | `/api/step/transcribe` | Транскрипция (Whisper) — SSE |
+| POST | `/api/step/clean` | Очистка текста — SSE |
+| POST | `/api/step/chunk` | Разбиение на чанки — SSE |
+| POST | `/api/step/summarize` | Саммаризация — SSE |
 | POST | `/api/step/save` | Сохранение в архив |
 
 ### Health
@@ -232,12 +227,6 @@ bz2-video-transcriber/
 |--------|----------|----------|
 | GET | `/health` | Статус приложения |
 | GET | `/health/services` | Статус AI сервисов (Whisper, Ollama) |
-
-### WebSocket
-
-| Endpoint | Описание |
-|----------|----------|
-| `/ws/{job_id}` | Прогресс задачи в реальном времени |
 
 ---
 

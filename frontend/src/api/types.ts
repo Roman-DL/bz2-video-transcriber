@@ -122,3 +122,15 @@ export const STEP_LABELS: Record<PipelineStep, string> = {
   summarize: 'Суммаризация',
   save: 'Сохранение в архив',
 };
+
+// Archive types
+export interface ArchiveItem {
+  title: string;
+  speaker: string | null;
+}
+
+// Tree structure: year -> event_folder -> items[]
+export interface ArchiveResponse {
+  tree: Record<string, Record<string, ArchiveItem[]>>;
+  total: number;
+}
