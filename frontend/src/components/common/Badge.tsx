@@ -1,5 +1,4 @@
 import { clsx } from 'clsx';
-import type { ProcessingStatus } from '@/api/types';
 
 interface BadgeProps {
   variant?: 'default' | 'success' | 'warning' | 'error' | 'info';
@@ -23,32 +22,4 @@ export function Badge({ variant = 'default', children }: BadgeProps) {
       {children}
     </span>
   );
-}
-
-export function StatusBadge({ status }: { status: ProcessingStatus }) {
-  const variants: Record<ProcessingStatus, BadgeProps['variant']> = {
-    pending: 'default',
-    parsing: 'info',
-    transcribing: 'info',
-    cleaning: 'info',
-    chunking: 'info',
-    summarizing: 'info',
-    saving: 'info',
-    completed: 'success',
-    failed: 'error',
-  };
-
-  const labels: Record<ProcessingStatus, string> = {
-    pending: 'Ожидание',
-    parsing: 'Парсинг',
-    transcribing: 'Транскрипция',
-    cleaning: 'Очистка',
-    chunking: 'Разбиение',
-    summarizing: 'Суммаризация',
-    saving: 'Сохранение',
-    completed: 'Завершено',
-    failed: 'Ошибка',
-  };
-
-  return <Badge variant={variants[status]}>{labels[status]}</Badge>;
 }
