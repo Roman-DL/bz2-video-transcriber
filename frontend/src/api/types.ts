@@ -25,6 +25,7 @@ export interface VideoMetadata {
   source_path: string;
   archive_path: string;
   stream_full: string;
+  duration_seconds: number | null;
 }
 
 export interface TranscriptSegment {

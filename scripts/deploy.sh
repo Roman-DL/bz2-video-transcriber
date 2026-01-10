@@ -44,10 +44,10 @@ sshpass -p "$DEPLOY_PASSWORD" rsync -avz --delete \
     --exclude '*.pyc' \
     "$PROJECT_DIR/" "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
 
-# Rebuild and restart container
+# Rebuild and restart container (--no-cache for backend to ensure code changes are picked up)
 echo "Rebuilding container..."
 sshpass -p "$DEPLOY_PASSWORD" ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
-    "cd ${DEPLOY_PATH} && echo '$DEPLOY_PASSWORD' | sudo -S docker compose up -d --build"
+    "cd ${DEPLOY_PATH} && echo '$DEPLOY_PASSWORD' | sudo -S docker compose build --no-cache bz2-transcriber && echo '$DEPLOY_PASSWORD' | sudo -S docker compose up -d"
 
 echo ""
 echo "Deployed successfully!"

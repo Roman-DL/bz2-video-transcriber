@@ -202,6 +202,11 @@ async def step_parse(request: StepParseRequest) -> VideoMetadata:
 
     try:
         metadata = orchestrator.parse(video_path)
+        # Add video duration for UI display
+        metadata.duration_seconds = get_video_duration(video_path)
+        if metadata.duration_seconds is None:
+            # Fallback: estimate from file size (~5MB per minute)
+            metadata.duration_seconds = video_path.stat().st_size / 83333
         return metadata
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

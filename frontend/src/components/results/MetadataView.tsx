@@ -10,11 +10,15 @@ export function MetadataView({ metadata }: MetadataViewProps) {
       <dt className="text-gray-500">Дата</dt>
       <dd className="text-gray-900">{metadata.date}</dd>
 
-      <dt className="text-gray-500">Тип события</dt>
+      <dt className="text-gray-500">Мероприятие</dt>
       <dd className="text-gray-900">{metadata.event_type}</dd>
 
-      <dt className="text-gray-500">Поток</dt>
-      <dd className="text-gray-900">{metadata.stream_full}</dd>
+      {metadata.stream && (
+        <>
+          <dt className="text-gray-500">Часть</dt>
+          <dd className="text-gray-900">{metadata.stream}</dd>
+        </>
+      )}
 
       <dt className="text-gray-500">Тема</dt>
       <dd className="text-gray-900">{metadata.title}</dd>

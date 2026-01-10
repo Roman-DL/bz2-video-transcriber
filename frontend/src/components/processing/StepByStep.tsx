@@ -296,10 +296,12 @@ export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) 
             title="Метаданные"
             icon={FileText}
             stats={
-              <>
-                <span>{data.metadata.date}</span>
-                <span>{data.metadata.speaker}</span>
-              </>
+              data.metadata.duration_seconds ? (
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  {formatDuration(data.metadata.duration_seconds)}
+                </span>
+              ) : null
             }
             expanded={expandedBlocks.has('metadata')}
             onToggle={() => toggleBlock('metadata')}

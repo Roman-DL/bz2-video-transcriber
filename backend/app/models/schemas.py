@@ -39,8 +39,10 @@ class VideoMetadata(BaseModel):
     @computed_field
     @property
     def stream_full(self) -> str:
-        """Full stream name (to be resolved from events.yaml)."""
-        return f"{self.event_type}.{self.stream}"
+        """Full stream identifier: 'Type.Stream' or just 'Type' if no stream."""
+        if self.stream:
+            return f"{self.event_type}.{self.stream}"
+        return self.event_type
 
 
 class TranscriptSegment(BaseModel):

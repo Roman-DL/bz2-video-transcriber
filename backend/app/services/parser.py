@@ -2,10 +2,13 @@
 Filename parser for video files.
 
 Parses video filenames in format:
-    {date} {type}.{stream} {title} ({speaker}).mp4
+    {date} {type}[.{stream}] {title} ({speaker}).mp4
 
-Example:
+Stream (часть) is optional.
+
+Examples:
     2025.04.07 ПШ.SV Группа поддержки (Светлана Дмитрук).mp4
+    2025.04.07 ПШ Группа поддержки (Светлана Дмитрук).mp4
 """
 
 import logging
@@ -27,16 +30,16 @@ class FilenameParseError(Exception):
         if message is None:
             message = (
                 f"Filename '{filename}' doesn't match expected pattern. "
-                f"Expected format: '{{date}} {{type}}.{{stream}} {{title}} ({{speaker}}).mp4'"
+                f"Expected format: '{{date}} {{type}}[.{{stream}}] {{title}} ({{speaker}}).mp4'"
             )
         super().__init__(message)
 
 
 # Regex pattern for parsing video filenames
-# Groups: (1) date, (2) event_type, (3) stream, (4) title, (5) speaker
+# Groups: (1) date, (2) event_type, (3) stream (optional), (4) title, (5) speaker
 FILENAME_PATTERN = re.compile(
     r'^(\d{4}\.\d{2}\.\d{2})\s+'  # Date: 2025.04.07
-    r'(\w+)\.(\w+)\s+'             # Type.Stream: ПШ.SV
+    r'(\w+)(?:\.(\w+))?\s+'        # Type[.Stream]: ПШ.SV or ПШ (stream optional)
     r'(.+?)\s+'                    # Title: Группа поддержки
     r'\(([^)]+)\)'                 # Speaker: (Светлана Дмитрук)
     r'(?:\.\w+)?$',                # Extension: .mp4 (optional in pattern)
@@ -81,20 +84,22 @@ def generate_video_id(d: date, event_type: str, stream: str, title: str) -> str:
     """
     Generate unique video ID.
 
-    Format: {date}_{event_type}-{stream}_{slug}
-    Example: 2025-04-07_ПШ-SV_группа-поддержки
+    Format: {date}_{event_type}[-{stream}]_{slug}
+    Examples:
+        2025-04-07_ПШ-SV_группа-поддержки (with stream)
+        2025-04-07_ПШ_группа-поддержки (without stream)
 
     Args:
         d: Video date
         event_type: Event type code (e.g., ПШ)
-        stream: Stream code (e.g., SV)
+        stream: Stream code (e.g., SV), can be empty string
         title: Video title
 
     Returns:
         Unique video ID
     """
     date_str = d.isoformat()  # 2025-04-07
-    type_stream = f"{event_type}-{stream}"
+    type_stream = f"{event_type}-{stream}" if stream else event_type
     title_slug = slugify(title)
 
     return f"{date_str}_{type_stream}_{title_slug}"
@@ -108,7 +113,7 @@ def validate_event_type_stream(event_type: str, stream: str) -> None:
 
     Args:
         event_type: Event type code to validate
-        stream: Stream code to validate
+        stream: Stream code to validate (can be empty)
     """
     try:
         events_config = load_events_config()
@@ -119,6 +124,10 @@ def validate_event_type_stream(event_type: str, stream: str) -> None:
                 f"Unknown event type '{event_type}'. "
                 f"Known types: {list(event_types.keys())}"
             )
+            return
+
+        # Skip stream validation if stream is empty
+        if not stream:
             return
 
         event_streams = event_types[event_type].get('streams', {})
@@ -156,6 +165,9 @@ def parse_filename(
     # Extract groups
     date_str, event_type, stream, title, speaker = match.groups()
 
+    # stream can be None if not specified, convert to empty string
+    stream = stream or ""
+
     # Parse date
     try:
         video_date = datetime.strptime(date_str, '%Y.%m.%d').date()
@@ -176,13 +188,18 @@ def parse_filename(
         source_path = settings.inbox_dir / filename
 
     # Generate archive path
-    # Format: archive/{year}/{month}/{type}.{stream}/{title} ({speaker})/
+    # Format: archive/{year}/{date event_type}/{[stream] title (speaker)}/
+    # Level 1: year (2025)
+    # Level 2: date + event_type (12.22 ПШ)
+    # Level 3: [stream] title (speaker) - e.g., "SV Тема (Спикер)" or "Тема (Спикер)"
+    event_folder = f"{video_date.month:02d}.{video_date.day:02d} {event_type}"
+    topic_folder = f"{stream} {title} ({speaker})" if stream else f"{title} ({speaker})"
+
     archive_path = (
         settings.archive_dir
         / str(video_date.year)
-        / f"{video_date.month:02d}"
-        / f"{event_type}.{stream}"
-        / f"{title} ({speaker})"
+        / event_folder
+        / topic_folder
     )
 
     return VideoMetadata(
@@ -272,6 +289,68 @@ if __name__ == "__main__":
 
         print("OK")
 
+    def test_filename_without_stream():
+        """Test 6: Filename without stream part."""
+        print("Test 6: Filename without stream...", end=" ")
+
+        filename = "2025.04.07 ПШ Группа поддержки (Светлана Дмитрук).mp4"
+        metadata = parse_filename(filename)
+
+        assert metadata.date == date(2025, 4, 7), f"Date mismatch: {metadata.date}"
+        assert metadata.event_type == "ПШ", f"Event type mismatch: {metadata.event_type}"
+        assert metadata.stream == "", f"Stream should be empty: {metadata.stream}"
+        assert metadata.title == "Группа поддержки", f"Title mismatch: {metadata.title}"
+        assert metadata.speaker == "Светлана Дмитрук", f"Speaker mismatch: {metadata.speaker}"
+        assert metadata.stream_full == "ПШ", f"stream_full should be just event_type: {metadata.stream_full}"
+
+        print("OK")
+
+    def test_video_id_without_stream():
+        """Test 7: Video ID generation without stream."""
+        print("Test 7: Video ID without stream...", end=" ")
+
+        video_id = generate_video_id(
+            date(2025, 4, 7),
+            "ПШ",
+            "",  # Empty stream
+            "Группа поддержки"
+        )
+
+        expected = "2025-04-07_ПШ_группа-поддержки"
+        assert video_id == expected, f"Video ID mismatch: {video_id} != {expected}"
+
+        print("OK")
+
+    def test_archive_path_with_stream():
+        """Test 8: Archive path with stream."""
+        print("Test 8: Archive path with stream...", end=" ")
+
+        filename = "2025.12.22 ПШ.SV Тестовая запись (Тест).mp4"
+        metadata = parse_filename(filename)
+
+        path_str = str(metadata.archive_path)
+        assert "2025" in path_str, f"Year not in path: {path_str}"
+        assert "12.22 ПШ" in path_str, f"Event folder not in path: {path_str}"
+        assert "SV Тестовая запись (Тест)" in path_str, f"Topic folder not in path: {path_str}"
+
+        print("OK")
+
+    def test_archive_path_without_stream():
+        """Test 9: Archive path without stream."""
+        print("Test 9: Archive path without stream...", end=" ")
+
+        filename = "2025.12.22 ПШ Тестовая запись (Тест).mp4"
+        metadata = parse_filename(filename)
+
+        path_str = str(metadata.archive_path)
+        assert "2025" in path_str, f"Year not in path: {path_str}"
+        assert "12.22 ПШ" in path_str, f"Event folder not in path: {path_str}"
+        assert "Тестовая запись (Тест)" in path_str, f"Topic folder not in path: {path_str}"
+        # Should NOT have stream prefix
+        assert "SV " not in path_str, f"Should not have stream prefix: {path_str}"
+
+        print("OK")
+
     # Run all tests
     print("\nRunning parser tests...\n")
 
@@ -281,6 +360,10 @@ if __name__ == "__main__":
         test_invalid_filename,
         test_mkv_extension,
         test_slugify,
+        test_filename_without_stream,
+        test_video_id_without_stream,
+        test_archive_path_with_stream,
+        test_archive_path_without_stream,
     ]
 
     failed = 0

@@ -351,15 +351,20 @@ class FileSaver:
 
         Args:
             event_type: Event type code (e.g., "ПШ")
-            stream: Stream code (e.g., "SV")
+            stream: Stream code (e.g., "SV"), can be empty
 
         Returns:
             Full stream name (e.g., "Понедельничная Школа — Супервайзеры")
+            or just event name if stream is empty
         """
         event_types = self.events_config.get("event_types", {})
 
         event_info = event_types.get(event_type, {})
         event_name = event_info.get("name", event_type)
+
+        # If stream is empty, return just event name
+        if not stream:
+            return event_name
 
         streams = event_info.get("streams", {})
         stream_desc = streams.get(stream, stream)
