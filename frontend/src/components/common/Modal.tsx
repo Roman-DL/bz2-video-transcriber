@@ -8,6 +8,7 @@ interface ModalProps {
   title?: string;
   children: ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  closable?: boolean;
 }
 
 export function Modal({
@@ -16,6 +17,7 @@ export function Modal({
   title,
   children,
   size = 'md',
+  closable = true,
 }: ModalProps) {
   useEffect(() => {
     if (isOpen) {
@@ -35,7 +37,7 @@ export function Modal({
       <div className="flex min-h-full items-center justify-center p-4">
         <div
           className="fixed inset-0 bg-black/50 transition-opacity"
-          onClick={onClose}
+          onClick={closable ? onClose : undefined}
         />
         <div
           className={clsx(
@@ -51,12 +53,14 @@ export function Modal({
           {title && (
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">{title}</h3>
-              <button
-                onClick={onClose}
-                className="text-gray-400 hover:text-gray-500 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              {closable && (
+                <button
+                  onClick={onClose}
+                  className="text-gray-400 hover:text-gray-500 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
             </div>
           )}
           <div className="p-4">{children}</div>

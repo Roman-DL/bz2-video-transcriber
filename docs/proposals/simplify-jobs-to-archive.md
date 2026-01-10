@@ -1,6 +1,6 @@
 # RFC: Упрощение архитектуры — удаление системы задач
 
-> **Статус:** In Progress (Этап 1 завершён)
+> **Статус:** In Progress (Этапы 1-2 завершены)
 > **Автор:** Claude + Roman
 > **Дата:** 2026-01-10
 
@@ -85,13 +85,12 @@ GET /api/archive — возвращает дерево папок архива
 
 ---
 
-### Этап 2: Auto-run режим
+### Этап 2: Auto-run режим ✅ ЗАВЕРШЁН
 
-**Задачи:**
-- [ ] Добавить флаг `autoRun` в StepByStep компонент
-- [ ] При `autoRun=true` — автоматически запускать следующий шаг после завершения предыдущего
-- [ ] Вернуть выбор режима в ProcessingModal (Step-by-step / Auto-run)
-- [ ] Сделать модальное окно незакрываемым в режиме auto-run
+**Изменённые файлы:**
+- [x] `frontend/src/components/common/Modal.tsx` — добавлен prop `closable`
+- [x] `frontend/src/components/processing/StepByStep.tsx` — добавлен prop `autoRun`, useEffect для авто-запуска, условный UI
+- [x] `frontend/src/components/processing/ProcessingModal.tsx` — экран выбора режима (Пошагово / Автоматически)
 
 ---
 
@@ -120,5 +119,5 @@ GET /api/archive — возвращает дерево папок архива
 |---------|-----|--------|------|
 | Файлы системы задач | ~12 | 0 | 0 ✅ |
 | Протоколы реального времени | WebSocket + SSE | Только SSE | Только SSE ✅ |
-| Компоненты обработки | 2 | 1 (только step-by-step) | 1 (step-by-step + auto-run) |
+| Компоненты обработки | 2 | 1 (step-by-step + auto-run) | 1 ✅ |
 | Главная страница | Inbox + Tasks | Inbox + пусто | Inbox + Archive |

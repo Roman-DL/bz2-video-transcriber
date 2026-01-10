@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   useStepParse,
   useStepTranscribe,
@@ -43,6 +43,7 @@ interface StepByStepProps {
   filename: string;
   onComplete: () => void;
   onCancel: () => void;
+  autoRun?: boolean;
 }
 
 interface StepData {
@@ -56,7 +57,7 @@ interface StepData {
 
 type BlockType = 'metadata' | 'rawTranscript' | 'cleanedTranscript' | 'chunks' | 'summary';
 
-export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) {
+export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: StepByStepProps) {
   const [currentStep, setCurrentStep] = useState<PipelineStep>('parse');
   const [data, setData] = useState<StepData>({});
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +115,37 @@ export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) 
 
   const currentStepIndex = PIPELINE_STEPS.indexOf(currentStep);
   const isComplete = data.savedFiles !== undefined;
+
+  // Helper: check if we have required data for step
+  const hasDataForStep = (step: PipelineStep): boolean => {
+    switch (step) {
+      case 'parse': return true;
+      case 'transcribe': return !!data.metadata;
+      case 'clean': return !!data.rawTranscript && !!data.metadata;
+      case 'chunk': return !!data.cleanedTranscript && !!data.metadata;
+      case 'summarize': return !!data.cleanedTranscript && !!data.metadata;
+      case 'save': return !!data.metadata && !!data.rawTranscript && !!data.chunks && !!data.summary;
+    }
+  };
+
+  // Ref to track if we're already running a step (prevent double execution)
+  const isRunningRef = useRef(false);
+
+  // Auto-run effect
+  useEffect(() => {
+    if (!autoRun) return;
+    if (isLoading) return;
+    if (isComplete) return;
+    if (error) return;
+    if (isRunningRef.current) return;
+
+    if (hasDataForStep(currentStep)) {
+      isRunningRef.current = true;
+      runStep(currentStep).finally(() => {
+        isRunningRef.current = false;
+      });
+    }
+  }, [autoRun, currentStep, isLoading, isComplete, error, data]);
 
   const runStep = async (step: PipelineStep) => {
     setError(null);
@@ -207,7 +239,7 @@ export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) 
       {/* Header */}
       <div>
         <h3 className="text-sm font-medium text-gray-500 mb-1">
-          Пошаговая обработка
+          {autoRun ? 'Автоматическая обработка' : 'Пошаговая обработка'}
         </h3>
         <p className="text-sm text-gray-900 truncate">{filename}</p>
       </div>
@@ -253,20 +285,25 @@ export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) 
                 {isLoading && message ? message : getStepDescription(currentStep)}
               </p>
             </div>
-            <Button
-              onClick={() => runStep(currentStep)}
-              disabled={isLoading}
-              className="flex items-center gap-2 shrink-0"
-            >
-              {isLoading ? (
-                <Spinner size="sm" className="text-white" />
-              ) : currentStep === 'save' ? (
-                <Save className="w-4 h-4" />
-              ) : (
-                <ArrowRight className="w-4 h-4" />
-              )}
-              {isLoading ? 'Выполняется...' : 'Выполнить'}
-            </Button>
+            {!autoRun && (
+              <Button
+                onClick={() => runStep(currentStep)}
+                disabled={isLoading}
+                className="flex items-center gap-2 shrink-0"
+              >
+                {isLoading ? (
+                  <Spinner size="sm" className="text-white" />
+                ) : currentStep === 'save' ? (
+                  <Save className="w-4 h-4" />
+                ) : (
+                  <ArrowRight className="w-4 h-4" />
+                )}
+                {isLoading ? 'Выполняется...' : 'Выполнить'}
+              </Button>
+            )}
+            {autoRun && isLoading && (
+              <Spinner size="sm" className="text-blue-600" />
+            )}
           </div>
 
           {/* Progress bar for long-running operations */}
@@ -289,102 +326,104 @@ export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) 
         </div>
       )}
 
-      {/* Results */}
-      <div className="space-y-3">
-        {data.metadata && (
-          <CollapsibleCard
-            title="Метаданные"
-            icon={FileText}
-            stats={
-              data.metadata.duration_seconds ? (
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  {formatDuration(data.metadata.duration_seconds)}
-                </span>
-              ) : null
-            }
-            expanded={expandedBlocks.has('metadata')}
-            onToggle={() => toggleBlock('metadata')}
-          >
-            <MetadataView metadata={data.metadata} />
-          </CollapsibleCard>
-        )}
+      {/* Results - only show in step-by-step mode */}
+      {!autoRun && (
+        <div className="space-y-3">
+          {data.metadata && (
+            <CollapsibleCard
+              title="Метаданные"
+              icon={FileText}
+              stats={
+                data.metadata.duration_seconds ? (
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5" />
+                    {formatDuration(data.metadata.duration_seconds)}
+                  </span>
+                ) : null
+              }
+              expanded={expandedBlocks.has('metadata')}
+              onToggle={() => toggleBlock('metadata')}
+            >
+              <MetadataView metadata={data.metadata} />
+            </CollapsibleCard>
+          )}
 
-        {data.rawTranscript && (
-          <CollapsibleCard
-            title="Сырая транскрипция"
-            icon={FileText}
-            stats={
-              <>
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  {formatDuration(data.rawTranscript.duration_seconds)}
-                </span>
-                <span>{data.rawTranscript.segments.length} сегментов</span>
-              </>
-            }
-            expanded={expandedBlocks.has('rawTranscript')}
-            onToggle={() => toggleBlock('rawTranscript')}
-          >
-            <RawTranscriptView transcript={data.rawTranscript} />
-          </CollapsibleCard>
-        )}
+          {data.rawTranscript && (
+            <CollapsibleCard
+              title="Сырая транскрипция"
+              icon={FileText}
+              stats={
+                <>
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5" />
+                    {formatDuration(data.rawTranscript.duration_seconds)}
+                  </span>
+                  <span>{data.rawTranscript.segments.length} сегментов</span>
+                </>
+              }
+              expanded={expandedBlocks.has('rawTranscript')}
+              onToggle={() => toggleBlock('rawTranscript')}
+            >
+              <RawTranscriptView transcript={data.rawTranscript} />
+            </CollapsibleCard>
+          )}
 
-        {data.cleanedTranscript && (
-          <CollapsibleCard
-            title="Очищенная транскрипция"
-            icon={Zap}
-            stats={
-              <>
-                <span>
-                  {data.cleanedTranscript.cleaned_length.toLocaleString()} симв.
-                </span>
-                <span>
-                  -{Math.round(((data.cleanedTranscript.original_length - data.cleanedTranscript.cleaned_length) / data.cleanedTranscript.original_length) * 100)}%
-                </span>
-              </>
-            }
-            expanded={expandedBlocks.has('cleanedTranscript')}
-            onToggle={() => toggleBlock('cleanedTranscript')}
-          >
-            <CleanedTranscriptView transcript={data.cleanedTranscript} />
-          </CollapsibleCard>
-        )}
+          {data.cleanedTranscript && (
+            <CollapsibleCard
+              title="Очищенная транскрипция"
+              icon={Zap}
+              stats={
+                <>
+                  <span>
+                    {data.cleanedTranscript.cleaned_length.toLocaleString()} симв.
+                  </span>
+                  <span>
+                    -{Math.round(((data.cleanedTranscript.original_length - data.cleanedTranscript.cleaned_length) / data.cleanedTranscript.original_length) * 100)}%
+                  </span>
+                </>
+              }
+              expanded={expandedBlocks.has('cleanedTranscript')}
+              onToggle={() => toggleBlock('cleanedTranscript')}
+            >
+              <CleanedTranscriptView transcript={data.cleanedTranscript} />
+            </CollapsibleCard>
+          )}
 
-        {data.chunks && (
-          <CollapsibleCard
-            title="Семантические чанки"
-            icon={Layers}
-            stats={
-              <>
-                <span>{data.chunks.total_chunks} чанков</span>
-                <span>~{data.chunks.avg_chunk_size} слов/чанк</span>
-              </>
-            }
-            expanded={expandedBlocks.has('chunks')}
-            onToggle={() => toggleBlock('chunks')}
-          >
-            <ChunksView chunks={data.chunks} />
-          </CollapsibleCard>
-        )}
+          {data.chunks && (
+            <CollapsibleCard
+              title="Семантические чанки"
+              icon={Layers}
+              stats={
+                <>
+                  <span>{data.chunks.total_chunks} чанков</span>
+                  <span>~{data.chunks.avg_chunk_size} слов/чанк</span>
+                </>
+              }
+              expanded={expandedBlocks.has('chunks')}
+              onToggle={() => toggleBlock('chunks')}
+            >
+              <ChunksView chunks={data.chunks} />
+            </CollapsibleCard>
+          )}
 
-        {data.summary && (
-          <CollapsibleCard
-            title="Саммари"
-            icon={FileText}
-            stats={
-              <>
-                <span>{data.summary.key_points.length} тезисов</span>
-                <span>{data.summary.tags.length} тегов</span>
-              </>
-            }
-            expanded={expandedBlocks.has('summary')}
-            onToggle={() => toggleBlock('summary')}
-          >
-            <SummaryView summary={data.summary} />
-          </CollapsibleCard>
-        )}
-      </div>
+          {data.summary && (
+            <CollapsibleCard
+              title="Саммари"
+              icon={FileText}
+              stats={
+                <>
+                  <span>{data.summary.key_points.length} тезисов</span>
+                  <span>{data.summary.tags.length} тегов</span>
+                </>
+              }
+              expanded={expandedBlocks.has('summary')}
+              onToggle={() => toggleBlock('summary')}
+            >
+              <SummaryView summary={data.summary} />
+            </CollapsibleCard>
+          )}
+        </div>
+      )}
 
       {/* Saved files */}
       {isComplete && data.savedFiles && (
@@ -406,8 +445,8 @@ export function StepByStep({ filename, onComplete, onCancel }: StepByStepProps) 
         {isComplete ? (
           <Button onClick={onComplete}>Закрыть</Button>
         ) : (
-          <Button variant="secondary" onClick={onCancel}>
-            Отменить
+          <Button variant="secondary" onClick={onCancel} disabled={autoRun && isLoading}>
+            {autoRun ? 'Прервать' : 'Отменить'}
           </Button>
         )}
       </div>
