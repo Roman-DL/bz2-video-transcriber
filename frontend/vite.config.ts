@@ -4,9 +4,19 @@ import path from 'path'
 
 const getBuildTime = () => {
   const d = new Date()
-  const date = `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear().toString().slice(-2)}`
-  const time = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
-  return `${date} ${time}`
+  // Format in Moscow timezone (UTC+3)
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: 'Europe/Moscow',
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }
+  const formatted = d.toLocaleString('ru-RU', options)
+  // "10.01.26, 18:30" -> "10.01.26 18:30"
+  return formatted.replace(',', '')
 }
 
 export default defineConfig({
