@@ -11,46 +11,48 @@
 # Coefficients based on test data:
 # v1 (2026-01-09): 5 min file, transcribe=87.1s, clean=8.0s, chunk=10.3s, summarize=17.1s
 # v2 (2026-01-10): 5 min file, clean=6.0s/4535chars, chunk=7.4s/1335chars, summarize=7.1s/1335chars
+# v3 (2026-01-11): 55 min file, but with 20-30% margin (overestimated)
+# v4 (2026-01-12): same 55 min file, no margin (accurate estimates)
 
-version: 3
-updated: "2026-01-11"
-notes: "Recalibrated based on 55-min video test (3308s)"
+version: 4
+updated: "2026-01-12"
+notes: "v4: Accurate estimates for 95-100% progress at completion"
 
 # Transcription: depends on video duration
 # Formula: estimated_time = base_time + (video_duration_seconds * factor)
 transcribe:
   # Seconds of processing per second of video
-  # v2: 0.29 (4.8x overestimated for 55-min video)
-  # v3: (199-5)/3308 = 0.0587, +30% margin = 0.08
-  factor_per_video_second: 0.08
+  # v3: 0.08 (ratio=0.74, completed at 74%)
+  # v4: (199.2-5)/3308 = 0.0587 → 0.06
+  factor_per_video_second: 0.06
   base_time: 5.0  # GPU warmup, file loading overhead
 
 # Text cleaning (LLM): depends on input text length
 # Formula: estimated_time = base_time + (input_chars / 1000 * factor)
 clean:
   # Seconds per 1000 input characters
-  # v2: 0.9 (1.3x underestimated, stuck at 95% for 14.5s)
-  # v3: (57.5-2)/47.2k = 1.18, +20% margin = 1.4
-  factor_per_1k_chars: 1.4
+  # v3: 1.4 (ratio=0.87, completed at 85%)
+  # v4: (59.0-2)/47.2k = 1.21 → 1.2
+  factor_per_1k_chars: 1.2
   base_time: 2.0
 
 # Semantic chunking (LLM): depends on input text length
 # Formula: estimated_time = base_time + (input_chars / 1000 * factor)
 chunk:
   # Seconds per 1000 input characters
-  # v2: 4.0 (1.4x overestimated)
-  # v3: (60.1-2)/20.9k = 2.78, +15% margin = 3.2
-  factor_per_1k_chars: 3.2
+  # v3: 3.2 (ratio=0.91, completed at 91%)
+  # v4: (63.1-2)/20.9k = 2.92 → 2.9
+  factor_per_1k_chars: 2.9
   base_time: 2.0
 
 # Summarization (LLM): depends on input text length
 # Formula: estimated_time = base_time + (input_chars / 1000 * factor)
 summarize:
   # Seconds per 1000 input characters
-  # v2: 3.0 (2.9x overestimated)
-  # v3: (22.5-3)/20.9k = 0.93, +30% margin = 1.2
+  # v3: 1.2 (ratio=0.78, completed at 75%)
+  # v4: (21.9-3)/20.9k = 0.90 → 0.9
   # Includes: outline extraction + LLM generation
-  factor_per_1k_chars: 1.2
+  factor_per_1k_chars: 0.9
   base_time: 3.0
 
 # Fixed-time stages (not estimated dynamically)
