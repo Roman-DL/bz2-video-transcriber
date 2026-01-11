@@ -121,7 +121,7 @@ priority: high
 | **Web UI** | React + Vite + TanStack Query + Tailwind | Интерфейс управления |
 | **Backend** | FastAPI + SSE | API, оркестрация |
 | **Transcriber** | HTTP → faster-whisper API | Вызов внешнего сервиса |
-| **Cleaner** | HTTP → Ollama API | Очистка транскрипта |
+| **Cleaner** | HTTP → Ollama Chat API (gemma2:9b) | Очистка транскрипта |
 | **Chunker** | HTTP → Ollama API | Смысловое разбиение |
 | **Summarizer** | HTTP → Ollama API | Саммаризация + классификация |
 
@@ -186,7 +186,8 @@ bz2-video-transcriber/
 │
 ├── config/
 │   ├── prompts/
-│   │   ├── cleaner.md
+│   │   ├── cleaner_system.md   # System prompt для очистки
+│   │   ├── cleaner_user.md     # User template для очистки
 │   │   ├── chunker.md
 │   │   └── summarizer.md
 │   ├── glossary.yaml

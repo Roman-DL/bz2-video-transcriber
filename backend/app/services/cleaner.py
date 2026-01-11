@@ -15,6 +15,12 @@ from app.services.ai_client import AIClient
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
 
+# Chunking configuration for large transcripts
+# gemma2:9b is stable on larger chunks (tested up to 6KB with 19.7% reduction)
+CHUNK_SIZE_CHARS = 3000  # Max characters per chunk
+CHUNK_OVERLAP_CHARS = 200  # Overlap between chunks for context
+SMALL_TEXT_THRESHOLD = 3500  # Below this - no chunking needed
+
 
 class TranscriptCleaner:
     """
@@ -41,7 +47,8 @@ class TranscriptCleaner:
         """
         self.ai_client = ai_client
         self.settings = settings
-        self.prompt_template = load_prompt("cleaner", settings)
+        self.system_prompt = load_prompt("cleaner_system", settings)
+        self.user_template = load_prompt("cleaner_user", settings)
         self.glossary = load_glossary(settings)
 
     async def clean(
@@ -51,6 +58,9 @@ class TranscriptCleaner:
     ) -> CleanedTranscript:
         """
         Clean raw transcript.
+
+        For large texts (>10KB), uses chunked processing to avoid LLM
+        summarizing instead of cleaning.
 
         Args:
             raw_transcript: Raw transcript from Whisper
@@ -64,7 +74,8 @@ class TranscriptCleaner:
 
         logger.info(
             f"Cleaning transcript: {original_length} chars, "
-            f"{len(raw_transcript.segments)} segments"
+            f"{len(raw_transcript.segments)} segments, "
+            f"model: {self.settings.cleaner_model}"
         )
 
         start_time = time.time()
@@ -73,19 +84,72 @@ class TranscriptCleaner:
         text_after_glossary, corrections = self._apply_glossary(original_text)
         logger.debug(f"Glossary applied: {len(corrections)} corrections")
 
-        # Step 2: Build prompt and call LLM
-        prompt = self._build_prompt(text_after_glossary, metadata)
-        cleaned_text = await self.ai_client.generate(prompt)
+        # Step 2: Split into chunks if text is large
+        chunks = self._split_into_chunks(text_after_glossary)
+
+        if len(chunks) > 1:
+            logger.info(f"Large text detected, processing in {len(chunks)} chunks")
+
+        # Step 3: Process each chunk with LLM using chat API
+        cleaned_chunks = []
+        for i, chunk in enumerate(chunks):
+            user_content = self.user_template.format(transcript=chunk)
+
+            messages = [
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user", "content": user_content},
+            ]
+
+            # Estimate output tokens: ~2 chars per token, expect 80-95% of input
+            num_predict = max(int(len(chunk) * 0.5), 4096)
+
+            chunk_result = await self.ai_client.chat(
+                messages,
+                model=self.settings.cleaner_model,  # gemma2:9b by default
+                temperature=0.0,  # Deterministic output to prevent summarization
+                num_predict=num_predict,
+            )
+            cleaned_chunks.append(chunk_result.strip())
+
+            if len(chunks) > 1:
+                logger.debug(
+                    f"Chunk {i + 1}/{len(chunks)} cleaned: "
+                    f"{len(chunk)} -> {len(chunk_result)} chars"
+                )
+
+        # Step 4: Merge chunks (remove duplicates from overlap)
+        if len(cleaned_chunks) > 1:
+            cleaned_text = self._merge_chunks(cleaned_chunks)
+        else:
+            cleaned_text = cleaned_chunks[0] if cleaned_chunks else ""
 
         elapsed = time.time() - start_time
 
-        # Clean up LLM response (remove any leading/trailing whitespace)
+        # Clean up LLM response
         cleaned_text = cleaned_text.strip()
         cleaned_length = len(cleaned_text)
 
+        # Validate reduction (realistic: 5-20%, max acceptable: 25%)
+        reduction_percent = (
+            100 - (cleaned_length * 100 // original_length)
+            if original_length > 0
+            else 0
+        )
+
+        if reduction_percent > 40:
+            logger.error(
+                f"Suspicious reduction: {reduction_percent}% - "
+                f"likely summarization instead of cleaning"
+            )
+        elif reduction_percent > 25:
+            logger.warning(
+                f"High reduction: {reduction_percent}% - "
+                f"possible content loss (expected 5-20%)"
+            )
+
         logger.info(
             f"Cleaning complete: {original_length} -> {cleaned_length} chars "
-            f"({100 - cleaned_length * 100 // original_length}% reduction)"
+            f"({reduction_percent}% reduction)"
         )
 
         # Performance metrics for progress estimation
@@ -156,18 +220,120 @@ class TranscriptCleaner:
 
         return text, corrections
 
-    def _build_prompt(self, text: str, metadata: VideoMetadata) -> str:
+    def _split_into_chunks(self, text: str) -> list[str]:
         """
-        Build cleaning prompt from template.
+        Split text into overlapping chunks for processing.
+
+        Splits on sentence boundaries to avoid breaking mid-sentence.
+        Only chunks if text exceeds SMALL_TEXT_THRESHOLD.
 
         Args:
-            text: Text to clean (after glossary processing)
-            metadata: Video metadata (for context)
+            text: Full text to split
 
         Returns:
-            Complete prompt for LLM
+            List of text chunks (single item if text is small)
         """
-        return self.prompt_template.format(transcript=text)
+        if len(text) <= SMALL_TEXT_THRESHOLD:
+            return [text]
+
+        chunks = []
+        sentences = self._split_into_sentences(text)
+
+        current_chunk: list[str] = []
+        current_length = 0
+
+        for sentence in sentences:
+            sentence_length = len(sentence)
+
+            # If adding this sentence exceeds chunk size, save current chunk
+            if current_length + sentence_length > CHUNK_SIZE_CHARS and current_chunk:
+                chunks.append(" ".join(current_chunk))
+
+                # Start new chunk with overlap (last N chars worth of sentences)
+                overlap_length = 0
+                overlap_sentences: list[str] = []
+                for s in reversed(current_chunk):
+                    if overlap_length + len(s) > CHUNK_OVERLAP_CHARS:
+                        break
+                    overlap_sentences.insert(0, s)
+                    overlap_length += len(s)
+
+                current_chunk = overlap_sentences
+                current_length = overlap_length
+
+            current_chunk.append(sentence)
+            current_length += sentence_length
+
+        # Don't forget the last chunk
+        if current_chunk:
+            chunks.append(" ".join(current_chunk))
+
+        return chunks
+
+    def _split_into_sentences(self, text: str) -> list[str]:
+        """
+        Split text into sentences using regex.
+
+        Handles Russian and English punctuation.
+
+        Args:
+            text: Text to split
+
+        Returns:
+            List of sentences
+        """
+        # Split on sentence-ending punctuation followed by space or end
+        sentences = re.split(r"(?<=[.!?])\s+", text)
+        return [s.strip() for s in sentences if s.strip()]
+
+    def _merge_chunks(self, chunks: list[str]) -> str:
+        """
+        Merge cleaned chunks, removing duplicate content from overlaps.
+
+        Uses sentence matching to find where chunks overlap.
+
+        Args:
+            chunks: List of cleaned text chunks
+
+        Returns:
+            Merged text without duplicates
+        """
+        if not chunks:
+            return ""
+
+        if len(chunks) == 1:
+            return chunks[0]
+
+        result = chunks[0]
+
+        for i in range(1, len(chunks)):
+            current = chunks[i]
+
+            # Find overlap by looking for common sentences
+            overlap_found = False
+
+            # Search in last ~800 chars of result
+            search_window = min(len(result), 800)
+            result_end = result[-search_window:]
+
+            # Look for common sentence at start of current chunk
+            sentences_in_current = self._split_into_sentences(current)
+
+            for j, sentence in enumerate(sentences_in_current[:5]):  # Check first 5
+                # Find if this sentence exists in result_end
+                if sentence in result_end:
+                    # Found overlap - append from next sentence
+                    remaining = " ".join(sentences_in_current[j + 1 :])
+                    if remaining:
+                        result = result + " " + remaining
+                    overlap_found = True
+                    break
+
+            if not overlap_found:
+                # No overlap found - just append with space
+                result = result + " " + current
+
+        return result.strip()
 
 
 if __name__ == "__main__":
@@ -227,14 +393,16 @@ if __name__ == "__main__":
             print(f"FAILED: {e}")
             return 1
 
-        # Test 3: Build prompt
-        print("\nTest 3: Build prompt...", end=" ")
+        # Test 3: Load prompts (system + user)
+        print("\nTest 3: Load prompts...", end=" ")
         try:
-            prompt = cleaner._build_prompt("Test transcript text", None)  # type: ignore
-            assert "Test transcript text" in prompt, "Transcript not in prompt"
-            assert len(prompt) > 100, "Prompt too short"
+            assert len(cleaner.system_prompt) > 100, "System prompt too short"
+            assert "{transcript}" in cleaner.user_template, "User template missing placeholder"
+            user_content = cleaner.user_template.format(transcript="Test text")
+            assert "Test text" in user_content, "User template not working"
             print("OK")
-            print(f"  Prompt length: {len(prompt)} chars")
+            print(f"  System prompt: {len(cleaner.system_prompt)} chars")
+            print(f"  User template: {len(cleaner.user_template)} chars")
         except Exception as e:
             print(f"FAILED: {e}")
             return 1

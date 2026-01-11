@@ -48,6 +48,7 @@ Video → Parse → Whisper → Clean → Chunk → Summarize → Save
 | API сервисов | [docs/api-reference.md](docs/api-reference.md) |
 | Развёртывание | [docs/deployment.md](docs/deployment.md) |
 | Логирование | [docs/logging.md](docs/logging.md) |
+| Тестирование | [docs/testing.md](docs/testing.md) |
 
 ## Структура проекта
 
@@ -153,35 +154,8 @@ ssh truenas_admin@192.168.1.152 'sudo docker logs -f bz2-transcriber'
 
 ## Тестирование на сервере
 
-Claude может автоматически тестировать приложение на сервере без веб-интерфейса.
+Claude может тестировать pipeline-шаги на сервере через inline Python в контейнере.
 
-### Доступные операции
+**Ключевое:** пути в контейнере отличаются от хоста (`/data/` вместо `/mnt/main/work/bz2/video/`).
 
-```bash
-# Через SSH (используя .env.local credentials)
-source .env.local && sshpass -p "$DEPLOY_PASSWORD" ssh "${DEPLOY_USER}@${DEPLOY_HOST}" "команда"
-
-# Health check
-curl -s http://localhost:8801/health
-curl -s http://localhost:8801/health/services
-
-# Список файлов в inbox и архиве
-curl -s http://localhost:8801/api/inbox
-curl -s http://localhost:8801/api/archive
-
-# Логи контейнера
-sudo docker logs bz2-transcriber --tail 50
-
-# Вызов API транскрипции
-curl -X POST http://localhost:8801/api/step/transcribe \
-  -H "Content-Type: application/json" \
-  -d '{"video_filename": "test.mp4"}'
-```
-
-### Цикл отладки
-
-1. Внести изменения в код локально
-2. Задеплоить: `./scripts/deploy.sh`
-3. Запустить тест через API/SSH
-4. Проверить логи
-5. Повторить при необходимости
+Подробнее: [docs/testing.md](docs/testing.md) — примеры тестов, классы сервисов, Pydantic-модели.

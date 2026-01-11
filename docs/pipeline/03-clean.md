@@ -1,4 +1,4 @@
-# Этап 3: Clean (LLM + Glossary)
+# Этап 3: Clean (Очистка транскрипта)
 
 [< Назад: Transcribe](02-transcribe.md) | [Обзор Pipeline](README.md) | [Далее: Chunk >](04-chunk.md)
 
@@ -6,207 +6,147 @@
 
 ## Назначение
 
-Очистка сырого транскрипта от шума и нормализация терминологии.
+Очистка сырого транскрипта от речевого мусора и нормализация терминологии.
 
 ## Проблемы сырого транскрипта
 
 | Проблема | Пример | Решение |
 |----------|--------|---------|
 | Слова-паразиты | "ну", "вот", "как бы", "эээ" | LLM удаляет |
-| Отвлечения | "кстати, вчера я..." | LLM удаляет |
+| Отвлечения | "видно экран?", "вы меня слышите?" | LLM удаляет |
 | Ошибки Whisper | "Формула один" | Глоссарий исправляет |
-| Термины Herbalife | "гербалайф" | Глоссарий нормализует |
+| Термины Herbalife | "гербалайф", "СВ", "гет тим" | Глоссарий нормализует |
 
-## Двухэтапная очистка
+## Архитектура очистки
 
 ```
-RawTranscript
-     │
-     ▼
+RawTranscript (~70KB контента для 55-мин видео)
+       │
+       ▼
 ┌─────────────────┐
-│ 3a. GLOSSARY    │  Быстрая замена по словарю
-│    (Python)     │
+│ 1. GLOSSARY     │  Быстрая замена терминов (Python regex)
+│    (мгновенно)  │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│ 3b. LLM CLEAN   │  Удаление паразитов и отвлечений
-│    (Ollama)     │
+│ 2. CHUNKING     │  Разбиение на части ~3KB
+│    (~24 чанка)  │  (для стабильной обработки)
 └────────┬────────┘
          │
          ▼
-  CleanedTranscript
+┌─────────────────┐
+│ 3. LLM CLEAN    │  Chat API с system/user roles
+│    (по частям)  │  (Ollama gemma2:9b)
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ 4. MERGE        │  Склейка результатов без дублирования
+│                 │
+└────────┬────────┘
+         │
+         ▼
+  CleanedTranscript (ожидание: ~60KB, ~15% reduction)
 ```
 
-## Класс TranscriptCleaner
+## Текущие параметры
 
-```python
-class TranscriptCleaner:
-    """Transcript cleaning service using glossary and Ollama LLM."""
+| Параметр | Значение | Описание |
+|----------|----------|----------|
+| `CLEANER_MODEL` | gemma2:9b | Модель для очистки (env variable) |
+| `CHUNK_SIZE_CHARS` | 3000 | Размер одной части |
+| `CHUNK_OVERLAP_CHARS` | 200 | Перекрытие между частями |
+| `SMALL_TEXT_THRESHOLD` | 3500 | Порог для включения chunking |
+| `temperature` | 0.0 | Детерминированный вывод |
 
-    def __init__(self, ai_client: AIClient, settings: Settings):
-        """
-        Initialize cleaner.
+## Выбор модели
 
-        Args:
-            ai_client: AI client for LLM calls
-            settings: Application settings
-        """
-        self.ai_client = ai_client
-        self.settings = settings
-        self.prompt_template = load_prompt("cleaner", settings)
-        self.glossary = load_glossary(settings)
+Модель `gemma2:9b` выбрана по результатам тестирования:
 
-    async def clean(
-        self,
-        raw_transcript: RawTranscript,
-        metadata: VideoMetadata,
-    ) -> CleanedTranscript:
-        """
-        Clean raw transcript.
+| Модель | Reduction на 3KB | Reduction на 6KB | Статус |
+|--------|------------------|------------------|--------|
+| gemma2:9b | 18.0% | 19.7% | ✅ Стабильна |
+| mistral:7b-instruct | 18.4% | 71.4% | ❌ Нестабильна |
+| phi3:14b | 48.1% | — | ❌ Суммаризирует |
+| qwen2.5:14b | — | 85% | ❌ Суммаризирует |
 
-        Args:
-            raw_transcript: Raw transcript from Whisper
-            metadata: Video metadata (для будущего использования)
+**Критерии выбора:**
+- Reduction 10-20% (не суммаризирует)
+- Стабильность на разных размерах чанков
+- Качество русского языка
 
-        Returns:
-            CleanedTranscript with cleaned text and statistics
-        """
+---
+
+## Глоссарий отдельно от LLM
+
+- **Точность:** Глоссарий гарантирует правильное написание терминов
+- **Скорость:** Regex быстрее LLM для простых замен
+- **Контроль:** Централизованный словарь терминов
+
+### Сортировка по длине
+
+Вариации сортируются от длинных к коротким для избежания частичных замен:
+
+```
+Входной текст: "поговорим о гет тим"
+
+Порядок замен:
+1. "гет тим" → "GET Team" (длинная вариация)
+2. "гет" → пропускается (уже обработано)
+
+Результат: "поговорим о GET Team" ✓
 ```
 
-## 3a. Применение глоссария
+## Chat API с system/user roles
 
-Метод `_apply_glossary()` выполняет замену терминов:
-
-1. **Сбор замен** — извлекает пары (variation → canonical) из всех категорий
-2. **Пропуск метаданных** — игнорирует поля version, date, total_terms (non-list значения)
-3. **Сортировка по длине** — длинные вариации первыми (избегает частичных замен)
-4. **Регистронезависимый поиск** — `\b{variation}\b` с флагом `re.IGNORECASE`
-5. **Запись всех замен** — каждое вхождение добавляется в corrections
+Используем Chat API с разделением на роли:
+- `system` — инструкции по очистке
+- `user` — транскрипт для обработки
 
 ```python
-def _apply_glossary(self, text: str) -> tuple[str, list[str]]:
-    """
-    Apply glossary term replacements.
-
-    Returns:
-        Tuple of (processed text, list of corrections made)
-    """
-```
-
-**Почему сортировка по длине?**
-
-Если есть вариации "гет" и "гет тим", нужно обработать "гет тим" первым.
-Иначе "гет тим" превратится в "GET тим" (частичная замена).
-
-**Пример corrections:**
-```python
-# Если "гербалайф" встречается 3 раза в тексте:
-corrections = [
-    "гербалайф -> Herbalife",
-    "гербалайф -> Herbalife",
-    "гербалайф -> Herbalife",
+messages = [
+    {"role": "system", "content": system_prompt},
+    {"role": "user", "content": user_template.format(transcript=chunk)},
 ]
+result = await ai_client.chat(messages, model=settings.cleaner_model, temperature=0.0)
 ```
 
-## 3b. LLM Clean (Ollama)
+## Ожидаемые показатели
 
-Построение промпта и вызов LLM:
+| Тип спикера | Сокращение | Примечание |
+|-------------|------------|------------|
+| Опытный | 5-10% | Подготовленное выступление |
+| Средний | 10-15% | Вебинар, живое общение |
+| Неопытный | 15-20% | Много запинок, техпроблемы |
 
-```python
-def _build_prompt(self, text: str, metadata: VideoMetadata) -> str:
-    """Build cleaning prompt from template."""
-    return self.prompt_template.format(transcript=text)
-```
+**Важно:** Сокращение >25% означает возможную потерю контента. Сокращение >40% — скорее всего, LLM сделал саммари вместо очистки.
 
-> **Примечание:** Параметр `metadata` передаётся для будущего использования (контекст видео), но пока не включается в промпт.
+## Валидация результата
 
-После ответа LLM выполняется `strip()` для удаления whitespace.
-
-## Модель данных
-
-```python
-class CleanedTranscript(BaseModel):
-    """Cleaned transcript after LLM processing."""
-
-    text: str
-    original_length: int
-    cleaned_length: int
-    corrections_made: list[str] = Field(default_factory=list)
-```
-
-**Файл модели:** [`backend/app/models/schemas.py`](../../backend/app/models/schemas.py)
-
-## Пример результата
-
-```python
-CleanedTranscript(
-    text="Сегодня мы поговорим о Herbalife. Формула 1 — это основной продукт.",
-    original_length=164,
-    cleaned_length=90,
-    corrections_made=["гербалайф -> Herbalife", "формула один -> Формула 1"]
-)
-```
-
-**Расчёт сокращения:** `100 - (cleaned_length * 100 // original_length)`
-
-## Логирование
-
-Сервис логирует ключевые события:
+Сервис автоматически проверяет результат очистки:
 
 ```
-INFO: Cleaning transcript: 1500 chars, 25 segments
-DEBUG: Glossary applied: 4 corrections
-INFO: Cleaning complete: 1500 -> 980 chars (35% reduction)
+INFO:  Cleaning complete: 47233 -> 40000 chars (15% reduction)  ← OK
+WARN:  High reduction: 30% - possible content loss              ← Проверить
+ERROR: Suspicious reduction: 85% - likely summarization         ← Баг!
 ```
-
-## Пример использования
-
-```python
-async with AIClient(settings) as client:
-    cleaner = TranscriptCleaner(client, settings)
-    cleaned = await cleaner.clean(raw_transcript, metadata)
-
-    print(f"Original: {cleaned.original_length} chars")
-    print(f"Cleaned: {cleaned.cleaned_length} chars")
-    print(f"Corrections: {cleaned.corrections_made}")
-```
-
-## Структура глоссария
-
-Глоссарий содержит категории терминов:
-
-| Поле | Обязательное | Описание |
-|------|--------------|----------|
-| `canonical` | Да | Каноническое написание для замены |
-| `variations` | Да | Список вариаций для поиска |
-| `english` | Нет | Английское название (информационное) |
-| `description` | Нет | Описание термина (информационное) |
-
-> Для замены используются только `canonical` и `variations`.
-> Записи без этих полей пропускаются.
 
 ## Тестирование
-
-Встроенные тесты запускаются командой:
 
 ```bash
 python -m backend.app.services.cleaner
 ```
 
-**Тесты:**
-1. Загрузка глоссария
-2. Применение глоссария (замена терминов)
-3. Построение промпта
-4. Парсинг mock-транскрипта
-5. Полная очистка с LLM (если Ollama доступен)
+Тесты проверяют: загрузку глоссария, замену терминов, загрузку промптов.
 
 ---
 
-## Связанные документы
+## Связанные файлы
 
-- **Код:** [`backend/app/services/cleaner.py`](../../backend/app/services/cleaner.py)
-- **AI клиент:** [`backend/app/services/ai_client.py`](../../backend/app/services/ai_client.py)
-- **Модели:** [`backend/app/models/schemas.py`](../../backend/app/models/schemas.py)
-- **Промпт:** [`config/prompts/cleaner.md`](../../config/prompts/cleaner.md)
-- **Глоссарий:** [`config/glossary.yaml`](../../config/glossary.yaml)
+- **Код:** [backend/app/services/cleaner.py](../../backend/app/services/cleaner.py)
+- **System prompt:** [config/prompts/cleaner_system.md](../../config/prompts/cleaner_system.md)
+- **User template:** [config/prompts/cleaner_user.md](../../config/prompts/cleaner_user.md)
+- **Глоссарий:** [config/glossary.yaml](../../config/glossary.yaml)
+- **AI клиент:** [backend/app/services/ai_client.py](../../backend/app/services/ai_client.py)
+- **Исследование:** [docs/research/llm-transcript-cleaning-guide.md](../research/llm-transcript-cleaning-guide.md)

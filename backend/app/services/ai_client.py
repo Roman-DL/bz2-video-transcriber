@@ -228,6 +228,7 @@ class AIClient:
         self,
         prompt: str,
         model: str | None = None,
+        num_predict: int | None = None,
     ) -> str:
         """
         Generate text using Ollama /api/generate endpoint.
@@ -235,6 +236,7 @@ class AIClient:
         Args:
             prompt: Text prompt for generation
             model: Model name (default: from settings)
+            num_predict: Max tokens to generate (default: None = model default)
 
         Returns:
             Generated text response
@@ -247,13 +249,18 @@ class AIClient:
 
         logger.debug(f"Generating with {model}, prompt length: {len(prompt)}")
 
+        request_body: dict = {
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+        }
+
+        if num_predict is not None:
+            request_body["options"] = {"num_predict": num_predict}
+
         response = await self.http_client.post(
             f"{self.settings.ollama_url}/api/generate",
-            json={
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-            },
+            json=request_body,
             timeout=self.settings.llm_timeout,  # 5 min for LLM generation
         )
 
@@ -271,6 +278,7 @@ class AIClient:
         messages: list[dict],
         model: str | None = None,
         temperature: float = 0.7,
+        num_predict: int | None = None,
     ) -> str:
         """
         Chat completion using Ollama OpenAI-compatible endpoint.
@@ -279,6 +287,7 @@ class AIClient:
             messages: List of chat messages [{"role": "user", "content": "..."}]
             model: Model name (default: from settings)
             temperature: Sampling temperature (default: 0.7)
+            num_predict: Max tokens to generate (default: None = model default)
 
         Returns:
             Assistant's response content
@@ -291,13 +300,18 @@ class AIClient:
 
         logger.debug(f"Chat with {model}, {len(messages)} messages")
 
+        request_body: dict = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+        }
+
+        if num_predict is not None:
+            request_body["max_tokens"] = num_predict
+
         response = await self.http_client.post(
             f"{self.settings.ollama_url}/v1/chat/completions",
-            json={
-                "model": model,
-                "messages": messages,
-                "temperature": temperature,
-            },
+            json=request_body,
             timeout=self.settings.llm_timeout,  # 5 min for LLM generation
         )
 
