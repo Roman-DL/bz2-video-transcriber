@@ -131,7 +131,28 @@ class SemanticChunker:
             prompt = self._build_prompt(part.text, outline)
             # Use chunker-specific model if configured
             model = self.settings.chunker_model or self.settings.llm_model
+
+            # Диагностика: размер промпта для отладки переполнения контекста
+            logger.info(
+                f"Part {part.index}/{len(text_parts)}: "
+                f"prompt={len(prompt)} chars (~{len(prompt)//3} tokens), "
+                f"text={part.char_count} chars"
+            )
+
             response = await self.ai_client.generate(prompt, model=model)
+
+            # Проверка пустого ответа с диагностикой
+            if not response or not response.strip():
+                logger.error(
+                    f"Part {part.index}: Empty LLM response. "
+                    f"Prompt: {len(prompt)} chars (~{len(prompt)//3} tokens), "
+                    f"Model: {model}"
+                )
+                raise ValueError(
+                    f"LLM returned empty response for part {part.index}. "
+                    f"Prompt size: {len(prompt)} chars (~{len(prompt)//3} tokens). "
+                    f"May exceed model context window."
+                )
 
             # Parse chunks from this part
             part_chunks = self._parse_chunks(
@@ -222,7 +243,28 @@ class SemanticChunker:
             prompt = self._build_prompt(part.text, outline)
             # Use chunker-specific model if configured
             model = self.settings.chunker_model or self.settings.llm_model
+
+            # Диагностика: размер промпта для отладки переполнения контекста
+            logger.info(
+                f"Part {part.index}/{len(text_parts)}: "
+                f"prompt={len(prompt)} chars (~{len(prompt)//3} tokens), "
+                f"text={part.char_count} chars"
+            )
+
             response = await self.ai_client.generate(prompt, model=model)
+
+            # Проверка пустого ответа с диагностикой
+            if not response or not response.strip():
+                logger.error(
+                    f"Part {part.index}: Empty LLM response. "
+                    f"Prompt: {len(prompt)} chars (~{len(prompt)//3} tokens), "
+                    f"Model: {model}"
+                )
+                raise ValueError(
+                    f"LLM returned empty response for part {part.index}. "
+                    f"Prompt size: {len(prompt)} chars (~{len(prompt)//3} tokens). "
+                    f"May exceed model context window."
+                )
 
             # Parse chunks from this part
             part_chunks = self._parse_chunks(
@@ -338,6 +380,15 @@ class SemanticChunker:
 
             topic = item.get("topic", "")
             text = item.get("text", "")
+
+            # Validate: text should be Russian (from transcript, not generated)
+            cyrillic_count = len(re.findall(r"[а-яА-ЯёЁ]", text))
+            cyrillic_ratio = cyrillic_count / max(len(text), 1)
+            if cyrillic_ratio < 0.5:
+                logger.error(
+                    f"Chunk {actual_index} has non-Russian text "
+                    f"(cyrillic={cyrillic_ratio:.0%}): {text[:100]}..."
+                )
 
             chunk = TranscriptChunk(
                 id=f"{video_id}_{actual_index:03d}",

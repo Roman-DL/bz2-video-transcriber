@@ -124,13 +124,41 @@ result = await ai_client.chat(messages, model=settings.cleaner_model, temperatur
 
 ## Валидация результата
 
-Сервис автоматически проверяет результат очистки:
+Сервис автоматически проверяет результат очистки на **двух уровнях**:
+
+### 1. Валидация каждого чанка
+
+После обработки каждого чанка проверяется:
+- **Reduction >40%** — модель вероятно суммаризировала
+- **Кириллица <50%** — модель переключилась на английский
+
+При провале валидации — **fallback на оригинальный текст** (лучше с паразитами, чем потерять контент).
+
+```
+INFO:  Chunk 1/16: 3000 -> 2400 chars (20% reduction), cyrillic=98%   ← OK
+WARN:  Chunk 5 high reduction! Input start: ... | Output start: ...  ← Проверить
+ERROR: Chunk 5 FAILED validation: reduction=56%, cyrillic=45%.       ← Fallback!
+       Using original text instead.
+```
+
+### 2. Валидация итогового результата
 
 ```
 INFO:  Cleaning complete: 47233 -> 40000 chars (15% reduction)  ← OK
 WARN:  High reduction: 30% - possible content loss              ← Проверить
 ERROR: Suspicious reduction: 85% - likely summarization         ← Баг!
 ```
+
+### Логирование merge
+
+При слиянии чанков логируется процент удалённых перекрытий:
+
+```
+INFO: Pre-merge stats: total input=48000, total output=40800, overall reduction=15%
+INFO: Merge: 40800 -> 39800 chars (2% removed as overlap)
+```
+
+Высокий процент при merge (>5%) указывает на возможные проблемы со слиянием.
 
 ## Тестирование
 

@@ -80,11 +80,52 @@ Per-module переменные переопределяют `LOG_LEVEL` для 
 | WARNING | Fallback на простые chunks |
 | ERROR | Ошибка chunking/summarization |
 
+### cleaner.py (очистка транскрипции)
+
+| Уровень | Событие | Пример |
+|---------|---------|--------|
+| INFO | Начало очистки | `Cleaning transcript: 47000 chars, 2319 segments, model: gemma2:9b` |
+| INFO | Очистка чанка | `Chunk 1/16: 3000 -> 2400 chars (20% reduction), cyrillic=98%` |
+| WARNING | Высокое сокращение | `Chunk 5 high reduction! Input start: ... \| Output start: ...` |
+| ERROR | Провал валидации | `Chunk 5 FAILED validation: reduction=56%, cyrillic=45%. Using original text instead.` |
+| INFO | Статистика до merge | `Pre-merge stats: total input=48000, total output=38400, overall reduction=20%` |
+| INFO | Результат merge | `Merge: 38400 -> 37600 chars (2% removed as overlap)` |
+| INFO | Итог очистки | `Cleaning complete: 47000 -> 37600 chars (20% reduction)` |
+| ERROR | Подозрительное сокращение | `Suspicious reduction: 56% - likely summarization instead of cleaning` |
+
+**Отладка проблем очистки:**
+
+1. Включить INFO логи cleaner:
+   ```yaml
+   - LOG_LEVEL_CLEANER=INFO
+   ```
+
+2. Посмотреть логи:
+   ```bash
+   sudo docker logs bz2-transcriber 2>&1 | grep -E "(Chunk|reduction|Merge|FAILED)"
+   ```
+
+3. Что искать:
+   - **Chunk N high reduction** — конкретный чанк с аномальным сокращением
+   - **cyrillic=XX%** — низкий процент кириллицы указывает на не-русский вывод
+   - **FAILED validation** — валидация не прошла, использован оригинал
+   - **Pre-merge vs итог** — разница показывает потерю при merge
+
+### chunker.py (семантическое чанкирование)
+
+| Уровень | Событие | Пример |
+|---------|---------|--------|
+| INFO | Начало чанкирования | `Chunking transcript: 40000 chars, 6500 words` |
+| INFO | Большой текст | `Large text detected (40000 chars), extracting outline from 4 parts` |
+| INFO | Результат части | `Part 1/4: 3 chunks, sizes: [250, 180, 220]` |
+| INFO | Итого до merge | `Total chunks before merge: 14, total words: 2800` |
+| WARNING | Маленькие чанки | `Found 3/14 chunks with < 100 words, merging` |
+| ERROR | Не-русский текст | `Chunk 12 has non-Russian text (cyrillic=15%): Providing Solutions...` |
+| INFO | Завершение | `Chunking complete: 12 chunks, avg size 230 words` |
+
 ### Другие модули
 
 - **transcriber.py** — старт/завершение транскрипции
-- **cleaner.py** — количество исправлений глоссария
-- **chunker.py** — количество chunks
 - **summarizer.py** — смена промпта, парсинг ответа
 
 ---

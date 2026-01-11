@@ -268,6 +268,14 @@ class AIClient:
         result = response.json()
 
         response_text = result.get("response", "")
+
+        # Диагностика пустых ответов
+        if not response_text.strip():
+            logger.error(
+                f"Empty response from LLM! Model: {model}, "
+                f"prompt_length: {len(prompt)} chars"
+            )
+
         logger.debug(f"Generated {len(response_text)} chars")
 
         return response_text

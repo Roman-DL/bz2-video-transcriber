@@ -19,7 +19,8 @@ from app.models.schemas import TextPart
 logger = logging.getLogger(__name__)
 
 # Configuration
-PART_SIZE = 8000  # Target size per part in characters (~3000 tokens)
+# Уменьшено с 8000 для совместимости с контекстом gemma2:9b (8192 токена)
+PART_SIZE = 6000  # Target size per part in characters (~2000 tokens)
 OVERLAP_SIZE = 1500  # Overlap between adjacent parts (~20%)
 MIN_PART_SIZE = 2000  # Minimum size for last part (merge if smaller)
 
@@ -182,10 +183,12 @@ class TextSplitter:
 
     def _split_into_sentences(self, text: str) -> list[str]:
         """
-        Split text into sentences using regex.
+        Split text into sentences, breaking long ones on commas.
 
         Handles common sentence-ending punctuation (. ! ?) followed by
-        whitespace or end of string.
+        whitespace or end of string. For very long "sentences" (common with
+        Whisper transcripts using commas instead of periods), further splits
+        on commas.
 
         Args:
             text: Text to split
@@ -194,8 +197,22 @@ class TextSplitter:
             List of sentences (stripped, non-empty)
         """
         # Split on sentence-ending punctuation followed by space
-        sentences = re.split(r"(?<=[.!?])\s+", text)
-        return [s.strip() for s in sentences if s.strip()]
+        raw_sentences = re.split(r"(?<=[.!?])\s+", text)
+
+        sentences = []
+        for s in raw_sentences:
+            s = s.strip()
+            if not s:
+                continue
+            # Если предложение слишком длинное — разбиваем по запятым
+            if len(s) > self.part_size:
+                # Разбиваем по запятым
+                parts = re.split(r",\s*", s)
+                sentences.extend(p.strip() for p in parts if p.strip())
+            else:
+                sentences.append(s)
+
+        return sentences
 
     def _get_overlap_sentences(
         self, sentences: list[str], target_overlap: int
@@ -368,8 +385,30 @@ if __name__ == "__main__":
             print(f"FAILED: {e}")
             return 1
 
-        # Test 6: Real-world text with default settings
-        print("\nTest 6: Real-world text (default settings)...", end=" ")
+        # Test 6: Long sentence split by commas (Whisper artifact)
+        print("\nTest 6: Long sentence with commas (Whisper artifact)...", end=" ")
+        try:
+            comma_splitter = TextSplitter(part_size=100)
+            long_sentence = (
+                "Это очень длинное предложение без точек, "
+                "которое продолжается с запятыми, "
+                "и ещё немного текста, "
+                "и ещё больше текста здесь, "
+                "потому что Whisper так делает."
+            )
+            sentences = comma_splitter._split_into_sentences(long_sentence)
+            assert len(sentences) >= 3, f"Expected >=3 parts, got {len(sentences)}"
+            print("OK")
+            print(f"  Input: {len(long_sentence)} chars")
+            print(f"  Output: {len(sentences)} parts")
+            for i, s in enumerate(sentences[:3]):
+                print(f"    Part {i+1}: {s[:40]}...")
+        except Exception as e:
+            print(f"FAILED: {e}")
+            return 1
+
+        # Test 7: Real-world text with default settings
+        print("\nTest 7: Real-world text (default settings)...", end=" ")
         try:
             real_splitter = TextSplitter()  # Default settings: 8000/1500/2000
 

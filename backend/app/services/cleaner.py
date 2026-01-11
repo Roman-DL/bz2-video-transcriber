@@ -92,6 +92,9 @@ class TranscriptCleaner:
 
         # Step 3: Process each chunk with LLM using chat API
         cleaned_chunks = []
+        total_input_chars = 0
+        total_output_chars = 0
+
         for i, chunk in enumerate(chunks):
             user_content = self.user_template.format(transcript=chunk)
 
@@ -109,17 +112,75 @@ class TranscriptCleaner:
                 temperature=0.0,  # Deterministic output to prevent summarization
                 num_predict=num_predict,
             )
-            cleaned_chunks.append(chunk_result.strip())
+            chunk_result = chunk_result.strip()
 
-            if len(chunks) > 1:
-                logger.debug(
-                    f"Chunk {i + 1}/{len(chunks)} cleaned: "
-                    f"{len(chunk)} -> {len(chunk_result)} chars"
+            # Detailed logging for each chunk
+            input_len = len(chunk)
+            output_len = len(chunk_result)
+            chunk_reduction = (
+                100 - (output_len * 100 // input_len) if input_len > 0 else 0
+            )
+            cyrillic_count = len(re.findall(r"[а-яА-ЯёЁ]", chunk_result))
+            cyrillic_ratio = cyrillic_count / max(output_len, 1)
+
+            total_input_chars += input_len
+            total_output_chars += output_len
+
+            # Always log each chunk stats
+            logger.info(
+                f"Chunk {i + 1}/{len(chunks)}: "
+                f"{input_len} -> {output_len} chars ({chunk_reduction}% reduction), "
+                f"cyrillic={cyrillic_ratio:.0%}"
+            )
+
+            # Log details for suspicious chunks
+            if chunk_reduction > 30:
+                logger.warning(
+                    f"Chunk {i + 1} high reduction! "
+                    f"Input start: {chunk[:100]}... | "
+                    f"Output start: {chunk_result[:100]}..."
                 )
+
+            # Validation: fallback to original if LLM summarized instead of cleaning
+            if chunk_reduction > 40 or cyrillic_ratio < 0.5:
+                logger.error(
+                    f"Chunk {i + 1} FAILED validation: "
+                    f"reduction={chunk_reduction}%, cyrillic={cyrillic_ratio:.0%}. "
+                    f"Using original text instead."
+                )
+                chunk_result = chunk
+                # Recalculate stats for accurate totals
+                total_output_chars = total_output_chars - output_len + len(chunk)
+
+            cleaned_chunks.append(chunk_result)
+
+        # Pre-merge statistics
+        if len(chunks) > 1:
+            overall_reduction = (
+                100 - (total_output_chars * 100 // total_input_chars)
+                if total_input_chars > 0
+                else 0
+            )
+            logger.info(
+                f"Pre-merge stats: total input={total_input_chars}, "
+                f"total output={total_output_chars}, "
+                f"overall reduction={overall_reduction}%"
+            )
 
         # Step 4: Merge chunks (remove duplicates from overlap)
         if len(cleaned_chunks) > 1:
+            pre_merge_total = sum(len(c) for c in cleaned_chunks)
             cleaned_text = self._merge_chunks(cleaned_chunks)
+            post_merge_len = len(cleaned_text)
+            merge_reduction = (
+                100 - (post_merge_len * 100 // pre_merge_total)
+                if pre_merge_total > 0
+                else 0
+            )
+            logger.info(
+                f"Merge: {pre_merge_total} -> {post_merge_len} chars "
+                f"({merge_reduction}% removed as overlap)"
+            )
         else:
             cleaned_text = cleaned_chunks[0] if cleaned_chunks else ""
 
