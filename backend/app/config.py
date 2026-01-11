@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     whisper_url: str = "http://192.168.1.152:9000"
     llm_model: str = "qwen2.5:14b"
     cleaner_model: str = "gemma2:9b"  # Stable model for transcript cleaning
-    chunker_model: str | None = None  # Model for chunking (None = use llm_model)
+    chunker_model: str = "gemma2:9b"  # Better chunk distribution than qwen
     whisper_language: str = "ru"
     llm_timeout: int = 300
 

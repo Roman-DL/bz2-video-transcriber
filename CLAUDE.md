@@ -49,6 +49,7 @@ Video → Parse → Whisper → Clean → Chunk → Summarize → Save
 | Развёртывание | [docs/deployment.md](docs/deployment.md) |
 | Логирование | [docs/logging.md](docs/logging.md) |
 | Тестирование | [docs/testing.md](docs/testing.md) |
+| Тестирование моделей | [docs/model-testing.md](docs/model-testing.md) |
 
 ## Структура проекта
 
@@ -64,8 +65,18 @@ config/glossary.yaml    # Терминология
 
 | Сервис | URL | Модель |
 |--------|-----|--------|
-| Ollama | http://100.64.0.1:11434 | qwen2.5:14b |
+| Ollama | http://100.64.0.1:11434 | см. ниже |
 | Whisper | http://100.64.0.1:9000 | large-v3 |
+
+### Конфигурация моделей
+
+| Задача | Модель | Почему |
+|--------|--------|--------|
+| Суммаризация | qwen2.5:14b | Лучшее качество текста |
+| Очистка | gemma2:9b | Стабильный JSON, умеренное сжатие |
+| Чанкирование | gemma2:9b | Оптимальное количество чанков |
+
+Подробнее: [docs/model-testing.md](docs/model-testing.md)
 
 ## Разработка
 
