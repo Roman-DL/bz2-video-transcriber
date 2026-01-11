@@ -22,6 +22,7 @@ from app.config import Settings, get_settings, load_prompt
 # Configuration for handling large transcripts
 LARGE_TEXT_THRESHOLD = 10000  # Above this - use outline extraction
 MIN_CHUNK_WORDS = 50  # Minimum words per chunk (merge smaller ones)
+TARGET_CHUNK_WORDS = 250  # Target size when merging small chunks
 
 from app.models.schemas import (
     CleanedTranscript,
@@ -128,13 +129,27 @@ class SemanticChunker:
                 )
 
             prompt = self._build_prompt(part.text, outline)
-            response = await self.ai_client.generate(prompt)
+            # Use chunker-specific model if configured
+            model = self.settings.chunker_model or self.settings.llm_model
+            response = await self.ai_client.generate(prompt, model=model)
 
             # Parse chunks from this part
             part_chunks = self._parse_chunks(
                 response, metadata.video_id, index_offset=len(all_chunks)
             )
             all_chunks.extend(part_chunks)
+
+            # Log chunk sizes for debugging
+            logger.info(
+                f"Part {part.index}/{len(text_parts)}: {len(part_chunks)} chunks, "
+                f"sizes: {[c.word_count for c in part_chunks]}"
+            )
+
+        # Log total before merge
+        logger.info(
+            f"Total chunks before merge: {len(all_chunks)}, "
+            f"total words: {sum(c.word_count for c in all_chunks)}"
+        )
 
         # Validate and merge small chunks
         all_chunks = self._validate_and_merge_chunks(all_chunks, metadata.video_id)
@@ -205,13 +220,27 @@ class SemanticChunker:
                 )
 
             prompt = self._build_prompt(part.text, outline)
-            response = await self.ai_client.generate(prompt)
+            # Use chunker-specific model if configured
+            model = self.settings.chunker_model or self.settings.llm_model
+            response = await self.ai_client.generate(prompt, model=model)
 
             # Parse chunks from this part
             part_chunks = self._parse_chunks(
                 response, metadata.video_id, index_offset=len(all_chunks)
             )
             all_chunks.extend(part_chunks)
+
+            # Log chunk sizes for debugging
+            logger.info(
+                f"Part {part.index}/{len(text_parts)}: {len(part_chunks)} chunks, "
+                f"sizes: {[c.word_count for c in part_chunks]}"
+            )
+
+        # Log total before merge
+        logger.info(
+            f"Total chunks before merge: {len(all_chunks)}, "
+            f"total words: {sum(c.word_count for c in all_chunks)}"
+        )
 
         # Validate and merge small chunks
         all_chunks = self._validate_and_merge_chunks(all_chunks, metadata.video_id)
@@ -365,18 +394,18 @@ class SemanticChunker:
         self, chunks: list[TranscriptChunk], video_id: str
     ) -> list[TranscriptChunk]:
         """
-        Validate chunk sizes and merge small chunks with neighbors.
+        Validate chunk sizes and merge small chunks into groups.
 
         LLM sometimes ignores size requirements and creates tiny chunks.
-        This method merges chunks smaller than MIN_CHUNK_WORDS with
-        the next chunk to ensure meaningful semantic units.
+        This method merges chunks smaller than MIN_CHUNK_WORDS into groups
+        of TARGET_CHUNK_WORDS to ensure meaningful semantic units.
 
         Args:
             chunks: List of parsed chunks
             video_id: Video ID for regenerating chunk IDs
 
         Returns:
-            List of validated chunks with small ones merged
+            List of validated chunks with small ones merged into groups
         """
         if not chunks:
             return chunks
@@ -391,6 +420,7 @@ class SemanticChunker:
         merged: list[TranscriptChunk] = []
         pending_text = ""
         pending_topic = ""
+        pending_words = 0
 
         for chunk in chunks:
             if chunk.word_count < MIN_CHUNK_WORDS:
@@ -400,30 +430,43 @@ class SemanticChunker:
                 else:
                     pending_text = chunk.text
                     pending_topic = chunk.topic
-            else:
-                # Normal sized chunk
-                if pending_text:
-                    # Prepend accumulated small chunks to this one
-                    combined_text = pending_text + " " + chunk.text
-                    combined_topic = pending_topic or chunk.topic
+                pending_words += chunk.word_count
+
+                # If accumulated enough, create merged chunk
+                if pending_words >= TARGET_CHUNK_WORDS:
                     merged.append(
                         TranscriptChunk(
-                            id="",  # Will be reassigned
+                            id="",
                             index=0,
-                            topic=combined_topic,
-                            text=combined_text,
-                            word_count=len(combined_text.split()),
+                            topic=pending_topic,
+                            text=pending_text,
+                            word_count=pending_words,
                         )
                     )
                     pending_text = ""
                     pending_topic = ""
-                else:
-                    merged.append(chunk)
+                    pending_words = 0
+            else:
+                # Normal sized chunk - flush pending first
+                if pending_text:
+                    merged.append(
+                        TranscriptChunk(
+                            id="",
+                            index=0,
+                            topic=pending_topic,
+                            text=pending_text,
+                            word_count=pending_words,
+                        )
+                    )
+                    pending_text = ""
+                    pending_topic = ""
+                    pending_words = 0
+                merged.append(chunk)
 
         # Handle any remaining pending text
         if pending_text:
-            if merged:
-                # Append to last chunk
+            if merged and pending_words < MIN_CHUNK_WORDS:
+                # Append to last chunk if too small
                 last = merged[-1]
                 combined_text = last.text + " " + pending_text
                 merged[-1] = TranscriptChunk(
@@ -434,14 +477,14 @@ class SemanticChunker:
                     word_count=len(combined_text.split()),
                 )
             else:
-                # Only small chunks - keep as single chunk
+                # Keep as separate chunk
                 merged.append(
                     TranscriptChunk(
                         id="",
                         index=0,
                         topic=pending_topic,
                         text=pending_text,
-                        word_count=len(pending_text.split()),
+                        word_count=pending_words,
                     )
                 )
 
