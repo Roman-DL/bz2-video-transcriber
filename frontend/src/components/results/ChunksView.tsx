@@ -27,7 +27,7 @@ export function ChunksView({ chunks }: ChunksViewProps) {
             )}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <Badge variant="info">#{chunk.index + 1}</Badge>
+                <Badge variant="info">#{chunk.index}</Badge>
                 <span className="text-sm font-medium text-gray-900 truncate">
                   {chunk.topic}
                 </span>

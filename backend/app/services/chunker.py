@@ -21,7 +21,7 @@ from app.config import Settings, get_settings, load_prompt
 
 # Configuration for handling large transcripts
 LARGE_TEXT_THRESHOLD = 10000  # Above this - use outline extraction
-MIN_CHUNK_WORDS = 50  # Minimum words per chunk (merge smaller ones)
+MIN_CHUNK_WORDS = 100  # Minimum words per chunk (merge smaller ones)
 TARGET_CHUNK_WORDS = 250  # Target size when merging small chunks
 
 from app.models.schemas import (
