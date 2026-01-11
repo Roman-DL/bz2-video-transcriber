@@ -140,14 +140,39 @@ LOG_LEVEL_SUMMARIZER=INFO
 2025-01-09 10:32:18 | ERROR    | ai_client       | Transcription timeout after 123.4s
 ```
 
+### Подключение к серверу (для Claude)
+
+**ВАЖНО:** Используй `sshpass` с паролем из `.env.local` для выполнения команд на сервере:
+
+```bash
+# Загрузить credentials
+source .env.local
+
+# Выполнить команду на сервере
+sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no "$DEPLOY_USER@$DEPLOY_HOST" "COMMAND"
+
+# Пример: получить логи контейнера
+sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no "$DEPLOY_USER@$DEPLOY_HOST" \
+  "echo '$DEPLOY_PASSWORD' | sudo -S docker logs bz2-transcriber --tail 50" 2>&1
+
+# Пример: прочитать файл из архива (путь на хосте!)
+sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no "$DEPLOY_USER@$DEPLOY_HOST" \
+  "echo '$DEPLOY_PASSWORD' | sudo -S cat '/mnt/main/work/bz2/video/archive/2025/...'" 2>&1
+```
+
+**Пути:**
+- На хосте: `/mnt/main/work/bz2/video/archive/...`
+- В контейнере: `/data/archive/...`
+
 ### Просмотр логов на сервере
 
 ```bash
-# Последние 50 строк
-ssh truenas_admin@192.168.1.152 'sudo docker logs bz2-transcriber --tail 50'
+# Через sshpass (рекомендуется для Claude)
+source .env.local && sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no "$DEPLOY_USER@$DEPLOY_HOST" \
+  "echo '$DEPLOY_PASSWORD' | sudo -S docker logs bz2-transcriber --tail 50" 2>&1
 
-# В реальном времени
-ssh truenas_admin@192.168.1.152 'sudo docker logs -f bz2-transcriber'
+# Интерактивно (для пользователя)
+ssh truenas_admin@192.168.1.152 'sudo docker logs bz2-transcriber --tail 50'
 ```
 
 Подробнее: [docs/logging.md](docs/logging.md)
