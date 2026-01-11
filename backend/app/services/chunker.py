@@ -2,6 +2,14 @@
 Semantic chunker service.
 
 Splits cleaned transcripts into semantic chunks using Ollama LLM.
+
+For large transcripts (>10K chars), splits text into parts before
+sending to LLM to avoid context overflow.
+
+Limitations:
+- Text splitting may cut across logical topic boundaries
+- LLM sees only part of the text, cannot determine global themes
+- See docs/pipeline/04-chunk.md for future improvement options
 """
 
 import json
@@ -10,6 +18,12 @@ import re
 import time
 
 from app.config import Settings, get_settings, load_prompt
+
+# Configuration for handling large transcripts
+# These values are a compromise between stability and semantic quality
+MAX_INPUT_CHARS = 8000  # Max chars per LLM request (~2500 words)
+LARGE_TEXT_THRESHOLD = 10000  # Above this - split into parts
+MIN_CHUNK_WORDS = 50  # Minimum words per chunk (merge smaller ones)
 from app.models.schemas import (
     CleanedTranscript,
     TranscriptChunk,
@@ -56,6 +70,9 @@ class SemanticChunker:
         """
         Split cleaned transcript into semantic chunks.
 
+        For large texts (>10K chars), splits into parts before processing
+        to avoid LLM context overflow.
+
         Args:
             cleaned_transcript: Cleaned transcript from cleaner service
             metadata: Video metadata (for chunk IDs)
@@ -71,16 +88,35 @@ class SemanticChunker:
 
         start_time = time.time()
 
-        # Build prompt and call LLM
-        prompt = self._build_prompt(text)
-        response = await self.ai_client.generate(prompt)
+        # Split large text into parts if needed
+        text_parts = self._split_large_text(text)
 
-        # Parse LLM response into chunks
-        chunks = self._parse_chunks(response, metadata.video_id)
+        if len(text_parts) > 1:
+            logger.info(
+                f"Large text detected ({input_chars} chars), "
+                f"processing in {len(text_parts)} parts"
+            )
+
+        # Process each part and collect all chunks
+        all_chunks: list[TranscriptChunk] = []
+
+        for i, part in enumerate(text_parts):
+            if len(text_parts) > 1:
+                logger.debug(f"Processing part {i + 1}/{len(text_parts)}: {len(part)} chars")
+
+            prompt = self._build_prompt(part)
+            response = await self.ai_client.generate(prompt)
+
+            # Parse chunks from this part
+            part_chunks = self._parse_chunks(response, metadata.video_id, index_offset=len(all_chunks))
+            all_chunks.extend(part_chunks)
+
+        # Validate and merge small chunks
+        all_chunks = self._validate_and_merge_chunks(all_chunks, metadata.video_id)
 
         elapsed = time.time() - start_time
 
-        result = TranscriptChunks(chunks=chunks)
+        result = TranscriptChunks(chunks=all_chunks)
 
         logger.info(
             f"Chunking complete: {result.total_chunks} chunks, "
@@ -111,19 +147,90 @@ class SemanticChunker:
         # JSON examples with curly braces that would confuse str.format()
         return self.prompt_template.replace("{transcript}", text)
 
-    def _parse_chunks(self, response: str, video_id: str) -> list[TranscriptChunk]:
+    def _split_large_text(self, text: str) -> list[str]:
+        """
+        Split large text into parts for separate LLM processing.
+
+        Only splits if text exceeds LARGE_TEXT_THRESHOLD.
+        Splits on sentence boundaries to avoid cutting mid-sentence.
+
+        Note: This is a workaround for LLM context limits. Splitting
+        text means LLM cannot see global topic structure. See
+        docs/pipeline/04-chunk.md for alternative approaches.
+
+        Args:
+            text: Full transcript text
+
+        Returns:
+            List of text parts (single item if text is small)
+        """
+        if len(text) <= LARGE_TEXT_THRESHOLD:
+            return [text]
+
+        parts = []
+        sentences = self._split_into_sentences(text)
+
+        current_part: list[str] = []
+        current_length = 0
+
+        for sentence in sentences:
+            sentence_length = len(sentence)
+
+            # If adding this sentence exceeds max size, save current part
+            if current_length + sentence_length > MAX_INPUT_CHARS and current_part:
+                parts.append(" ".join(current_part))
+                current_part = []
+                current_length = 0
+
+            current_part.append(sentence)
+            current_length += sentence_length
+
+        # Don't forget the last part
+        if current_part:
+            parts.append(" ".join(current_part))
+
+        return parts
+
+    def _split_into_sentences(self, text: str) -> list[str]:
+        """
+        Split text into sentences using regex.
+
+        Args:
+            text: Text to split
+
+        Returns:
+            List of sentences
+        """
+        # Split on sentence-ending punctuation followed by space or end
+        sentences = re.split(r"(?<=[.!?])\s+", text)
+        return [s.strip() for s in sentences if s.strip()]
+
+    def _parse_chunks(
+        self, response: str, video_id: str, index_offset: int = 0
+    ) -> list[TranscriptChunk]:
         """
         Parse LLM response into TranscriptChunk objects.
 
         Args:
             response: Raw LLM response (JSON or markdown-wrapped JSON)
             video_id: Video ID for generating chunk IDs
+            index_offset: Offset for chunk indices (when processing in parts)
 
         Returns:
             List of TranscriptChunk objects
         """
+        # Check for empty response
+        if not response or not response.strip():
+            logger.error("LLM returned empty response - text may be too large for model context")
+            raise ValueError("LLM returned empty response - text may be too large")
+
         # Extract JSON from response (handles markdown code blocks)
         json_str = self._extract_json(response)
+
+        # Check if extraction found anything
+        if not json_str or not json_str.strip():
+            logger.error(f"Could not extract JSON from response: {response[:500]}...")
+            raise ValueError("Could not extract JSON from LLM response")
 
         # Parse JSON
         try:
@@ -140,13 +247,16 @@ class SemanticChunker:
         # Convert to TranscriptChunk objects
         chunks = []
         for item in data:
-            index = item.get("index", len(chunks) + 1)
+            # Calculate actual index with offset
+            local_index = item.get("index", len(chunks) + 1)
+            actual_index = index_offset + local_index
+
             topic = item.get("topic", "")
             text = item.get("text", "")
 
             chunk = TranscriptChunk(
-                id=f"{video_id}_{index:03d}",
-                index=index,
+                id=f"{video_id}_{actual_index:03d}",
+                index=actual_index,
                 topic=topic,
                 text=text,
                 word_count=len(text.split()),
@@ -194,6 +304,108 @@ class SemanticChunker:
                 cleaned = cleaned[start_idx : end_idx + 1]
 
         return cleaned.strip()
+
+    def _validate_and_merge_chunks(
+        self, chunks: list[TranscriptChunk], video_id: str
+    ) -> list[TranscriptChunk]:
+        """
+        Validate chunk sizes and merge small chunks with neighbors.
+
+        LLM sometimes ignores size requirements and creates tiny chunks.
+        This method merges chunks smaller than MIN_CHUNK_WORDS with
+        the next chunk to ensure meaningful semantic units.
+
+        Args:
+            chunks: List of parsed chunks
+            video_id: Video ID for regenerating chunk IDs
+
+        Returns:
+            List of validated chunks with small ones merged
+        """
+        if not chunks:
+            return chunks
+
+        # Count small chunks for logging
+        small_count = sum(1 for c in chunks if c.word_count < MIN_CHUNK_WORDS)
+        if small_count > 0:
+            logger.warning(
+                f"Found {small_count}/{len(chunks)} chunks with < {MIN_CHUNK_WORDS} words, merging"
+            )
+
+        merged: list[TranscriptChunk] = []
+        pending_text = ""
+        pending_topic = ""
+
+        for chunk in chunks:
+            if chunk.word_count < MIN_CHUNK_WORDS:
+                # Accumulate small chunk
+                if pending_text:
+                    pending_text += " " + chunk.text
+                else:
+                    pending_text = chunk.text
+                    pending_topic = chunk.topic
+            else:
+                # Normal sized chunk
+                if pending_text:
+                    # Prepend accumulated small chunks to this one
+                    combined_text = pending_text + " " + chunk.text
+                    combined_topic = pending_topic or chunk.topic
+                    merged.append(
+                        TranscriptChunk(
+                            id="",  # Will be reassigned
+                            index=0,
+                            topic=combined_topic,
+                            text=combined_text,
+                            word_count=len(combined_text.split()),
+                        )
+                    )
+                    pending_text = ""
+                    pending_topic = ""
+                else:
+                    merged.append(chunk)
+
+        # Handle any remaining pending text
+        if pending_text:
+            if merged:
+                # Append to last chunk
+                last = merged[-1]
+                combined_text = last.text + " " + pending_text
+                merged[-1] = TranscriptChunk(
+                    id="",
+                    index=0,
+                    topic=last.topic,
+                    text=combined_text,
+                    word_count=len(combined_text.split()),
+                )
+            else:
+                # Only small chunks - keep as single chunk
+                merged.append(
+                    TranscriptChunk(
+                        id="",
+                        index=0,
+                        topic=pending_topic,
+                        text=pending_text,
+                        word_count=len(pending_text.split()),
+                    )
+                )
+
+        # Reassign indices and IDs
+        for i, chunk in enumerate(merged):
+            new_index = i + 1
+            merged[i] = TranscriptChunk(
+                id=f"{video_id}_{new_index:03d}",
+                index=new_index,
+                topic=chunk.topic,
+                text=chunk.text,
+                word_count=chunk.word_count,
+            )
+
+        if len(merged) < len(chunks):
+            logger.info(
+                f"Merged small chunks: {len(chunks)} -> {len(merged)} chunks"
+            )
+
+        return merged
 
 
 if __name__ == "__main__":
