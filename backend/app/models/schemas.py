@@ -134,6 +134,118 @@ class TranscriptChunks(BaseModel):
         return sum(c.word_count for c in self.chunks) // len(self.chunks)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Map-Reduce Models for Large Transcript Processing
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TextPart(BaseModel):
+    """Part of transcript text with overlap information.
+
+    Used by TextSplitter to split large transcripts into overlapping parts
+    for parallel processing while maintaining context at boundaries.
+    """
+
+    index: int = Field(..., ge=1, description="Part number (1-based)")
+    text: str = Field(..., min_length=1, description="Part content")
+    start_char: int = Field(..., ge=0, description="Start position in original text")
+    end_char: int = Field(..., ge=0, description="End position in original text")
+    has_overlap_before: bool = Field(
+        default=False, description="Has overlap with previous part"
+    )
+    has_overlap_after: bool = Field(
+        default=False, description="Has overlap with next part"
+    )
+
+    @computed_field
+    @property
+    def char_count(self) -> int:
+        """Number of characters in this part."""
+        return len(self.text)
+
+    @computed_field
+    @property
+    def word_count(self) -> int:
+        """Number of words in this part."""
+        return len(self.text.split())
+
+
+class PartOutline(BaseModel):
+    """Outline extracted from a single text part.
+
+    Contains structured information about topics and key points
+    extracted by LLM from one part of the transcript.
+    """
+
+    part_index: int = Field(..., ge=1, description="Part number (1-based)")
+    topics: list[str] = Field(
+        ...,
+        min_length=1,
+        max_length=4,
+        description="Main topics in this part (2-4)",
+    )
+    key_points: list[str] = Field(
+        ...,
+        min_length=1,
+        max_length=5,
+        description="Key points from this part (3-5)",
+    )
+    summary: str = Field(
+        ...,
+        min_length=10,
+        max_length=500,
+        description="Brief summary (1-2 sentences)",
+    )
+
+
+class TranscriptOutline(BaseModel):
+    """Combined outline of the entire transcript.
+
+    Created by reducing multiple PartOutlines into a unified structure
+    with deduplicated topics. Used as context for chunking.
+    """
+
+    parts: list[PartOutline] = Field(
+        default_factory=list, description="Outlines from all parts"
+    )
+    all_topics: list[str] = Field(
+        default_factory=list, description="Deduplicated list of all topics"
+    )
+
+    @computed_field
+    @property
+    def total_parts(self) -> int:
+        """Total number of parts processed."""
+        return len(self.parts)
+
+    def to_context(self) -> str:
+        """Format outline as context string for chunking prompt.
+
+        Returns:
+            Formatted context for insertion into LLM prompt.
+        """
+        if not self.parts:
+            return ""
+
+        lines = ["## КОНТЕКСТ ВСЕГО ВИДЕО", ""]
+        lines.append(f"Транскрипт состоит из {self.total_parts} частей.")
+        lines.append("")
+
+        if self.all_topics:
+            lines.append("### Основные темы видео:")
+            for topic in self.all_topics:
+                lines.append(f"- {topic}")
+            lines.append("")
+
+        lines.append("### Структура по частям:")
+        for part in self.parts:
+            lines.append(f"\n**Часть {part.part_index}:**")
+            lines.append(f"Темы: {', '.join(part.topics)}")
+            lines.append(f"Содержание: {part.summary}")
+
+        return "\n".join(lines)
+
+
 class VideoSummary(BaseModel):
     """Video summary for BZ 2.0."""
 

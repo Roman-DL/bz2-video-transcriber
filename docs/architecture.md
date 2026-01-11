@@ -150,13 +150,15 @@ bz2-video-transcriber/
 │   │   │   ├── routes.py        # API: inbox, archive
 │   │   │   └── step_routes.py   # Step API с SSE прогрессом
 │   │   ├── services/
-│   │   │   ├── parser.py        # Парсинг имени файла
-│   │   │   ├── transcriber.py   # HTTP → Whisper API
-│   │   │   ├── cleaner.py       # HTTP → Ollama API
-│   │   │   ├── chunker.py       # HTTP → Ollama API
-│   │   │   ├── summarizer.py    # HTTP → Ollama API
-│   │   │   ├── saver.py         # Сохранение в архив
-│   │   │   └── pipeline.py      # Оркестрация
+│   │   │   ├── parser.py           # Парсинг имени файла
+│   │   │   ├── transcriber.py      # HTTP → Whisper API
+│   │   │   ├── cleaner.py          # HTTP → Ollama API
+│   │   │   ├── chunker.py          # HTTP → Ollama API
+│   │   │   ├── text_splitter.py    # Разбиение с overlap
+│   │   │   ├── outline_extractor.py # MAP-REDUCE для outline
+│   │   │   ├── summarizer.py       # HTTP → Ollama API
+│   │   │   ├── saver.py            # Сохранение в архив
+│   │   │   └── pipeline.py         # Оркестрация
 │   │   └── models/
 │   │       └── schemas.py       # Pydantic модели
 │   └── requirements.txt
@@ -188,7 +190,8 @@ bz2-video-transcriber/
 │   ├── prompts/
 │   │   ├── cleaner_system.md   # System prompt для очистки
 │   │   ├── cleaner_user.md     # User template для очистки
-│   │   ├── chunker.md
+│   │   ├── chunker.md          # Chunking с контекстом
+│   │   ├── map_outline.md      # Извлечение outline части
 │   │   └── summarizer.md
 │   ├── glossary.yaml
 │   └── events.yaml

@@ -3,13 +3,13 @@ Semantic chunker service.
 
 Splits cleaned transcripts into semantic chunks using Ollama LLM.
 
-For large transcripts (>10K chars), splits text into parts before
-sending to LLM to avoid context overflow.
+For large transcripts (>10K chars), uses Map-Reduce approach:
+1. Splits text into overlapping parts (TextSplitter)
+2. Extracts outline from each part in parallel (OutlineExtractor)
+3. Uses combined outline as context for better chunking
 
-Limitations:
-- Text splitting may cut across logical topic boundaries
-- LLM sees only part of the text, cannot determine global themes
-- See docs/pipeline/04-chunk.md for future improvement options
+This provides global context awareness for long videos while
+maintaining stable performance on limited server resources.
 """
 
 import json
@@ -20,17 +20,19 @@ import time
 from app.config import Settings, get_settings, load_prompt
 
 # Configuration for handling large transcripts
-# These values are a compromise between stability and semantic quality
-MAX_INPUT_CHARS = 8000  # Max chars per LLM request (~2500 words)
-LARGE_TEXT_THRESHOLD = 10000  # Above this - split into parts
+LARGE_TEXT_THRESHOLD = 10000  # Above this - use outline extraction
 MIN_CHUNK_WORDS = 50  # Minimum words per chunk (merge smaller ones)
+
 from app.models.schemas import (
     CleanedTranscript,
     TranscriptChunk,
     TranscriptChunks,
+    TranscriptOutline,
     VideoMetadata,
 )
 from app.services.ai_client import AIClient
+from app.services.outline_extractor import OutlineExtractor
+from app.services.text_splitter import TextSplitter
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -42,6 +44,11 @@ class SemanticChunker:
 
     Splits cleaned transcripts into self-contained semantic chunks
     optimized for RAG search (100-400 words each).
+
+    For large texts (>10K chars), uses Map-Reduce approach:
+    1. Splits text into overlapping parts
+    2. Extracts outline from each part
+    3. Uses outline as context for chunking
 
     Example:
         async with AIClient(settings) as client:
@@ -62,6 +69,10 @@ class SemanticChunker:
         self.settings = settings
         self.prompt_template = load_prompt("chunker", settings)
 
+        # Components for large text processing
+        self.text_splitter = TextSplitter()
+        self.outline_extractor = OutlineExtractor(ai_client, settings)
+
     async def chunk(
         self,
         cleaned_transcript: CleanedTranscript,
@@ -70,8 +81,10 @@ class SemanticChunker:
         """
         Split cleaned transcript into semantic chunks.
 
-        For large texts (>10K chars), splits into parts before processing
-        to avoid LLM context overflow.
+        For large texts (>10K chars), uses Map-Reduce approach:
+        1. Splits text into overlapping parts
+        2. Extracts outline from each part
+        3. Uses outline as context for better chunking
 
         Args:
             cleaned_transcript: Cleaned transcript from cleaner service
@@ -88,27 +101,38 @@ class SemanticChunker:
 
         start_time = time.time()
 
-        # Split large text into parts if needed
-        text_parts = self._split_large_text(text)
+        # Extract outline for large texts (Map-Reduce approach)
+        outline: TranscriptOutline | None = None
+        text_parts = self.text_splitter.split(text)
 
-        if len(text_parts) > 1:
+        if input_chars > LARGE_TEXT_THRESHOLD:
             logger.info(
                 f"Large text detected ({input_chars} chars), "
-                f"processing in {len(text_parts)} parts"
+                f"extracting outline from {len(text_parts)} parts"
+            )
+            outline = await self.outline_extractor.extract(text_parts)
+            logger.info(
+                f"Outline extracted: {outline.total_parts} parts, "
+                f"{len(outline.all_topics)} unique topics"
             )
 
         # Process each part and collect all chunks
         all_chunks: list[TranscriptChunk] = []
 
-        for i, part in enumerate(text_parts):
+        for part in text_parts:
             if len(text_parts) > 1:
-                logger.debug(f"Processing part {i + 1}/{len(text_parts)}: {len(part)} chars")
+                logger.debug(
+                    f"Chunking part {part.index}/{len(text_parts)}: "
+                    f"{part.char_count} chars"
+                )
 
-            prompt = self._build_prompt(part)
+            prompt = self._build_prompt(part.text, outline)
             response = await self.ai_client.generate(prompt)
 
             # Parse chunks from this part
-            part_chunks = self._parse_chunks(response, metadata.video_id, index_offset=len(all_chunks))
+            part_chunks = self._parse_chunks(
+                response, metadata.video_id, index_offset=len(all_chunks)
+            )
             all_chunks.extend(part_chunks)
 
         # Validate and merge small chunks
@@ -133,77 +157,31 @@ class SemanticChunker:
 
         return result
 
-    def _build_prompt(self, text: str) -> str:
+    def _build_prompt(
+        self, text: str, outline: TranscriptOutline | None = None
+    ) -> str:
         """
-        Build chunking prompt from template.
+        Build chunking prompt from template with optional outline context.
 
         Args:
-            text: Cleaned transcript text
+            text: Cleaned transcript text (or part of it)
+            outline: Optional TranscriptOutline for context (for large texts)
 
         Returns:
             Complete prompt for LLM
         """
+        prompt = self.prompt_template
+
+        # Add context from outline if available
+        if outline and outline.total_parts > 0:
+            context = outline.to_context()
+            prompt = prompt.replace("{context}", context)
+        else:
+            prompt = prompt.replace("{context}", "")
+
         # Use replace() instead of format() because the prompt contains
         # JSON examples with curly braces that would confuse str.format()
-        return self.prompt_template.replace("{transcript}", text)
-
-    def _split_large_text(self, text: str) -> list[str]:
-        """
-        Split large text into parts for separate LLM processing.
-
-        Only splits if text exceeds LARGE_TEXT_THRESHOLD.
-        Splits on sentence boundaries to avoid cutting mid-sentence.
-
-        Note: This is a workaround for LLM context limits. Splitting
-        text means LLM cannot see global topic structure. See
-        docs/pipeline/04-chunk.md for alternative approaches.
-
-        Args:
-            text: Full transcript text
-
-        Returns:
-            List of text parts (single item if text is small)
-        """
-        if len(text) <= LARGE_TEXT_THRESHOLD:
-            return [text]
-
-        parts = []
-        sentences = self._split_into_sentences(text)
-
-        current_part: list[str] = []
-        current_length = 0
-
-        for sentence in sentences:
-            sentence_length = len(sentence)
-
-            # If adding this sentence exceeds max size, save current part
-            if current_length + sentence_length > MAX_INPUT_CHARS and current_part:
-                parts.append(" ".join(current_part))
-                current_part = []
-                current_length = 0
-
-            current_part.append(sentence)
-            current_length += sentence_length
-
-        # Don't forget the last part
-        if current_part:
-            parts.append(" ".join(current_part))
-
-        return parts
-
-    def _split_into_sentences(self, text: str) -> list[str]:
-        """
-        Split text into sentences using regex.
-
-        Args:
-            text: Text to split
-
-        Returns:
-            List of sentences
-        """
-        # Split on sentence-ending punctuation followed by space or end
-        sentences = re.split(r"(?<=[.!?])\s+", text)
-        return [s.strip() for s in sentences if s.strip()]
+        return prompt.replace("{transcript}", text)
 
     def _parse_chunks(
         self, response: str, video_id: str, index_offset: int = 0
@@ -429,6 +407,7 @@ if __name__ == "__main__":
         try:
             prompt = load_prompt("chunker", settings)
             assert "{transcript}" in prompt, "Prompt missing {transcript} placeholder"
+            assert "{context}" in prompt, "Prompt missing {context} placeholder"
             assert len(prompt) > 100, "Prompt too short"
             print("OK")
             print(f"  Prompt length: {len(prompt)} chars")
