@@ -63,6 +63,7 @@ class FileSaver:
         raw_transcript: RawTranscript,
         chunks: TranscriptChunks,
         summary: VideoSummary,
+        audio_path: Path | None = None,
     ) -> list[str]:
         """
         Save all processing results to archive.
@@ -71,6 +72,7 @@ class FileSaver:
         - transcript_chunks.json
         - summary.md
         - transcript_raw.txt
+        - audio.mp3 (if provided)
         - moves video file
 
         Args:
@@ -78,6 +80,7 @@ class FileSaver:
             raw_transcript: Raw transcript from Whisper
             chunks: Semantic chunks
             summary: Video summary
+            audio_path: Path to extracted audio file (optional)
 
         Returns:
             List of created file names
@@ -106,6 +109,11 @@ class FileSaver:
         # Save raw transcript
         raw_path = self._save_raw_transcript(archive_path, raw_transcript)
         created_files.append(raw_path.name)
+
+        # Copy audio file if provided
+        if audio_path and audio_path.exists():
+            audio_dest = self._copy_audio(audio_path, archive_path)
+            created_files.append(audio_dest.name)
 
         # Move video file
         video_path = self._move_video(metadata.source_path, archive_path)
@@ -342,6 +350,28 @@ class FileSaver:
         shutil.move(str(source), str(dest_path))
 
         logger.debug(f"Moved video: {source} -> {dest_path}")
+
+        return dest_path
+
+    def _copy_audio(self, source: Path, dest_dir: Path) -> Path:
+        """
+        Copy audio file to archive directory as audio.mp3.
+
+        Args:
+            source: Source audio path (temp file)
+            dest_dir: Destination directory
+
+        Returns:
+            Path to copied file
+        """
+        dest_path = dest_dir / "audio.mp3"
+
+        shutil.copy2(str(source), str(dest_path))
+
+        # Clean up temp file
+        source.unlink(missing_ok=True)
+
+        logger.debug(f"Copied audio: {source} -> {dest_path}")
 
         return dest_path
 

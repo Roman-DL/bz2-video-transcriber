@@ -2,6 +2,7 @@
 Whisper transcription service.
 
 Transcribes video/audio files via Whisper HTTP API.
+Extracts audio from video before sending to Whisper for better reliability.
 """
 
 import logging
@@ -11,6 +12,7 @@ from pathlib import Path
 from app.config import Settings, get_settings
 from app.models.schemas import RawTranscript, TranscriptSegment
 from app.services.ai_client import AIClient
+from app.services.audio_extractor import AudioExtractor
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -38,34 +40,55 @@ class WhisperTranscriber:
         self.ai_client = ai_client
         self.settings = settings
 
-    async def transcribe(self, video_path: Path) -> RawTranscript:
+    async def transcribe(
+        self,
+        video_path: Path,
+        temp_dir: Path | None = None,
+    ) -> tuple[RawTranscript, Path]:
         """
-        Transcribe video/audio file.
+        Transcribe video file by extracting audio first.
+
+        Extracts audio from video using ffmpeg, then sends audio to Whisper API.
+        This approach is more reliable for long videos (55+ min).
 
         Args:
-            video_path: Path to video/audio file
+            video_path: Path to video file
+            temp_dir: Directory for temporary audio file (default: settings.temp_dir)
 
         Returns:
-            RawTranscript with segments and metadata
+            Tuple of (RawTranscript, audio_path)
 
         Raises:
             FileNotFoundError: If file doesn't exist
+            RuntimeError: If audio extraction fails
             httpx.HTTPStatusError: If API returns error
         """
         video_path = Path(video_path)
-        file_size_mb = video_path.stat().st_size / 1024 / 1024
+        video_size_mb = video_path.stat().st_size / 1024 / 1024
 
-        logger.info(f"Starting transcription: {video_path.name}")
+        logger.info(f"Starting transcription: {video_path.name} ({video_size_mb:.1f} MB)")
 
         start_time = time.time()
 
-        # Call Whisper API via AIClient
+        # Step 1: Extract audio from video
+        extractor = AudioExtractor(self.settings)
+        audio_path = await extractor.extract(
+            video_path,
+            output_dir=temp_dir or self.settings.temp_dir,
+        )
+
+        extract_time = time.time() - start_time
+        logger.info(f"Audio extraction took {extract_time:.1f}s")
+
+        # Step 2: Send audio to Whisper API (not video!)
+        whisper_start = time.time()
         response_data = await self.ai_client.transcribe(
-            file_path=video_path,
+            file_path=audio_path,
             language=self.settings.whisper_language,
         )
 
-        elapsed = time.time() - start_time
+        whisper_time = time.time() - whisper_start
+        total_time = time.time() - start_time
 
         # Parse response into models
         transcript = self._parse_response(response_data)
@@ -78,12 +101,14 @@ class WhisperTranscriber:
         # Performance metrics for progress estimation
         perf_logger.info(
             f"PERF | transcribe | "
-            f"size={file_size_mb:.1f}MB | "
+            f"size={video_size_mb:.1f}MB | "
             f"duration={transcript.duration_seconds:.0f}s | "
-            f"time={elapsed:.1f}s"
+            f"extract={extract_time:.1f}s | "
+            f"whisper={whisper_time:.1f}s | "
+            f"total={total_time:.1f}s"
         )
 
-        return transcript
+        return transcript, audio_path
 
     def _parse_response(self, data: dict) -> RawTranscript:
         """
@@ -185,18 +210,21 @@ if __name__ == "__main__":
             if not status["whisper"]:
                 print("SKIPPED (Whisper unavailable)")
             else:
-                # Check if test file exists
-                test_files = list(Path(".").glob("*.mp4")) + list(Path(".").glob("*.mp3"))
+                # Check if test file exists (only mp4 - we extract audio from video)
+                test_files = list(Path(".").glob("*.mp4"))
                 if not test_files:
-                    print("SKIPPED (no test file)")
+                    print("SKIPPED (no test video)")
                 else:
                     try:
                         transcriber = WhisperTranscriber(client, settings)
-                        transcript = await transcriber.transcribe(test_files[0])
+                        transcript, audio_path = await transcriber.transcribe(test_files[0])
                         print("OK")
-                        print(f"  File: {test_files[0].name}")
+                        print(f"  Video: {test_files[0].name}")
+                        print(f"  Audio: {audio_path.name}")
                         print(f"  Segments: {len(transcript.segments)}")
                         print(f"  Duration: {transcript.duration_seconds:.1f}s")
+                        # Clean up temp audio file
+                        audio_path.unlink(missing_ok=True)
                     except Exception as e:
                         print(f"FAILED: {e}")
                         return 1

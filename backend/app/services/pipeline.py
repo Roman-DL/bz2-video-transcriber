@@ -214,8 +214,8 @@ class PipelineOrchestrator:
             summarizer = VideoSummarizer(ai_client, self.settings)
             saver = FileSaver(self.settings)
 
-            # Stage 2: Transcribe
-            raw_transcript = await self._do_transcribe(
+            # Stage 2: Transcribe (extracts audio first, then sends to Whisper)
+            raw_transcript, audio_path = await self._do_transcribe(
                 transcriber, video_path, metadata.duration_seconds, progress_callback
             )
 
@@ -233,9 +233,9 @@ class PipelineOrchestrator:
                 progress_callback,
             )
 
-            # Stage 6: Save
+            # Stage 6: Save (includes audio.mp3)
             files_created = await self._do_save(
-                saver, metadata, raw_transcript, chunks, summary, progress_callback
+                saver, metadata, raw_transcript, chunks, summary, audio_path, progress_callback
             )
 
         processing_time = (datetime.now() - started_at).total_seconds()
@@ -273,15 +273,17 @@ class PipelineOrchestrator:
         video_path = Path(video_path)
         return parse_filename(video_path.name, video_path)
 
-    async def transcribe(self, video_path: Path) -> RawTranscript:
+    async def transcribe(self, video_path: Path) -> tuple[RawTranscript, Path]:
         """
         Transcribe video via Whisper API.
+
+        Extracts audio from video first, then sends to Whisper.
 
         Args:
             video_path: Path to video file
 
         Returns:
-            RawTranscript with segments and metadata
+            Tuple of (RawTranscript, audio_path)
         """
         video_path = Path(video_path)
 
@@ -356,6 +358,7 @@ class PipelineOrchestrator:
         raw_transcript: RawTranscript,
         chunks: TranscriptChunks,
         summary: VideoSummary,
+        audio_path: Path | None = None,
     ) -> list[str]:
         """
         Save all processing results to archive.
@@ -365,12 +368,13 @@ class PipelineOrchestrator:
             raw_transcript: Raw transcript
             chunks: Semantic chunks
             summary: Video summary
+            audio_path: Path to extracted audio file (optional)
 
         Returns:
             List of created file names
         """
         saver = FileSaver(self.settings)
-        return await saver.save(metadata, raw_transcript, chunks, summary)
+        return await saver.save(metadata, raw_transcript, chunks, summary, audio_path)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Internal: Stage Execution with Progress
@@ -382,7 +386,7 @@ class PipelineOrchestrator:
         video_path: Path,
         video_duration: float,
         callback: ProgressCallback | None,
-    ) -> RawTranscript:
+    ) -> tuple[RawTranscript, Path]:
         """Execute transcription stage with progress ticker."""
         estimate = self.estimator.estimate_transcribe(video_duration)
 
@@ -397,7 +401,7 @@ class PipelineOrchestrator:
             )
 
         try:
-            result = await transcriber.transcribe(video_path)
+            transcript, audio_path = await transcriber.transcribe(video_path)
         except Exception as e:
             if ticker:
                 ticker.cancel()
@@ -411,10 +415,10 @@ class PipelineOrchestrator:
                 ticker,
                 ProcessingStatus.TRANSCRIBING,
                 lambda s, p, m: self._update_progress(callback, s, p, m),
-                f"Transcribed: {len(result.segments)} segments, {result.duration_seconds:.0f}s",
+                f"Transcribed: {len(transcript.segments)} segments, {transcript.duration_seconds:.0f}s",
             )
 
-        return result
+        return transcript, audio_path
 
     async def _do_clean(
         self,
@@ -554,6 +558,7 @@ class PipelineOrchestrator:
         raw_transcript: RawTranscript,
         chunks: TranscriptChunks,
         summary: VideoSummary,
+        audio_path: Path | None,
         callback: ProgressCallback | None,
     ) -> list[str]:
         """Execute save stage with progress ticker."""
@@ -570,7 +575,7 @@ class PipelineOrchestrator:
             )
 
         try:
-            files = await saver.save(metadata, raw_transcript, chunks, summary)
+            files = await saver.save(metadata, raw_transcript, chunks, summary, audio_path)
         except Exception as e:
             if ticker:
                 ticker.cancel()

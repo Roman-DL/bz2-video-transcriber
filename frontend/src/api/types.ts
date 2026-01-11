@@ -34,6 +34,15 @@ export interface RawTranscript {
   text_with_timestamps: string;
 }
 
+/**
+ * Result from /step/transcribe endpoint.
+ * Contains both transcript and path to extracted audio.
+ */
+export interface TranscribeResult {
+  raw_transcript: RawTranscript;
+  audio_path: string;
+}
+
 export interface CleanedTranscript {
   text: string;
   original_length: number;
@@ -100,6 +109,7 @@ export interface StepSaveRequest {
   raw_transcript: RawTranscript;
   chunks: TranscriptChunks;
   summary: VideoSummary;
+  audio_path?: string;
 }
 
 // Pipeline step names for UI

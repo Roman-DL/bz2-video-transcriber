@@ -49,6 +49,7 @@ interface StepByStepProps {
 interface StepData {
   metadata?: VideoMetadata;
   rawTranscript?: RawTranscript;
+  audioPath?: string;
   cleanedTranscript?: CleanedTranscript;
   chunks?: TranscriptChunks;
   summary?: VideoSummary;
@@ -162,10 +163,14 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           break;
 
         case 'transcribe':
-          const rawTranscript = await stepTranscribe.mutate({
+          const transcribeResult = await stepTranscribe.mutate({
             video_filename: filename,
           });
-          setData((prev) => ({ ...prev, rawTranscript }));
+          setData((prev) => ({
+            ...prev,
+            rawTranscript: transcribeResult.raw_transcript,
+            audioPath: transcribeResult.audio_path,
+          }));
           expandOnlyBlock('rawTranscript');
           setCurrentStep('clean');
           break;
@@ -216,6 +221,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
             raw_transcript: data.rawTranscript,
             chunks: data.chunks,
             summary: data.summary,
+            audio_path: data.audioPath,
           });
           setData((prev) => ({ ...prev, savedFiles }));
           // Collapse all blocks after save
@@ -459,7 +465,7 @@ function getStepDescription(step: PipelineStep): string {
     case 'parse':
       return 'Извлечение метаданных из имени файла';
     case 'transcribe':
-      return 'Транскрипция аудио через Whisper (может занять несколько минут)';
+      return 'Извлечение аудио и транскрипция через Whisper (может занять несколько минут)';
     case 'clean':
       return 'Очистка текста с использованием глоссария и LLM';
     case 'chunk':

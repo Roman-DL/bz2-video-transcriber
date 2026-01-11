@@ -217,7 +217,9 @@ async def step_transcribe(request: StepParseRequest) -> StreamingResponse:
     """
     Transcribe video using Whisper API with SSE progress.
 
-    Returns SSE stream with progress updates and final RawTranscript.
+    Extracts audio from video first, then sends to Whisper.
+    Returns SSE stream with progress updates and final result containing
+    RawTranscript and audio_path.
 
     Args:
         request: StepParseRequest with video_filename
@@ -225,7 +227,7 @@ async def step_transcribe(request: StepParseRequest) -> StreamingResponse:
     Returns:
         StreamingResponse with SSE events:
         - {"type": "progress", "status": "transcribing", "progress": 45.5, "message": "..."}
-        - {"type": "result", "data": RawTranscript}
+        - {"type": "result", "data": {"raw_transcript": RawTranscript, "audio_path": "..."}}
         - {"type": "error", "error": "..."}
 
     Raises:
@@ -251,13 +253,21 @@ async def step_transcribe(request: StepParseRequest) -> StreamingResponse:
 
     estimate = estimator.estimate_transcribe(duration)
 
+    async def transcribe_and_wrap():
+        """Wrap transcribe result to include audio_path."""
+        transcript, audio_path = await orchestrator.transcribe(video_path)
+        return {
+            "raw_transcript": transcript.model_dump(),
+            "audio_path": str(audio_path),
+        }
+
     return create_sse_response(
         run_with_sse_progress(
             stage=ProcessingStatus.TRANSCRIBING,
             estimator=estimator,
             estimated_seconds=estimate.estimated_seconds,
             message=f"Transcribing: {request.video_filename}",
-            operation=lambda: orchestrator.transcribe(video_path),
+            operation=transcribe_and_wrap,
         )
     )
 
@@ -382,7 +392,7 @@ async def step_save(request: StepSaveRequest) -> list[str]:
     Fast operation - no SSE needed.
 
     Args:
-        request: StepSaveRequest with all pipeline outputs
+        request: StepSaveRequest with all pipeline outputs (including audio_path)
 
     Returns:
         List of created file names
@@ -392,12 +402,16 @@ async def step_save(request: StepSaveRequest) -> list[str]:
     """
     orchestrator = get_orchestrator()
 
+    # Convert audio_path string to Path if provided
+    audio_path = Path(request.audio_path) if request.audio_path else None
+
     try:
         files = await orchestrator.save(
             metadata=request.metadata,
             raw_transcript=request.raw_transcript,
             chunks=request.chunks,
             summary=request.summary,
+            audio_path=audio_path,
         )
         return files
     except Exception as e:

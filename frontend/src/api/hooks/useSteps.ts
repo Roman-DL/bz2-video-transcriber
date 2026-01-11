@@ -4,10 +4,10 @@ import { apiClient } from '../client';
 import { fetchWithProgress } from '../sse';
 import type {
   VideoMetadata,
-  RawTranscript,
   CleanedTranscript,
   TranscriptChunks,
   VideoSummary,
+  TranscribeResult,
   StepParseRequest,
   StepCleanRequest,
   StepChunkRequest,
@@ -139,9 +139,11 @@ export function useStepParse() {
 
 /**
  * Transcribe video using Whisper API.
+ * Extracts audio from video first, then sends to Whisper.
  * Long-running operation - uses SSE with progress.
+ * Returns TranscribeResult with raw_transcript and audio_path.
  */
-export const useStepTranscribe = createStepWithProgress<RawTranscript, StepParseRequest>(
+export const useStepTranscribe = createStepWithProgress<TranscribeResult, StepParseRequest>(
   '/api/step/transcribe'
 );
 

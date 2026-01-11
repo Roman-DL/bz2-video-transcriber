@@ -236,3 +236,7 @@ class StepSaveRequest(BaseModel):
     raw_transcript: RawTranscript
     chunks: TranscriptChunks
     summary: VideoSummary
+    audio_path: str | None = Field(
+        default=None,
+        description="Path to extracted audio file (from transcribe step)",
+    )
