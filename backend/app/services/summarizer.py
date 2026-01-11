@@ -224,6 +224,9 @@ class VideoSummarizer:
             logger.warning(f"Invalid section value: '{section}', using default 'Обучение'")
             summary_data["section"] = "Обучение"
 
+        # Add model name from settings
+        summary_data["model_name"] = self.settings.llm_model
+
         return VideoSummary(**summary_data)
 
     def _flatten_response(self, data: dict[str, Any]) -> dict[str, Any]:
@@ -451,6 +454,7 @@ if __name__ == "__main__":
                         original_length=len(mock_text),
                         cleaned_length=len(mock_text.strip()),
                         corrections_made=[],
+                        model_name=settings.cleaner_model,
                     )
 
                     # Test with full transcript (no outline - small text mode)

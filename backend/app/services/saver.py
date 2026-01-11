@@ -521,7 +521,7 @@ if __name__ == "__main__":
                     ],
                     language="ru",
                     duration_seconds=5025.0,
-                    whisper_model="large-v3",
+                    whisper_model=settings.whisper_model,
                 )
 
                 # Create mock chunks
@@ -541,7 +541,8 @@ if __name__ == "__main__":
                             text="This is the main content.",
                             word_count=5,
                         ),
-                    ]
+                    ],
+                    model_name=settings.chunker_model,
                 )
 
                 # Create mock summary
@@ -555,6 +556,7 @@ if __name__ == "__main__":
                     subsection="Тестирование",
                     tags=["test", "demo"],
                     access_level=1,
+                    model_name=settings.llm_model,
                 )
 
                 # Run save

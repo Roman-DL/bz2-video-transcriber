@@ -177,7 +177,10 @@ class SemanticChunker:
 
         elapsed = time.time() - start_time
 
-        result = TranscriptChunks(chunks=all_chunks)
+        result = TranscriptChunks(
+            chunks=all_chunks,
+            model_name=self.settings.chunker_model,
+        )
 
         logger.info(
             f"Chunking complete: {result.total_chunks} chunks, "
@@ -289,7 +292,10 @@ class SemanticChunker:
 
         elapsed = time.time() - start_time
 
-        result = TranscriptChunks(chunks=all_chunks)
+        result = TranscriptChunks(
+            chunks=all_chunks,
+            model_name=self.settings.chunker_model,
+        )
 
         logger.info(
             f"Chunking complete: {result.total_chunks} chunks, "
@@ -684,6 +690,7 @@ if __name__ == "__main__":
                         original_length=len(mock_text),
                         cleaned_length=len(mock_text.strip()),
                         corrections_made=[],
+                        model_name=settings.cleaner_model,
                     )
 
                     result = await chunker.chunk(cleaned_transcript, mock_metadata)

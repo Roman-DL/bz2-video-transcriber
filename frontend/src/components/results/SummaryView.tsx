@@ -57,6 +57,9 @@ export function SummaryView({ summary }: SummaryViewProps) {
 
   return (
     <div className="space-y-4">
+      <div className="text-xs text-gray-500 mb-2">
+        Модель: <span className="font-mono">{summary.model_name}</span>
+      </div>
       {/* Summary text as markdown */}
       <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
         {markdownText}

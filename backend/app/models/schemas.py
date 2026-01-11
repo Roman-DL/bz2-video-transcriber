@@ -102,6 +102,7 @@ class CleanedTranscript(BaseModel):
     original_length: int
     cleaned_length: int
     corrections_made: list[str] = Field(default_factory=list)
+    model_name: str
 
 
 class TranscriptChunk(BaseModel):
@@ -118,6 +119,7 @@ class TranscriptChunks(BaseModel):
     """Collection of transcript chunks."""
 
     chunks: list[TranscriptChunk]
+    model_name: str
 
     @computed_field
     @property
@@ -258,6 +260,7 @@ class VideoSummary(BaseModel):
     subsection: str
     tags: list[str]
     access_level: int = Field(ge=1, le=4, default=1)
+    model_name: str
 
 
 class ProcessingResult(BaseModel):

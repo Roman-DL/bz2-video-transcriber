@@ -226,6 +226,7 @@ class TranscriptCleaner:
             original_length=original_length,
             cleaned_length=cleaned_length,
             corrections_made=corrections,
+            model_name=self.settings.cleaner_model,
         )
 
     def _apply_glossary(self, text: str) -> tuple[str, list[str]]:

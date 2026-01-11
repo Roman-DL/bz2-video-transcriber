@@ -784,7 +784,10 @@ class PipelineOrchestrator:
                 )
             )
 
-        return TranscriptChunks(chunks=chunks)
+        return TranscriptChunks(
+            chunks=chunks,
+            model_name=self.settings.chunker_model,
+        )
 
     def _create_fallback_summary(self, metadata: VideoMetadata) -> VideoSummary:
         """
@@ -800,6 +803,7 @@ class PipelineOrchestrator:
             subsection="",
             tags=[metadata.event_type, metadata.stream],
             access_level=1,
+            model_name=self.settings.llm_model,
         )
 
 

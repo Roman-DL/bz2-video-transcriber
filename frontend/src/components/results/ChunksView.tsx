@@ -12,6 +12,9 @@ export function ChunksView({ chunks }: ChunksViewProps) {
 
   return (
     <div className="divide-y divide-gray-100 -mx-4">
+      <div className="text-xs text-gray-500 mb-3 px-4">
+        Модель: <span className="font-mono">{chunks.model_name}</span>
+      </div>
       {chunks.chunks.map((chunk) => (
         <div key={chunk.id} className="px-4 py-3">
           <button

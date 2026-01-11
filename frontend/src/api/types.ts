@@ -48,6 +48,7 @@ export interface CleanedTranscript {
   original_length: number;
   cleaned_length: number;
   corrections_made: string[];
+  model_name: string;
 }
 
 export interface TranscriptChunk {
@@ -62,6 +63,7 @@ export interface TranscriptChunks {
   chunks: TranscriptChunk[];
   total_chunks: number;
   avg_chunk_size: number;
+  model_name: string;
 }
 
 export interface VideoSummary {
@@ -74,6 +76,7 @@ export interface VideoSummary {
   subsection: string;
   tags: string[];
   access_level: number;
+  model_name: string;
 }
 
 export interface ServicesHealth {

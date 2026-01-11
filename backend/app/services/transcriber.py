@@ -135,7 +135,7 @@ class WhisperTranscriber:
             segments=segments,
             language=data.get("language", self.settings.whisper_language),
             duration_seconds=data.get("duration", 0.0),
-            whisper_model="large-v3",
+            whisper_model=self.settings.whisper_model,
         )
 
 
@@ -173,7 +173,7 @@ if __name__ == "__main__":
             assert len(transcript.segments) == 2, f"Expected 2 segments, got {len(transcript.segments)}"
             assert transcript.language == "ru", f"Expected 'ru', got {transcript.language}"
             assert transcript.duration_seconds == 5.0, f"Expected 5.0, got {transcript.duration_seconds}"
-            assert transcript.whisper_model == "large-v3"
+            assert transcript.whisper_model == settings.whisper_model
             assert "Привет" in transcript.full_text
 
             print("OK")

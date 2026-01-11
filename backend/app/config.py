@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     llm_model: str = "qwen2.5:14b"
     cleaner_model: str = "gemma2:9b"  # Stable model for transcript cleaning
     chunker_model: str = "gemma2:9b"  # Better chunk distribution than qwen
+    whisper_model: str = "large-v3-turbo"  # Display name for Whisper model
     whisper_language: str = "ru"
     llm_timeout: int = 300
 
