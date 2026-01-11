@@ -142,9 +142,11 @@ async def run_with_sse_progress(
         yield f"data: {json.dumps({'type': 'error', 'error': str(error_holder[0])})}\n\n"
     elif result_holder:
         result = result_holder[0]
-        # Handle Pydantic models
+        # Handle different result types
         if hasattr(result, "model_dump"):
             data = result.model_dump()
+        elif isinstance(result, dict):
+            data = result
         elif isinstance(result, list):
             data = result
         else:
