@@ -148,7 +148,14 @@ Step-by-step endpoints возвращают SSE поток с оценочным
 
 ```json
 // Прогресс (каждую секунду)
-{"type": "progress", "status": "transcribing", "progress": 45.5, "message": "Transcribing: video.mp4"}
+{
+  "type": "progress",
+  "status": "transcribing",
+  "progress": 45.5,
+  "message": "Transcribing: video.mp4",
+  "estimated_seconds": 200.0,
+  "elapsed_seconds": 91.0
+}
 
 // Результат (после завершения)
 {"type": "result", "data": {...}}
@@ -156,6 +163,16 @@ Step-by-step endpoints возвращают SSE поток с оценочным
 // Ошибка
 {"type": "error", "error": "..."}
 ```
+
+**Поля прогресса:**
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `progress` | float | Текущий прогресс в процентах (0-100) |
+| `estimated_seconds` | float | Оценочное общее время операции |
+| `elapsed_seconds` | float | Прошедшее время с начала операции |
+
+Клиент может рассчитать оставшееся время: `remaining = estimated_seconds - elapsed_seconds`
 
 **curl тест SSE:**
 
@@ -165,8 +182,8 @@ curl -N -X POST http://localhost:8801/api/step/transcribe \
   -d '{"video_filename": "test.mp4"}'
 
 # Ожидаемый вывод:
-data: {"type": "progress", "status": "transcribing", "progress": 0.0, "message": "..."}
-data: {"type": "progress", "status": "transcribing", "progress": 48.2, "message": "..."}
+data: {"type": "progress", "status": "transcribing", "progress": 0.0, "message": "...", "estimated_seconds": 200.0, "elapsed_seconds": 0.0}
+data: {"type": "progress", "status": "transcribing", "progress": 48.2, "message": "...", "estimated_seconds": 200.0, "elapsed_seconds": 96.4}
 data: {"type": "result", "data": {...}}
 ```
 

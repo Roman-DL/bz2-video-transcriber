@@ -24,6 +24,8 @@ interface UseStepWithProgressState<T> {
   isLoading: boolean;
   progress: number | null;
   message: string | null;
+  estimatedSeconds: number | null;
+  elapsedSeconds: number | null;
 }
 
 /**
@@ -37,6 +39,8 @@ interface UseStepWithProgress<T, R> {
   isPending: boolean;
   progress: number | null;
   message: string | null;
+  estimatedSeconds: number | null;
+  elapsedSeconds: number | null;
   reset: () => void;
 }
 
@@ -51,6 +55,8 @@ function createStepWithProgress<T, R>(endpoint: string) {
       isLoading: false,
       progress: null,
       message: null,
+      estimatedSeconds: null,
+      elapsedSeconds: null,
     });
 
     const mutate = useCallback(async (request: R): Promise<T> => {
@@ -60,17 +66,21 @@ function createStepWithProgress<T, R>(endpoint: string) {
         isLoading: true,
         progress: 0,
         message: 'Starting...',
+        estimatedSeconds: null,
+        elapsedSeconds: null,
       });
 
       try {
         const result = await fetchWithProgress<T>(
           endpoint,
           request as object,
-          (progress, message) => {
+          (progress, message, estimatedSeconds, elapsedSeconds) => {
             setState((prev) => ({
               ...prev,
               progress,
               message,
+              estimatedSeconds,
+              elapsedSeconds,
             }));
           }
         );
@@ -81,6 +91,8 @@ function createStepWithProgress<T, R>(endpoint: string) {
           isLoading: false,
           progress: 100,
           message: 'Complete',
+          estimatedSeconds: null,
+          elapsedSeconds: null,
         });
 
         return result;
@@ -92,6 +104,8 @@ function createStepWithProgress<T, R>(endpoint: string) {
           isLoading: false,
           progress: null,
           message: null,
+          estimatedSeconds: null,
+          elapsedSeconds: null,
         });
         throw error;
       }
@@ -104,6 +118,8 @@ function createStepWithProgress<T, R>(endpoint: string) {
         isLoading: false,
         progress: null,
         message: null,
+        estimatedSeconds: null,
+        elapsedSeconds: null,
       });
     }, []);
 
@@ -115,6 +131,8 @@ function createStepWithProgress<T, R>(endpoint: string) {
       isPending: state.isLoading, // Alias for react-query compatibility
       progress: state.progress,
       message: state.message,
+      estimatedSeconds: state.estimatedSeconds,
+      elapsedSeconds: state.elapsedSeconds,
       reset,
     };
   };

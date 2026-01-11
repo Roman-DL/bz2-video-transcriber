@@ -15,6 +15,8 @@ export interface SSEProgressEvent {
   status: string;
   progress: number;
   message: string;
+  estimated_seconds: number;
+  elapsed_seconds: number;
 }
 
 export interface SSEResultEvent<T> {
@@ -31,8 +33,17 @@ export type SSEEvent<T> = SSEProgressEvent | SSEResultEvent<T> | SSEErrorEvent;
 
 /**
  * Progress callback signature.
+ * @param progress - Current progress percentage (0-100)
+ * @param message - Human-readable progress message
+ * @param estimatedSeconds - Total estimated time for this operation
+ * @param elapsedSeconds - Time elapsed since operation started
  */
-export type ProgressCallback = (progress: number, message: string) => void;
+export type ProgressCallback = (
+  progress: number,
+  message: string,
+  estimatedSeconds: number,
+  elapsedSeconds: number
+) => void;
 
 /**
  * Fetch with SSE progress tracking.
@@ -111,12 +122,17 @@ export async function fetchWithProgress<T>(
 
         switch (event.type) {
           case 'progress':
-            onProgress(event.progress, event.message);
+            onProgress(
+              event.progress,
+              event.message,
+              event.estimated_seconds,
+              event.elapsed_seconds
+            );
             break;
 
           case 'result':
-            // Send 100% progress before returning
-            onProgress(100, 'Complete');
+            // Send 100% progress before returning (elapsed = estimated at completion)
+            onProgress(100, 'Complete', 0, 0);
             return event.data;
 
           case 'error':

@@ -12,46 +12,45 @@
 # v1 (2026-01-09): 5 min file, transcribe=87.1s, clean=8.0s, chunk=10.3s, summarize=17.1s
 # v2 (2026-01-10): 5 min file, clean=6.0s/4535chars, chunk=7.4s/1335chars, summarize=7.1s/1335chars
 
-version: 2
-updated: "2026-01-10"
-notes: "Recalibrated clean/chunk/summarize based on Step-by-Step test"
+version: 3
+updated: "2026-01-11"
+notes: "Recalibrated based on 55-min video test (3308s)"
 
 # Transcription: depends on video duration
 # Formula: estimated_time = base_time + (video_duration_seconds * factor)
 transcribe:
   # Seconds of processing per second of video
-  # Measured: 87.0s / 301s = 0.289
-  factor_per_video_second: 0.29
+  # v2: 0.29 (4.8x overestimated for 55-min video)
+  # v3: (199-5)/3308 = 0.0587, +30% margin = 0.08
+  factor_per_video_second: 0.08
   base_time: 5.0  # GPU warmup, file loading overhead
 
 # Text cleaning (LLM): depends on input text length
 # Formula: estimated_time = base_time + (input_chars / 1000 * factor)
 clean:
   # Seconds per 1000 input characters
-  # v1: 8.0s / 4.535k = 1.76 → 1.8
-  # v2: 6.0s / 4.535k = 1.32 → 0.9
-  # Progress reached 49% → factor was ~2x too high
-  factor_per_1k_chars: 0.9
+  # v2: 0.9 (1.3x underestimated, stuck at 95% for 14.5s)
+  # v3: (57.5-2)/47.2k = 1.18, +20% margin = 1.4
+  factor_per_1k_chars: 1.4
   base_time: 2.0
 
 # Semantic chunking (LLM): depends on input text length
 # Formula: estimated_time = base_time + (input_chars / 1000 * factor)
 chunk:
   # Seconds per 1000 input characters
-  # v1: 10.3s / 1.699k = 6.06 → 6.0
-  # v2: 7.4s / 1.335k = 4.04 → 4.0
-  # Progress reached 70% → factor was ~1.4x too high
-  factor_per_1k_chars: 4.0
+  # v2: 4.0 (1.4x overestimated)
+  # v3: (60.1-2)/20.9k = 2.78, +15% margin = 3.2
+  factor_per_1k_chars: 3.2
   base_time: 2.0
 
 # Summarization (LLM): depends on input text length
 # Formula: estimated_time = base_time + (input_chars / 1000 * factor)
 summarize:
   # Seconds per 1000 input characters
-  # v1: 17.1s / 1.699k = 10.06 → 10.0
-  # v2: 7.1s / 1.335k = 3.07 → 3.0
-  # Progress reached 37% → factor was ~2.7x too high
-  factor_per_1k_chars: 3.0
+  # v2: 3.0 (2.9x overestimated)
+  # v3: (22.5-3)/20.9k = 0.93, +30% margin = 1.2
+  # Includes: outline extraction + LLM generation
+  factor_per_1k_chars: 1.2
   base_time: 3.0
 
 # Fixed-time stages (not estimated dynamically)

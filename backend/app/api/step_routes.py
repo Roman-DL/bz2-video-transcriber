@@ -10,6 +10,7 @@ Each endpoint returns StreamingResponse with progress events and final result.
 import asyncio
 import json
 import logging
+import time
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any, Awaitable, Callable, TypeVar
@@ -72,16 +73,22 @@ async def run_with_sse_progress(
 
     Yields:
         SSE events in format "data: {...}\\n\\n":
-        - Progress: {"type": "progress", "status": "...", "progress": 45.5, "message": "..."}
+        - Progress: {"type": "progress", "status": "...", "progress": 45.5, "message": "...",
+                    "estimated_seconds": 100.0, "elapsed_seconds": 45.5}
         - Result: {"type": "result", "data": {...}}
         - Error: {"type": "error", "error": "..."}
     """
     progress_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     result_holder: list[Any] = []
     error_holder: list[Exception] = []
+    start_time = time.time()
 
     async def progress_callback(
-        status: ProcessingStatus, progress: float, msg: str
+        status: ProcessingStatus,
+        progress: float,
+        msg: str,
+        est_seconds: float,
+        elapsed_seconds: float,
     ) -> None:
         await progress_queue.put(
             {
@@ -89,6 +96,8 @@ async def run_with_sse_progress(
                 "status": status.value,
                 "progress": round(progress, 1),
                 "message": msg,
+                "estimated_seconds": round(est_seconds, 1),
+                "elapsed_seconds": round(elapsed_seconds, 1),
             }
         )
 
@@ -126,8 +135,16 @@ async def run_with_sse_progress(
 
             yield f"data: {json.dumps(event)}\n\n"
     finally:
-        # Stop ticker
-        await estimator.stop_ticker(ticker, stage, progress_callback, "Complete")
+        # Stop ticker with actual elapsed time
+        actual_seconds = time.time() - start_time
+        await estimator.stop_ticker(
+            ticker,
+            stage,
+            progress_callback,
+            "Complete",
+            estimated_seconds=estimated_seconds,
+            actual_seconds=actual_seconds,
+        )
 
         # Cancel task if still running
         if not operation_task.done():

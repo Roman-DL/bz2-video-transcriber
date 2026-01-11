@@ -97,22 +97,47 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
     stepSave.isPending;
 
   // Get current progress from active hook
-  const getCurrentProgress = (): { progress: number | null; message: string | null } => {
+  const getCurrentProgress = (): {
+    progress: number | null;
+    message: string | null;
+    estimatedSeconds: number | null;
+    elapsedSeconds: number | null;
+  } => {
     switch (currentStep) {
       case 'transcribe':
-        return { progress: stepTranscribe.progress, message: stepTranscribe.message };
+        return {
+          progress: stepTranscribe.progress,
+          message: stepTranscribe.message,
+          estimatedSeconds: stepTranscribe.estimatedSeconds,
+          elapsedSeconds: stepTranscribe.elapsedSeconds,
+        };
       case 'clean':
-        return { progress: stepClean.progress, message: stepClean.message };
+        return {
+          progress: stepClean.progress,
+          message: stepClean.message,
+          estimatedSeconds: stepClean.estimatedSeconds,
+          elapsedSeconds: stepClean.elapsedSeconds,
+        };
       case 'chunk':
-        return { progress: stepChunk.progress, message: stepChunk.message };
+        return {
+          progress: stepChunk.progress,
+          message: stepChunk.message,
+          estimatedSeconds: stepChunk.estimatedSeconds,
+          elapsedSeconds: stepChunk.elapsedSeconds,
+        };
       case 'summarize':
-        return { progress: stepSummarize.progress, message: stepSummarize.message };
+        return {
+          progress: stepSummarize.progress,
+          message: stepSummarize.message,
+          estimatedSeconds: stepSummarize.estimatedSeconds,
+          elapsedSeconds: stepSummarize.elapsedSeconds,
+        };
       default:
-        return { progress: null, message: null };
+        return { progress: null, message: null, estimatedSeconds: null, elapsedSeconds: null };
     }
   };
 
-  const { progress, message } = getCurrentProgress();
+  const { progress, message, estimatedSeconds, elapsedSeconds } = getCurrentProgress();
 
   const currentStepIndex = PIPELINE_STEPS.indexOf(currentStep);
   const isComplete = data.savedFiles !== undefined;
@@ -315,7 +340,15 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           {/* Progress bar for long-running operations */}
           {isLoading && progress !== null && (
             <div className="mt-3">
-              <ProgressBar progress={progress} size="sm" />
+              <ProgressBar progress={progress} size="sm" showLabel={false} />
+              <div className="mt-1 flex justify-between text-sm text-gray-600">
+                <span>{Math.round(progress)}%</span>
+                {estimatedSeconds !== null && elapsedSeconds !== null && estimatedSeconds > 0 && (
+                  <span className="text-blue-600">
+                    {formatETA(estimatedSeconds, elapsedSeconds)}
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -484,4 +517,30 @@ function formatDuration(seconds: number): string {
   return h > 0
     ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
     : `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Format estimated time remaining (ETA) for display.
+ */
+function formatETA(estimatedSeconds: number, elapsedSeconds: number): string {
+  const remaining = estimatedSeconds - elapsedSeconds;
+
+  // If elapsed > estimated * 1.2, show "longer than expected"
+  if (elapsedSeconds > estimatedSeconds * 1.2) {
+    return 'дольше ожидаемого...';
+  }
+
+  if (remaining <= 0) return 'завершается...';
+  if (remaining < 5) return 'менее 5 сек';
+
+  const minutes = Math.floor(remaining / 60);
+  const seconds = Math.floor(remaining % 60);
+
+  if (minutes >= 5) {
+    return `~${minutes} мин`;
+  }
+  if (minutes >= 1) {
+    return seconds > 0 ? `~${minutes} мин ${seconds} сек` : `~${minutes} мин`;
+  }
+  return `~${seconds} сек`;
 }

@@ -17,7 +17,8 @@ from app.models.schemas import ProcessingStatus
 logger = logging.getLogger(__name__)
 
 # Type alias for progress callback
-ProgressCallback = Callable[[ProcessingStatus, float, str], Awaitable[None]]
+# Args: status, progress%, message, estimated_seconds, elapsed_seconds
+ProgressCallback = Callable[[ProcessingStatus, float, str, float, float], Awaitable[None]]
 
 
 @dataclass
@@ -249,7 +250,7 @@ class ProgressEstimator:
                 )
 
                 try:
-                    await callback(stage, progress, message)
+                    await callback(stage, progress, message, estimated_seconds, elapsed)
                 except Exception as e:
                     logger.warning(f"Ticker callback error: {e}")
 
@@ -267,6 +268,8 @@ class ProgressEstimator:
         stage: ProcessingStatus,
         callback: ProgressCallback,
         message: str,
+        estimated_seconds: float = 0.0,
+        actual_seconds: float = 0.0,
     ) -> None:
         """
         Stop progress ticker and send 100% completion.
@@ -276,6 +279,8 @@ class ProgressEstimator:
             stage: Stage that completed
             callback: Async callback for final progress update
             message: Completion message
+            estimated_seconds: Original estimated time (for logging)
+            actual_seconds: Actual elapsed time (for logging)
         """
         if ticker is not None:
             ticker.cancel()
@@ -284,10 +289,20 @@ class ProgressEstimator:
             except asyncio.CancelledError:
                 pass
 
-        # Send final 100% progress
+        # Send final 100% progress (elapsed equals estimated at 100%)
         try:
-            await callback(stage, 100, message)
+            await callback(stage, 100, message, actual_seconds, actual_seconds)
         except Exception as e:
             logger.warning(f"Final callback error: {e}")
+
+        # Log accuracy for future calibration
+        if estimated_seconds > 0 and actual_seconds > 0:
+            ratio = actual_seconds / estimated_seconds
+            logger.info(
+                f"PERF | {stage.value} | "
+                f"estimated={estimated_seconds:.1f}s | "
+                f"actual={actual_seconds:.1f}s | "
+                f"ratio={ratio:.2f}"
+            )
 
         logger.debug(f"Stopped ticker for {stage.value}")
