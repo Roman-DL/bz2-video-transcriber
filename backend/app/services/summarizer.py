@@ -11,7 +11,12 @@ import time
 from typing import Any
 
 from app.config import Settings, get_settings, load_prompt
-from app.models.schemas import CleanedTranscript, VideoMetadata, VideoSummary
+from app.models.schemas import (
+    CleanedTranscript,
+    TranscriptOutline,
+    VideoMetadata,
+    VideoSummary,
+)
 from app.services.ai_client import AIClient
 
 logger = logging.getLogger(__name__)
@@ -34,13 +39,20 @@ class VideoSummarizer:
     Creates structured summaries with key points, recommendations,
     target audience, and classification for BZ 2.0 knowledge base.
 
+    For large texts (>10K chars), uses TranscriptOutline (~1K tokens)
+    instead of full transcript (~50K tokens) for more stable LLM processing.
+
     Supports dynamic prompt selection for iterative format tuning.
 
     Example:
         async with AIClient(settings) as client:
             summarizer = VideoSummarizer(client, settings)
-            summary = await summarizer.summarize(cleaned_transcript, metadata)
-            print(f"Section: {summary.section}, Tags: {summary.tags}")
+
+            # With outline (large texts):
+            summary = await summarizer.summarize(outline, metadata)
+
+            # With full transcript (small texts or fallback):
+            summary = await summarizer.summarize(None, metadata, cleaned_transcript)
 
         # With custom prompt:
         summarizer = VideoSummarizer(client, settings, prompt_name="summarizer_v2")
@@ -78,28 +90,55 @@ class VideoSummarizer:
 
     async def summarize(
         self,
-        cleaned_transcript: CleanedTranscript,
+        outline: TranscriptOutline | None,
         metadata: VideoMetadata,
+        cleaned_transcript: CleanedTranscript | None = None,
     ) -> VideoSummary:
         """
-        Create structured summary from cleaned transcript.
+        Create structured summary from transcript outline or full text.
+
+        For large texts (outline provided): uses outline context (~1K tokens)
+        For small texts (no outline): uses full transcript text
 
         Args:
-            cleaned_transcript: Cleaned transcript from cleaner service
+            outline: TranscriptOutline from OutlineExtractor (None for small texts)
             metadata: Video metadata
+            cleaned_transcript: Full transcript (used when outline is None)
 
         Returns:
             VideoSummary with structured content and classification
-        """
-        text = cleaned_transcript.text
-        input_chars = len(text)
 
-        logger.info(f"Summarizing transcript: {input_chars} chars, prompt={self.prompt_name}")
+        Raises:
+            ValueError: If neither outline nor cleaned_transcript provided
+        """
+        if outline is None and cleaned_transcript is None:
+            raise ValueError("Either outline or cleaned_transcript must be provided")
+
+        # Determine input source
+        if outline is not None and outline.total_parts > 0:
+            # Large text: use outline context
+            context_text = outline.to_context()
+            input_chars = len(context_text)
+            logger.info(
+                f"Summarizing from outline: {outline.total_parts} parts, "
+                f"{len(outline.all_topics)} topics, {input_chars} context chars, "
+                f"prompt={self.prompt_name}"
+            )
+        else:
+            # Small text: use full transcript
+            if cleaned_transcript is None:
+                raise ValueError("cleaned_transcript required when outline is empty")
+            context_text = cleaned_transcript.text
+            input_chars = len(context_text)
+            logger.info(
+                f"Summarizing full transcript: {input_chars} chars, "
+                f"prompt={self.prompt_name}"
+            )
 
         start_time = time.time()
 
         # Build prompt and call LLM
-        prompt = self._build_prompt(text, metadata)
+        prompt = self._build_prompt(context_text, metadata)
         response = await self.ai_client.generate(prompt)
 
         elapsed = time.time() - start_time
@@ -126,7 +165,7 @@ class VideoSummarizer:
         Build summarization prompt from template.
 
         Args:
-            text: Cleaned transcript text
+            text: Context text (outline.to_context() or full transcript)
             metadata: Video metadata
 
         Returns:
@@ -414,7 +453,12 @@ if __name__ == "__main__":
                         corrections_made=[],
                     )
 
-                    result = await summarizer.summarize(cleaned_transcript, mock_metadata)
+                    # Test with full transcript (no outline - small text mode)
+                    result = await summarizer.summarize(
+                        outline=None,
+                        metadata=mock_metadata,
+                        cleaned_transcript=cleaned_transcript,
+                    )
 
                     assert result.summary, "Summary is empty"
                     assert result.section in VALID_SECTIONS, f"Invalid section: {result.section}"

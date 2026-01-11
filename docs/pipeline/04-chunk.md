@@ -73,31 +73,15 @@ CleanedTranscript
 ### Этап 2: MAP — Извлечение Outline
 
 Из каждой части параллельно извлекается структура:
-
-```python
-class PartOutline:
-    part_index: int
-    topics: list[str]      # 2-4 основных темы
-    key_points: list[str]  # 3-5 ключевых тезисов
-    summary: str           # 1-2 предложения
-```
+- **topics** — 2-4 основных темы части
+- **key_points** — 3-5 ключевых тезисов
+- **summary** — 1-2 предложения
 
 **Параллельность:** Используется `Semaphore(2)` для ограничения нагрузки на сервер.
 
 ### Этап 3: REDUCE — Объединение
 
-Все PartOutline объединяются в единый TranscriptOutline:
-
-```python
-class TranscriptOutline:
-    parts: list[PartOutline]
-    all_topics: list[str]  # Дедуплицированный список тем
-
-    def to_context(self) -> str:
-        """Форматирует outline для вставки в промпт LLM"""
-```
-
-**Дедупликация тем:** Jaccard similarity >60% считается дубликатом.
+Все PartOutline объединяются в единый TranscriptOutline с дедупликацией тем (Jaccard similarity >60%).
 
 ### Этап 4: Chunking с контекстом
 
@@ -117,6 +101,31 @@ class TranscriptOutline:
 **Часть 1:** Темы: Введение, Питание
 Содержание: Обсуждение важности правильного питания...
 ```
+
+---
+
+## Shared Outline с Summarizer
+
+В full pipeline outline извлекается **один раз** и передаётся в оба сервиса:
+
+```
+CleanedTranscript
+       │
+       ▼
+[Outline Extraction]  ← Выполняется в pipeline
+       │
+       ├───────────────────┬──────────────────┐
+       ▼                   ▼                  │
+   Chunker             Summarizer        (параллельно)
+       │                   │                  │
+       ▼                   ▼                  │
+TranscriptChunks     VideoSummary             │
+```
+
+**Почему важно:**
+- Нет дублирования работы (outline не извлекается дважды)
+- Одинаковый контекст для обоих сервисов
+- В step-by-step режиме каждый сервис извлекает outline самостоятельно
 
 ---
 

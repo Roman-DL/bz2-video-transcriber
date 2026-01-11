@@ -25,6 +25,7 @@ MIN_CHUNK_WORDS = 50  # Minimum words per chunk (merge smaller ones)
 
 from app.models.schemas import (
     CleanedTranscript,
+    TextPart,
     TranscriptChunk,
     TranscriptChunks,
     TranscriptOutline,
@@ -115,6 +116,83 @@ class SemanticChunker:
                 f"Outline extracted: {outline.total_parts} parts, "
                 f"{len(outline.all_topics)} unique topics"
             )
+
+        # Process each part and collect all chunks
+        all_chunks: list[TranscriptChunk] = []
+
+        for part in text_parts:
+            if len(text_parts) > 1:
+                logger.debug(
+                    f"Chunking part {part.index}/{len(text_parts)}: "
+                    f"{part.char_count} chars"
+                )
+
+            prompt = self._build_prompt(part.text, outline)
+            response = await self.ai_client.generate(prompt)
+
+            # Parse chunks from this part
+            part_chunks = self._parse_chunks(
+                response, metadata.video_id, index_offset=len(all_chunks)
+            )
+            all_chunks.extend(part_chunks)
+
+        # Validate and merge small chunks
+        all_chunks = self._validate_and_merge_chunks(all_chunks, metadata.video_id)
+
+        elapsed = time.time() - start_time
+
+        result = TranscriptChunks(chunks=all_chunks)
+
+        logger.info(
+            f"Chunking complete: {result.total_chunks} chunks, "
+            f"avg size {result.avg_chunk_size} words"
+        )
+
+        # Performance metrics for progress estimation
+        perf_logger.info(
+            f"PERF | chunk | "
+            f"input_chars={input_chars} | "
+            f"chunks={result.total_chunks} | "
+            f"time={elapsed:.1f}s"
+        )
+
+        return result
+
+    async def chunk_with_outline(
+        self,
+        cleaned_transcript: CleanedTranscript,
+        metadata: VideoMetadata,
+        text_parts: list[TextPart],
+        outline: TranscriptOutline | None,
+    ) -> TranscriptChunks:
+        """
+        Split transcript into chunks using pre-extracted outline.
+
+        Used by pipeline when outline is already extracted to avoid
+        duplicate extraction. For step-by-step mode, use chunk() instead.
+
+        Args:
+            cleaned_transcript: Cleaned transcript from cleaner service
+            metadata: Video metadata (for chunk IDs)
+            text_parts: Pre-split text parts from TextSplitter
+            outline: Pre-extracted outline (None for small texts)
+
+        Returns:
+            TranscriptChunks with list of semantic chunks
+        """
+        text = cleaned_transcript.text
+        input_chars = len(text)
+        word_count = len(text.split())
+
+        if outline is not None and outline.total_parts > 0:
+            logger.info(
+                f"Chunking with pre-extracted outline: {input_chars} chars, "
+                f"{len(text_parts)} parts, {len(outline.all_topics)} topics"
+            )
+        else:
+            logger.info(f"Chunking transcript: {input_chars} chars, {word_count} words")
+
+        start_time = time.time()
 
         # Process each part and collect all chunks
         all_chunks: list[TranscriptChunk] = []

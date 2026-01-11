@@ -19,14 +19,18 @@ from app.models.schemas import (
     ProcessingResult,
     ProcessingStatus,
     RawTranscript,
+    TextPart,
     TranscriptChunk,
     TranscriptChunks,
+    TranscriptOutline,
     VideoMetadata,
     VideoSummary,
 )
 from app.services.ai_client import AIClient
-from app.services.chunker import SemanticChunker
+from app.services.chunker import LARGE_TEXT_THRESHOLD, SemanticChunker
 from app.services.cleaner import TranscriptCleaner
+from app.services.outline_extractor import OutlineExtractor
+from app.services.text_splitter import TextSplitter
 from app.services.parser import FilenameParseError, parse_filename
 from app.services.saver import FileSaver
 from app.services.summarizer import VideoSummarizer
@@ -224,13 +228,14 @@ class PipelineOrchestrator:
                 cleaner, raw_transcript, metadata, progress_callback
             )
 
-            # Stage 4-5: Chunk + Summarize (parallel)
+            # Stage 4-5: Chunk + Summarize (parallel with shared outline)
             chunks, summary = await self._do_chunk_and_summarize(
                 chunker,
                 summarizer,
                 cleaned_transcript,
                 metadata,
                 progress_callback,
+                ai_client,
             )
 
             # Stage 6: Save (includes audio.mp3)
@@ -338,6 +343,9 @@ class PipelineOrchestrator:
         """
         Create structured summary from cleaned transcript.
 
+        For step-by-step mode: automatically extracts outline for large texts.
+        Uses full transcript for small texts (<10K chars).
+
         Args:
             cleaned_transcript: Cleaned transcript
             metadata: Video metadata
@@ -347,10 +355,14 @@ class PipelineOrchestrator:
             VideoSummary with structured content
         """
         async with AIClient(self.settings) as ai_client:
+            # Extract outline for large texts (step-by-step mode)
+            _, outline = await self._extract_outline(cleaned_transcript, ai_client)
+
             summarizer = VideoSummarizer(ai_client, self.settings)
             if prompt_name != "summarizer":
                 summarizer.set_prompt(prompt_name)
-            return await summarizer.summarize(cleaned_transcript, metadata)
+
+            return await summarizer.summarize(outline, metadata, cleaned_transcript)
 
     async def save(
         self,
@@ -461,6 +473,59 @@ class PipelineOrchestrator:
 
         return result
 
+    async def _extract_outline(
+        self,
+        cleaned_transcript: CleanedTranscript,
+        ai_client: AIClient,
+        callback: ProgressCallback | None = None,
+    ) -> tuple[list[TextPart], TranscriptOutline | None]:
+        """
+        Extract outline from transcript for large texts.
+
+        For small texts (<= LARGE_TEXT_THRESHOLD), returns None outline.
+        For large texts, extracts outline using Map-Reduce approach.
+
+        Args:
+            cleaned_transcript: Cleaned transcript
+            ai_client: AI client for LLM calls
+            callback: Optional progress callback
+
+        Returns:
+            Tuple of (text_parts, outline or None)
+        """
+        text = cleaned_transcript.text
+        input_chars = len(text)
+
+        text_splitter = TextSplitter()
+        text_parts = text_splitter.split(text)
+
+        if input_chars <= LARGE_TEXT_THRESHOLD:
+            logger.debug(f"Small text ({input_chars} chars), skipping outline extraction")
+            return text_parts, None
+
+        # Large text: extract outline using Map-Reduce
+        logger.info(
+            f"Large text detected ({input_chars} chars), "
+            f"extracting outline from {len(text_parts)} parts"
+        )
+
+        if callback:
+            await callback(
+                ProcessingStatus.CHUNKING,
+                0,
+                f"Extracting outline from {len(text_parts)} parts",
+            )
+
+        extractor = OutlineExtractor(ai_client, self.settings)
+        outline = await extractor.extract(text_parts)
+
+        logger.info(
+            f"Outline extracted: {outline.total_parts} parts, "
+            f"{len(outline.all_topics)} unique topics"
+        )
+
+        return text_parts, outline
+
     async def _do_chunk_and_summarize(
         self,
         chunker: SemanticChunker,
@@ -468,11 +533,25 @@ class PipelineOrchestrator:
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
         callback: ProgressCallback | None,
+        ai_client: AIClient,
     ) -> tuple[TranscriptChunks, VideoSummary]:
-        """Execute chunking and summarization in parallel with progress ticker."""
+        """
+        Execute outline extraction, chunking and summarization.
+
+        For large texts: extracts outline first, then runs chunking and
+        summarization in parallel with shared outline context.
+
+        For small texts: runs chunking and summarization in parallel
+        without outline (uses full transcript).
+        """
         input_chars = len(cleaned_transcript.text)
 
-        # Calculate estimates for both stages, use max for combined progress
+        # Phase 1: Extract outline for large texts
+        text_parts, outline = await self._extract_outline(
+            cleaned_transcript, ai_client, callback
+        )
+
+        # Calculate estimates for parallel stages
         chunk_estimate = self.estimator.estimate_chunk(input_chars)
         summarize_estimate = self.estimator.estimate_summarize(input_chars)
         combined_estimated = max(
@@ -490,12 +569,12 @@ class PipelineOrchestrator:
                 callback=lambda s, p, m: self._update_progress(callback, s, p, m),
             )
 
-        # Create tasks for parallel execution
+        # Phase 2: Parallel chunking and summarization (both use outline)
         chunk_task = asyncio.create_task(
-            chunker.chunk(cleaned_transcript, metadata)
+            chunker.chunk_with_outline(cleaned_transcript, metadata, text_parts, outline)
         )
         summarize_task = asyncio.create_task(
-            summarizer.summarize(cleaned_transcript, metadata)
+            summarizer.summarize(outline, metadata, cleaned_transcript)
         )
 
         # Wait for both, catching exceptions
