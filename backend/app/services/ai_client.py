@@ -245,7 +245,7 @@ class AIClient:
             httpx.HTTPStatusError: If API returns error status
         """
         if model is None:
-            model = self.settings.llm_model
+            model = self.settings.summarizer_model
 
         logger.debug(f"Generating with {model}, prompt length: {len(prompt)}")
 
@@ -304,7 +304,7 @@ class AIClient:
             httpx.HTTPStatusError: If API returns error status
         """
         if model is None:
-            model = self.settings.llm_model
+            model = self.settings.summarizer_model
 
         logger.debug(f"Chat with {model}, {len(messages)} messages")
 
@@ -347,7 +347,7 @@ if __name__ == "__main__":
         settings = get_settings()
         print(f"Ollama URL: {settings.ollama_url}")
         print(f"Whisper URL: {settings.whisper_url}")
-        print(f"LLM Model: {settings.llm_model}")
+        print(f"Summarizer Model: {settings.summarizer_model}")
         print()
 
         async with AIClient(settings) as client:

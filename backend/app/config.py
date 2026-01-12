@@ -15,11 +15,12 @@ class Settings(BaseSettings):
     # AI Services
     ollama_url: str = "http://192.168.1.152:11434"
     whisper_url: str = "http://192.168.1.152:9000"
-    llm_model: str = "qwen2.5:14b"
+    summarizer_model: str = "qwen2.5:14b"  # Model for summarization
     cleaner_model: str = "gemma2:9b"  # Stable model for transcript cleaning
     chunker_model: str = "gemma2:9b"  # Better chunk distribution than qwen
     whisper_model: str = "large-v3-turbo"  # Display name for Whisper model
     whisper_language: str = "ru"
+    whisper_include_timestamps: bool = False  # Include [HH:MM:SS] in transcript_raw.txt
     llm_timeout: int = 300
 
     # Paths
@@ -50,12 +51,22 @@ def get_settings() -> Settings:
     return Settings()
 
 
-def load_prompt(name: str, settings: Settings | None = None) -> str:
+def load_prompt(name: str, model: str | None = None, settings: Settings | None = None) -> str:
     """
-    Load a prompt template from config/prompts/{name}.md.
+    Load a prompt template with model-specific fallback.
+
+    Lookup order:
+    1. prompts/{name}_{model_family}.md (e.g., cleaner_system_gemma2.md)
+    2. prompts/{name}.md (e.g., cleaner_system.md)
+
+    Model family is extracted from model name:
+    - "gemma2:9b" -> "gemma2"
+    - "qwen2.5:14b" -> "qwen2"
+    - "qwen3:14b" -> "qwen3"
 
     Args:
         name: Prompt name (without .md extension)
+        model: Model name for model-specific prompts
         settings: Optional settings instance
 
     Returns:
@@ -64,8 +75,16 @@ def load_prompt(name: str, settings: Settings | None = None) -> str:
     if settings is None:
         settings = get_settings()
 
-    prompt_path = settings.config_dir / "prompts" / f"{name}.md"
-    return prompt_path.read_text(encoding="utf-8")
+    # Try model-specific prompt first
+    if model:
+        model_family = model.split(":")[0].rstrip("0123456789.")
+        specific_path = settings.config_dir / "prompts" / f"{name}_{model_family}.md"
+        if specific_path.exists():
+            return specific_path.read_text(encoding="utf-8")
+
+    # Fallback to generic prompt
+    generic_path = settings.config_dir / "prompts" / f"{name}.md"
+    return generic_path.read_text(encoding="utf-8")
 
 
 def load_glossary(settings: Settings | None = None) -> dict:
@@ -122,3 +141,54 @@ def load_performance_config(settings: Settings | None = None) -> dict:
     perf_path = settings.config_dir / "performance.yaml"
     with open(perf_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+def load_models_config(settings: Settings | None = None) -> dict:
+    """
+    Load model configurations from config/models.yaml.
+
+    Args:
+        settings: Optional settings instance
+
+    Returns:
+        Models configuration dictionary with per-model settings
+    """
+    if settings is None:
+        settings = get_settings()
+
+    models_path = settings.config_dir / "models.yaml"
+    with open(models_path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def load_model_config(model: str, stage: str, settings: Settings | None = None) -> dict:
+    """
+    Load model-specific configuration for a pipeline stage.
+
+    Extracts model family from model name and returns stage-specific settings.
+    Falls back to defaults if model not found.
+
+    Model family extraction:
+    - "gemma2:9b" -> "gemma2"
+    - "qwen2.5:14b" -> "qwen2"
+    - "qwen3:14b" -> "qwen3"
+
+    Args:
+        model: Full model name (e.g., "gemma2:9b")
+        stage: Pipeline stage ("cleaner", "chunker", "text_splitter")
+        settings: Optional settings instance
+
+    Returns:
+        Configuration dictionary for the stage
+    """
+    config = load_models_config(settings)
+    model_family = model.split(":")[0].rstrip("0123456789.")
+
+    # Try model-specific config first
+    if model_family in config.get("models", {}):
+        stage_config = config["models"][model_family].get(stage, {})
+        if stage_config:
+            return stage_config
+
+    # Fallback to defaults
+    return config.get("defaults", {}).get(stage, {})

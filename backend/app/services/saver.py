@@ -248,7 +248,7 @@ class FileSaver:
             "",
             "# === Service ===",
             f'created: "{datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")}"',
-            f'llm_model: "{self.settings.llm_model}"',
+            f'llm_model: "{self.settings.summarizer_model}"',
             f'pipeline_version: "{PIPELINE_VERSION}"',
             "---",
         ])
@@ -316,7 +316,7 @@ class FileSaver:
         raw_transcript: RawTranscript,
     ) -> Path:
         """
-        Save raw transcript with timestamps.
+        Save raw transcript (with or without timestamps based on settings).
 
         Args:
             archive_path: Archive directory path
@@ -328,7 +328,10 @@ class FileSaver:
         file_path = archive_path / "transcript_raw.txt"
 
         with open(file_path, "w", encoding="utf-8") as f:
-            f.write(raw_transcript.text_with_timestamps)
+            if self.settings.whisper_include_timestamps:
+                f.write(raw_transcript.text_with_timestamps)
+            else:
+                f.write(raw_transcript.full_text)
 
         logger.debug(f"Saved raw transcript: {file_path}")
 
@@ -556,7 +559,7 @@ if __name__ == "__main__":
                     subsection="Тестирование",
                     tags=["test", "demo"],
                     access_level=1,
-                    model_name=settings.llm_model,
+                    model_name=settings.summarizer_model,
                 )
 
                 # Run save

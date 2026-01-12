@@ -17,12 +17,12 @@ import logging
 import re
 import time
 
-from app.config import Settings, get_settings, load_prompt
+from app.config import Settings, get_settings, load_model_config, load_prompt
 
-# Configuration for handling large transcripts
-LARGE_TEXT_THRESHOLD = 10000  # Above this - use outline extraction
-MIN_CHUNK_WORDS = 100  # Minimum words per chunk (merge smaller ones)
-TARGET_CHUNK_WORDS = 250  # Target size when merging small chunks
+# Default configuration (overridden by models.yaml)
+DEFAULT_LARGE_TEXT_THRESHOLD = 10000
+DEFAULT_MIN_CHUNK_WORDS = 100
+DEFAULT_TARGET_CHUNK_WORDS = 250
 
 from app.models.schemas import (
     CleanedTranscript,
@@ -69,10 +69,21 @@ class SemanticChunker:
         """
         self.ai_client = ai_client
         self.settings = settings
-        self.prompt_template = load_prompt("chunker", settings)
+        self.prompt_template = load_prompt("chunker", settings.chunker_model, settings)
 
-        # Components for large text processing
-        self.text_splitter = TextSplitter()
+        # Load model-specific chunking configuration
+        chunker_config = load_model_config(settings.chunker_model, "chunker", settings)
+        self.large_text_threshold = chunker_config.get("large_text_threshold", DEFAULT_LARGE_TEXT_THRESHOLD)
+        self.min_chunk_words = chunker_config.get("min_chunk_words", DEFAULT_MIN_CHUNK_WORDS)
+        self.target_chunk_words = chunker_config.get("target_chunk_words", DEFAULT_TARGET_CHUNK_WORDS)
+
+        # Load text_splitter config and create component
+        splitter_config = load_model_config(settings.chunker_model, "text_splitter", settings)
+        self.text_splitter = TextSplitter(
+            part_size=splitter_config.get("part_size", 6000),
+            overlap_size=splitter_config.get("overlap_size", 1500),
+            min_part_size=splitter_config.get("min_part_size", 2000),
+        )
         self.outline_extractor = OutlineExtractor(ai_client, settings)
 
     async def chunk(
@@ -107,7 +118,7 @@ class SemanticChunker:
         outline: TranscriptOutline | None = None
         text_parts = self.text_splitter.split(text)
 
-        if input_chars > LARGE_TEXT_THRESHOLD:
+        if input_chars > self.large_text_threshold:
             logger.info(
                 f"Large text detected ({input_chars} chars), "
                 f"extracting outline from {len(text_parts)} parts"
@@ -130,7 +141,7 @@ class SemanticChunker:
 
             prompt = self._build_prompt(part.text, outline)
             # Use chunker-specific model if configured
-            model = self.settings.chunker_model or self.settings.llm_model
+            model = self.settings.chunker_model
 
             # Диагностика: размер промпта для отладки переполнения контекста
             logger.info(
@@ -245,7 +256,7 @@ class SemanticChunker:
 
             prompt = self._build_prompt(part.text, outline)
             # Use chunker-specific model if configured
-            model = self.settings.chunker_model or self.settings.llm_model
+            model = self.settings.chunker_model
 
             # Диагностика: размер промпта для отладки переполнения контекста
             logger.info(
@@ -454,8 +465,8 @@ class SemanticChunker:
         Validate chunk sizes and merge small chunks into groups.
 
         LLM sometimes ignores size requirements and creates tiny chunks.
-        This method merges chunks smaller than MIN_CHUNK_WORDS into groups
-        of TARGET_CHUNK_WORDS to ensure meaningful semantic units.
+        This method merges chunks smaller than self.min_chunk_words into groups
+        of self.target_chunk_words to ensure meaningful semantic units.
 
         Args:
             chunks: List of parsed chunks
@@ -468,10 +479,10 @@ class SemanticChunker:
             return chunks
 
         # Count small chunks for logging
-        small_count = sum(1 for c in chunks if c.word_count < MIN_CHUNK_WORDS)
+        small_count = sum(1 for c in chunks if c.word_count < self.min_chunk_words)
         if small_count > 0:
             logger.warning(
-                f"Found {small_count}/{len(chunks)} chunks with < {MIN_CHUNK_WORDS} words, merging"
+                f"Found {small_count}/{len(chunks)} chunks with < {self.min_chunk_words} words, merging"
             )
 
         merged: list[TranscriptChunk] = []
@@ -480,7 +491,7 @@ class SemanticChunker:
         pending_words = 0
 
         for chunk in chunks:
-            if chunk.word_count < MIN_CHUNK_WORDS:
+            if chunk.word_count < self.min_chunk_words:
                 # Accumulate small chunk
                 if pending_text:
                     pending_text += " " + chunk.text
@@ -490,7 +501,7 @@ class SemanticChunker:
                 pending_words += chunk.word_count
 
                 # If accumulated enough, create merged chunk
-                if pending_words >= TARGET_CHUNK_WORDS:
+                if pending_words >= self.target_chunk_words:
                     merged.append(
                         TranscriptChunk(
                             id="",
@@ -522,7 +533,7 @@ class SemanticChunker:
 
         # Handle any remaining pending text
         if pending_text:
-            if merged and pending_words < MIN_CHUNK_WORDS:
+            if merged and pending_words < self.min_chunk_words:
                 # Append to last chunk if too small
                 last = merged[-1]
                 combined_text = last.text + " " + pending_text
@@ -583,7 +594,7 @@ if __name__ == "__main__":
         # Test 1: Load prompt
         print("Test 1: Load prompt...", end=" ")
         try:
-            prompt = load_prompt("chunker", settings)
+            prompt = load_prompt("chunker", settings.chunker_model, settings)
             assert "{transcript}" in prompt, "Prompt missing {transcript} placeholder"
             assert "{context}" in prompt, "Prompt missing {context} placeholder"
             assert len(prompt) > 100, "Prompt too short"

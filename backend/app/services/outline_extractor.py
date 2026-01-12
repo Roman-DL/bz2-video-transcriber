@@ -62,7 +62,7 @@ class OutlineExtractor:
         self.ai_client = ai_client
         self.settings = settings
         self.max_parallel = max_parallel
-        self.prompt_template = load_prompt("map_outline", settings)
+        self.prompt_template = load_prompt("map_outline", settings.summarizer_model, settings)
 
     async def extract(self, parts: list[TextPart]) -> TranscriptOutline:
         """
@@ -398,7 +398,7 @@ if __name__ == "__main__":
         # Test 1: Load prompt
         print("\nTest 1: Load prompt...", end=" ")
         try:
-            prompt = load_prompt("map_outline", settings)
+            prompt = load_prompt("map_outline", settings.summarizer_model, settings)
             assert "{part_index}" in prompt, "Missing {part_index}"
             assert "{total_parts}" in prompt, "Missing {total_parts}"
             assert "{text}" in prompt, "Missing {text}"

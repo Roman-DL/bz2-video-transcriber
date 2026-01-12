@@ -8,18 +8,17 @@ import logging
 import re
 import time
 
-from app.config import Settings, get_settings, load_glossary, load_prompt
+from app.config import Settings, get_settings, load_glossary, load_model_config, load_prompt
 from app.models.schemas import CleanedTranscript, RawTranscript, VideoMetadata
 from app.services.ai_client import AIClient
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
 
-# Chunking configuration for large transcripts
-# gemma2:9b is stable on larger chunks (tested up to 6KB with 19.7% reduction)
-CHUNK_SIZE_CHARS = 3000  # Max characters per chunk
-CHUNK_OVERLAP_CHARS = 200  # Overlap between chunks for context
-SMALL_TEXT_THRESHOLD = 3500  # Below this - no chunking needed
+# Default chunking configuration (overridden by models.yaml)
+DEFAULT_CHUNK_SIZE = 3000
+DEFAULT_CHUNK_OVERLAP = 200
+DEFAULT_SMALL_TEXT_THRESHOLD = 3500
 
 
 class TranscriptCleaner:
@@ -47,9 +46,15 @@ class TranscriptCleaner:
         """
         self.ai_client = ai_client
         self.settings = settings
-        self.system_prompt = load_prompt("cleaner_system", settings)
-        self.user_template = load_prompt("cleaner_user", settings)
+        self.system_prompt = load_prompt("cleaner_system", settings.cleaner_model, settings)
+        self.user_template = load_prompt("cleaner_user", settings.cleaner_model, settings)
         self.glossary = load_glossary(settings)
+
+        # Load model-specific chunking configuration
+        config = load_model_config(settings.cleaner_model, "cleaner", settings)
+        self.chunk_size = config.get("chunk_size", DEFAULT_CHUNK_SIZE)
+        self.chunk_overlap = config.get("chunk_overlap", DEFAULT_CHUNK_OVERLAP)
+        self.small_text_threshold = config.get("small_text_threshold", DEFAULT_SMALL_TEXT_THRESHOLD)
 
     async def clean(
         self,
@@ -287,7 +292,7 @@ class TranscriptCleaner:
         Split text into overlapping chunks for processing.
 
         Splits on sentence boundaries to avoid breaking mid-sentence.
-        Only chunks if text exceeds SMALL_TEXT_THRESHOLD.
+        Only chunks if text exceeds small_text_threshold.
 
         Args:
             text: Full text to split
@@ -295,7 +300,7 @@ class TranscriptCleaner:
         Returns:
             List of text chunks (single item if text is small)
         """
-        if len(text) <= SMALL_TEXT_THRESHOLD:
+        if len(text) <= self.small_text_threshold:
             return [text]
 
         chunks = []
@@ -308,14 +313,14 @@ class TranscriptCleaner:
             sentence_length = len(sentence)
 
             # If adding this sentence exceeds chunk size, save current chunk
-            if current_length + sentence_length > CHUNK_SIZE_CHARS and current_chunk:
+            if current_length + sentence_length > self.chunk_size and current_chunk:
                 chunks.append(" ".join(current_chunk))
 
                 # Start new chunk with overlap (last N chars worth of sentences)
                 overlap_length = 0
                 overlap_sentences: list[str] = []
                 for s in reversed(current_chunk):
-                    if overlap_length + len(s) > CHUNK_OVERLAP_CHARS:
+                    if overlap_length + len(s) > self.chunk_overlap:
                         break
                     overlap_sentences.insert(0, s)
                     overlap_length += len(s)

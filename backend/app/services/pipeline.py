@@ -803,7 +803,7 @@ class PipelineOrchestrator:
             subsection="",
             tags=[metadata.event_type, metadata.stream],
             access_level=1,
-            model_name=self.settings.llm_model,
+            model_name=self.settings.summarizer_model,
         )
 
 
