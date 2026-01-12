@@ -91,6 +91,7 @@ async def services_health() -> dict:
             "ollama": status["ollama"],
             "whisper_url": settings.whisper_url,
             "ollama_url": settings.ollama_url,
+            "whisper_include_timestamps": settings.whisper_include_timestamps,
         }
 
 

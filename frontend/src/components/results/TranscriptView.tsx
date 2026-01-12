@@ -4,16 +4,17 @@ import type { RawTranscript, CleanedTranscript } from '@/api/types';
 
 interface RawTranscriptViewProps {
   transcript: RawTranscript;
+  displayText: string;
 }
 
-export function RawTranscriptView({ transcript }: RawTranscriptViewProps) {
+export function RawTranscriptView({ transcript, displayText }: RawTranscriptViewProps) {
   return (
     <div>
       <div className="text-xs text-gray-500 mb-2">
         Модель: <span className="font-mono">{transcript.whisper_model}</span>
       </div>
       <div className="max-h-64 overflow-y-auto text-sm text-gray-700 whitespace-pre-wrap">
-        {transcript.text_with_timestamps}
+        {displayText}
       </div>
     </div>
   );

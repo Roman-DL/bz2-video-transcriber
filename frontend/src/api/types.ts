@@ -41,6 +41,7 @@ export interface RawTranscript {
 export interface TranscribeResult {
   raw_transcript: RawTranscript;
   audio_path: string;
+  display_text: string;
 }
 
 export interface CleanedTranscript {
@@ -84,6 +85,7 @@ export interface ServicesHealth {
   ollama: boolean;
   whisper_url: string;
   ollama_url: string;
+  whisper_include_timestamps: boolean;
 }
 
 // Request types

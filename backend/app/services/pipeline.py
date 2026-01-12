@@ -27,7 +27,7 @@ from app.models.schemas import (
     VideoSummary,
 )
 from app.services.ai_client import AIClient
-from app.services.chunker import LARGE_TEXT_THRESHOLD, SemanticChunker
+from app.services.chunker import DEFAULT_LARGE_TEXT_THRESHOLD, SemanticChunker
 from app.services.cleaner import TranscriptCleaner
 from app.services.outline_extractor import OutlineExtractor
 from app.services.text_splitter import TextSplitter
@@ -482,7 +482,7 @@ class PipelineOrchestrator:
         """
         Extract outline from transcript for large texts.
 
-        For small texts (<= LARGE_TEXT_THRESHOLD), returns None outline.
+        For small texts (<= DEFAULT_LARGE_TEXT_THRESHOLD), returns None outline.
         For large texts, extracts outline using Map-Reduce approach.
 
         Args:
@@ -499,7 +499,7 @@ class PipelineOrchestrator:
         text_splitter = TextSplitter()
         text_parts = text_splitter.split(text)
 
-        if input_chars <= LARGE_TEXT_THRESHOLD:
+        if input_chars <= DEFAULT_LARGE_TEXT_THRESHOLD:
             logger.debug(f"Small text ({input_chars} chars), skipping outline extraction")
             return text_parts, None
 

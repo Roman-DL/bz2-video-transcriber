@@ -49,6 +49,7 @@ interface StepByStepProps {
 interface StepData {
   metadata?: VideoMetadata;
   rawTranscript?: RawTranscript;
+  displayText?: string;
   audioPath?: string;
   cleanedTranscript?: CleanedTranscript;
   chunks?: TranscriptChunks;
@@ -194,6 +195,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           setData((prev) => ({
             ...prev,
             rawTranscript: transcribeResult.raw_transcript,
+            displayText: transcribeResult.display_text,
             audioPath: transcribeResult.audio_path,
           }));
           expandOnlyBlock('rawTranscript');
@@ -403,7 +405,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
               expanded={expandedBlocks.has('rawTranscript')}
               onToggle={() => toggleBlock('rawTranscript')}
             >
-              <RawTranscriptView transcript={data.rawTranscript} />
+              <RawTranscriptView transcript={data.rawTranscript} displayText={data.displayText || ''} />
             </CollapsibleCard>
           )}
 

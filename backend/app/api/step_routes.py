@@ -273,11 +273,19 @@ async def step_transcribe(request: StepParseRequest) -> StreamingResponse:
     estimate = estimator.estimate_transcribe(duration)
 
     async def transcribe_and_wrap():
-        """Wrap transcribe result to include audio_path."""
+        """Wrap transcribe result to include audio_path and display_text."""
+        settings = get_settings()
         transcript, audio_path = await orchestrator.transcribe(video_path)
+        # Choose display format based on settings
+        display_text = (
+            transcript.text_with_timestamps
+            if settings.whisper_include_timestamps
+            else transcript.full_text
+        )
         return {
             "raw_transcript": transcript.model_dump(),
             "audio_path": str(audio_path),
+            "display_text": display_text,
         }
 
     return create_sse_response(

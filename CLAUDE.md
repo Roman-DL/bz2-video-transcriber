@@ -43,6 +43,7 @@ Video → Parse → Whisper → Clean → Chunk → Summarize → Save
 |------|----------|
 | Обзор системы | [docs/overview.md](docs/overview.md) |
 | Архитектура | [docs/architecture.md](docs/architecture.md) |
+| **Конфигурация** | [docs/configuration.md](docs/configuration.md) |
 | Pipeline (этапы) | [docs/pipeline/](docs/pipeline/) |
 | Форматы данных | [docs/data-formats.md](docs/data-formats.md) |
 | API сервисов | [docs/api-reference.md](docs/api-reference.md) |
@@ -77,6 +78,26 @@ config/glossary.yaml    # Терминология
 | Чанкирование | gemma2:9b | Оптимальное количество чанков |
 
 Подробнее: [docs/model-testing.md](docs/model-testing.md)
+
+### Ключевые настройки (env)
+
+| Настройка | Где менять | Эффект |
+|-----------|------------|--------|
+| `SUMMARIZER_MODEL` | docker-compose.yml | Модель для суммаризации |
+| `CLEANER_MODEL` | docker-compose.yml | Модель для очистки транскрипта |
+| `CHUNKER_MODEL` | docker-compose.yml | Модель для чанкирования |
+| `WHISPER_INCLUDE_TIMESTAMPS` | docker-compose.yml | `true` — таймкоды в транскрипте и файле |
+
+### Конфигурационные файлы
+
+| Файл | Назначение |
+|------|------------|
+| `config/models.yaml` | Параметры моделей (chunk_size, thresholds) |
+| `config/glossary.yaml` | Глоссарий терминов для коррекции |
+| `config/prompts/*.md` | Промпты для LLM (поддержка {name}_{model}.md) |
+| `config/events.yaml` | Типы событий для парсинга имён |
+
+Подробнее: [docs/configuration.md](docs/configuration.md)
 
 ## Разработка
 
