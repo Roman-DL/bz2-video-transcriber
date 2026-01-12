@@ -12,6 +12,7 @@ from pathlib import Path
 
 from app.config import Settings, get_settings, load_events_config
 from app.models.schemas import (
+    CleanedTranscript,
     RawTranscript,
     TranscriptChunks,
     VideoMetadata,
@@ -38,13 +39,14 @@ class FileSaver:
     - transcript_chunks.json - structured chunks for RAG
     - summary.md - markdown summary with YAML frontmatter
     - transcript_raw.txt - raw transcript with timestamps
+    - transcript_cleaned.txt - cleaned transcript text
     - video file - moved from inbox to archive
 
     Example:
         saver = FileSaver(settings)
         files = await saver.save(metadata, raw_transcript, chunks, summary)
         print(f"Created: {files}")
-        # ['transcript_chunks.json', 'summary.md', 'transcript_raw.txt', 'video.mp4']
+        # ['transcript_chunks.json', 'summary.md', 'transcript_raw.txt', 'transcript_cleaned.txt', 'video.mp4']
     """
 
     def __init__(self, settings: Settings):
@@ -61,6 +63,7 @@ class FileSaver:
         self,
         metadata: VideoMetadata,
         raw_transcript: RawTranscript,
+        cleaned_transcript: CleanedTranscript,
         chunks: TranscriptChunks,
         summary: VideoSummary,
         audio_path: Path | None = None,
@@ -69,15 +72,18 @@ class FileSaver:
         Save all processing results to archive.
 
         Creates archive directory structure and saves:
+        - pipeline_results.json (full results for archive viewing)
         - transcript_chunks.json
         - summary.md
         - transcript_raw.txt
+        - transcript_cleaned.txt
         - audio.mp3 (if provided)
         - moves video file
 
         Args:
             metadata: Video metadata
             raw_transcript: Raw transcript from Whisper
+            cleaned_transcript: Cleaned transcript after LLM processing
             chunks: Semantic chunks
             summary: Video summary
             audio_path: Path to extracted audio file (optional)
@@ -93,6 +99,12 @@ class FileSaver:
         archive_path.mkdir(parents=True, exist_ok=True)
 
         created_files = []
+
+        # Save pipeline results JSON (for archive viewing)
+        pipeline_path = self._save_pipeline_results(
+            archive_path, metadata, raw_transcript, cleaned_transcript, chunks, summary
+        )
+        created_files.append(pipeline_path.name)
 
         # Save transcript chunks JSON
         chunks_path = self._save_chunks_json(
@@ -110,6 +122,10 @@ class FileSaver:
         raw_path = self._save_raw_transcript(archive_path, raw_transcript)
         created_files.append(raw_path.name)
 
+        # Save cleaned transcript
+        cleaned_path = self._save_cleaned_transcript(archive_path, cleaned_transcript)
+        created_files.append(cleaned_path.name)
+
         # Copy audio file if provided
         if audio_path and audio_path.exists():
             audio_dest = self._copy_audio(audio_path, archive_path)
@@ -122,6 +138,116 @@ class FileSaver:
         logger.info(f"Save complete: {len(created_files)} files created")
 
         return created_files
+
+    def _save_pipeline_results(
+        self,
+        archive_path: Path,
+        metadata: VideoMetadata,
+        raw_transcript: RawTranscript,
+        cleaned_transcript: CleanedTranscript,
+        chunks: TranscriptChunks,
+        summary: VideoSummary,
+    ) -> Path:
+        """
+        Save complete pipeline results for archive viewing.
+
+        This JSON contains all data needed to display processing results
+        without re-parsing other files.
+
+        Args:
+            archive_path: Archive directory path
+            metadata: Video metadata
+            raw_transcript: Raw transcript from Whisper
+            cleaned_transcript: Cleaned transcript after LLM processing
+            chunks: Semantic chunks
+            summary: Video summary
+
+        Returns:
+            Path to created file
+        """
+        # Choose display format based on settings
+        display_text = (
+            raw_transcript.text_with_timestamps
+            if self.settings.whisper_include_timestamps
+            else raw_transcript.full_text
+        )
+
+        data = {
+            "version": PIPELINE_VERSION,
+            "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "metadata": {
+                "date": metadata.date.isoformat(),
+                "event_type": metadata.event_type,
+                "stream": metadata.stream,
+                "title": metadata.title,
+                "speaker": metadata.speaker,
+                "original_filename": metadata.original_filename,
+                "video_id": metadata.video_id,
+                "source_path": str(metadata.source_path),
+                "archive_path": str(metadata.archive_path),
+                "stream_full": metadata.stream_full,
+                "duration_seconds": metadata.duration_seconds,
+            },
+            "raw_transcript": {
+                "segments": [
+                    {
+                        "start": seg.start,
+                        "end": seg.end,
+                        "text": seg.text,
+                    }
+                    for seg in raw_transcript.segments
+                ],
+                "language": raw_transcript.language,
+                "duration_seconds": raw_transcript.duration_seconds,
+                "whisper_model": raw_transcript.whisper_model,
+                "full_text": raw_transcript.full_text,
+                "text_with_timestamps": raw_transcript.text_with_timestamps,
+            },
+            "display_text": display_text,
+            "cleaned_transcript": {
+                "text": cleaned_transcript.text,
+                "original_length": cleaned_transcript.original_length,
+                "cleaned_length": cleaned_transcript.cleaned_length,
+                "corrections_made": cleaned_transcript.corrections_made,
+                "model_name": cleaned_transcript.model_name,
+            },
+            "chunks": {
+                "chunks": [
+                    {
+                        "id": chunk.id,
+                        "index": chunk.index,
+                        "topic": chunk.topic,
+                        "text": chunk.text,
+                        "word_count": chunk.word_count,
+                    }
+                    for chunk in chunks.chunks
+                ],
+                "model_name": chunks.model_name,
+                "total_chunks": chunks.total_chunks,
+                "avg_chunk_size": chunks.avg_chunk_size,
+            },
+            "summary": {
+                "summary": summary.summary,
+                "key_points": summary.key_points,
+                "recommendations": summary.recommendations,
+                "target_audience": summary.target_audience,
+                "questions_answered": summary.questions_answered,
+                "section": summary.section,
+                "subsection": summary.subsection,
+                "tags": summary.tags,
+                "access_level": summary.access_level,
+                "model_name": summary.model_name,
+            },
+        }
+
+        file_path = archive_path / "pipeline_results.json"
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+        logger.debug(f"Saved pipeline results: {file_path}")
+
+        return file_path
 
     def _save_chunks_json(
         self,
@@ -337,6 +463,30 @@ class FileSaver:
 
         return file_path
 
+    def _save_cleaned_transcript(
+        self,
+        archive_path: Path,
+        cleaned_transcript: CleanedTranscript,
+    ) -> Path:
+        """
+        Save cleaned transcript to text file.
+
+        Args:
+            archive_path: Archive directory path
+            cleaned_transcript: Cleaned transcript after LLM processing
+
+        Returns:
+            Path to created file
+        """
+        file_path = archive_path / "transcript_cleaned.txt"
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(cleaned_transcript.text)
+
+        logger.debug(f"Saved cleaned transcript: {file_path}")
+
+        return file_path
+
     def _move_video(self, source: Path, dest_dir: Path) -> Path:
         """
         Move video file to archive directory.
@@ -489,7 +639,11 @@ if __name__ == "__main__":
         # Test 4: Full save cycle with temp directory
         print("\nTest 4: Full save cycle...", end=" ")
         try:
-            from app.models.schemas import TranscriptChunk, TranscriptSegment
+            from app.models.schemas import (
+                CleanedTranscript,
+                TranscriptChunk,
+                TranscriptSegment,
+            )
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_path = Path(temp_dir)
@@ -548,6 +702,15 @@ if __name__ == "__main__":
                     model_name=settings.chunker_model,
                 )
 
+                # Create mock cleaned transcript
+                cleaned_transcript = CleanedTranscript(
+                    text="First segment. Second segment.",
+                    original_length=100,
+                    cleaned_length=90,
+                    corrections_made=["Corrected word1 -> word2"],
+                    model_name=settings.cleaner_model,
+                )
+
                 # Create mock summary
                 summary = VideoSummary(
                     summary="This is a test summary.",
@@ -564,22 +727,36 @@ if __name__ == "__main__":
 
                 # Run save
                 saver = FileSaver(settings)
-                files = await saver.save(metadata, raw_transcript, chunks, summary)
+                files = await saver.save(
+                    metadata, raw_transcript, cleaned_transcript, chunks, summary
+                )
 
                 # Verify results
-                assert len(files) == 4, f"Expected 4 files, got {len(files)}"
+                assert len(files) == 6, f"Expected 6 files, got {len(files)}"
+                assert "pipeline_results.json" in files
                 assert "transcript_chunks.json" in files
                 assert "summary.md" in files
                 assert "transcript_raw.txt" in files
+                assert "transcript_cleaned.txt" in files
                 assert video_file.name in files
 
                 # Verify files exist
+                assert (archive_dir / "pipeline_results.json").exists()
                 assert (archive_dir / "transcript_chunks.json").exists()
                 assert (archive_dir / "summary.md").exists()
                 assert (archive_dir / "transcript_raw.txt").exists()
+                assert (archive_dir / "transcript_cleaned.txt").exists()
                 assert (archive_dir / video_file.name).exists()
 
-                # Verify JSON content
+                # Verify pipeline_results.json content
+                with open(archive_dir / "pipeline_results.json", "r", encoding="utf-8") as f:
+                    pipeline_data = json.load(f)
+                assert pipeline_data["version"] == PIPELINE_VERSION
+                assert pipeline_data["metadata"]["video_id"] == metadata.video_id
+                assert "cleaned_transcript" in pipeline_data
+                assert pipeline_data["cleaned_transcript"]["model_name"] == settings.cleaner_model
+
+                # Verify transcript_chunks.json content
                 with open(archive_dir / "transcript_chunks.json", "r", encoding="utf-8") as f:
                     json_data = json.load(f)
                 assert json_data["video_id"] == metadata.video_id
@@ -595,6 +772,10 @@ if __name__ == "__main__":
                 raw_content = (archive_dir / "transcript_raw.txt").read_text(encoding="utf-8")
                 assert "[00:00:00]" in raw_content
                 assert "First segment." in raw_content
+
+                # Verify cleaned transcript
+                cleaned_content = (archive_dir / "transcript_cleaned.txt").read_text(encoding="utf-8")
+                assert cleaned_content == "First segment. Second segment."
 
                 print("OK")
                 print(f"  Created files: {files}")

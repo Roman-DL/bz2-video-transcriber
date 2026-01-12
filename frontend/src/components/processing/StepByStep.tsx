@@ -151,7 +151,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
       case 'clean': return !!data.rawTranscript && !!data.metadata;
       case 'chunk': return !!data.cleanedTranscript && !!data.metadata;
       case 'summarize': return !!data.cleanedTranscript && !!data.metadata;
-      case 'save': return !!data.metadata && !!data.rawTranscript && !!data.chunks && !!data.summary;
+      case 'save': return !!data.metadata && !!data.rawTranscript && !!data.cleanedTranscript && !!data.chunks && !!data.summary;
     }
   };
 
@@ -239,6 +239,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           if (
             !data.metadata ||
             !data.rawTranscript ||
+            !data.cleanedTranscript ||
             !data.chunks ||
             !data.summary
           )
@@ -246,6 +247,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           const savedFiles = await stepSave.mutateAsync({
             metadata: data.metadata,
             raw_transcript: data.rawTranscript,
+            cleaned_transcript: data.cleanedTranscript,
             chunks: data.chunks,
             summary: data.summary,
             audio_path: data.audioPath,

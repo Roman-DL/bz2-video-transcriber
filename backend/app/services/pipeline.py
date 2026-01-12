@@ -240,7 +240,14 @@ class PipelineOrchestrator:
 
             # Stage 6: Save (includes audio.mp3)
             files_created = await self._do_save(
-                saver, metadata, raw_transcript, chunks, summary, audio_path, progress_callback
+                saver,
+                metadata,
+                raw_transcript,
+                cleaned_transcript,
+                chunks,
+                summary,
+                audio_path,
+                progress_callback,
             )
 
         processing_time = (datetime.now() - started_at).total_seconds()
@@ -368,6 +375,7 @@ class PipelineOrchestrator:
         self,
         metadata: VideoMetadata,
         raw_transcript: RawTranscript,
+        cleaned_transcript: CleanedTranscript,
         chunks: TranscriptChunks,
         summary: VideoSummary,
         audio_path: Path | None = None,
@@ -378,6 +386,7 @@ class PipelineOrchestrator:
         Args:
             metadata: Video metadata
             raw_transcript: Raw transcript
+            cleaned_transcript: Cleaned transcript after LLM processing
             chunks: Semantic chunks
             summary: Video summary
             audio_path: Path to extracted audio file (optional)
@@ -386,7 +395,9 @@ class PipelineOrchestrator:
             List of created file names
         """
         saver = FileSaver(self.settings)
-        return await saver.save(metadata, raw_transcript, chunks, summary, audio_path)
+        return await saver.save(
+            metadata, raw_transcript, cleaned_transcript, chunks, summary, audio_path
+        )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Internal: Stage Execution with Progress
@@ -635,6 +646,7 @@ class PipelineOrchestrator:
         saver: FileSaver,
         metadata: VideoMetadata,
         raw_transcript: RawTranscript,
+        cleaned_transcript: CleanedTranscript,
         chunks: TranscriptChunks,
         summary: VideoSummary,
         audio_path: Path | None,
@@ -654,7 +666,9 @@ class PipelineOrchestrator:
             )
 
         try:
-            files = await saver.save(metadata, raw_transcript, chunks, summary, audio_path)
+            files = await saver.save(
+                metadata, raw_transcript, cleaned_transcript, chunks, summary, audio_path
+            )
         except Exception as e:
             if ticker:
                 ticker.cancel()

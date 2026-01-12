@@ -349,6 +349,7 @@ class StepSaveRequest(BaseModel):
 
     metadata: VideoMetadata
     raw_transcript: RawTranscript
+    cleaned_transcript: CleanedTranscript
     chunks: TranscriptChunks
     summary: VideoSummary
     audio_path: str | None = Field(

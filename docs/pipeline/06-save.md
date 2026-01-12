@@ -20,7 +20,9 @@
                 ├── audio.mp3                    # Извлечённое аудио
                 ├── transcript_chunks.json       # Для RAG
                 ├── summary.md                   # Для File Search
-                └── transcript_raw.txt           # Backup оригинала
+                ├── transcript_raw.txt           # Backup оригинала
+                ├── transcript_cleaned.txt       # Очищенный текст
+                └── pipeline_results.json        # Для просмотра в UI
 ```
 
 ## Выходные файлы
@@ -32,6 +34,8 @@
 | Chunks | RAG-индексация в БЗ 2.0 | `transcript_chunks.json` |
 | Summary | File Search в БЗ 2.0 | `summary.md` |
 | Raw transcript | Backup с таймкодами | `transcript_raw.txt` |
+| Cleaned transcript | Чистый текст для чтения | `transcript_cleaned.txt` |
+| Pipeline results | Просмотр результатов в UI | `pipeline_results.json` |
 
 ## Формат transcript_chunks.json
 
@@ -59,6 +63,16 @@ Markdown с YAML frontmatter для File Search:
 [00:00:08] Второй сегмент текста.
 ```
 
+## Формат pipeline_results.json
+
+JSON файл для просмотра результатов в веб-интерфейсе:
+- `version` — версия формата для совместимости
+- `created_at` — дата/время обработки
+- `metadata`, `raw_transcript`, `cleaned_transcript`, `chunks`, `summary` — полные данные pipeline
+- `display_text` — текст транскрипции для отображения (с/без таймкодов)
+
+Подробная структура: [data-formats.md](../data-formats.md#5-pipeline_resultsjson)
+
 ## Операции
 
 | Метод | Описание |
@@ -67,6 +81,8 @@ Markdown с YAML frontmatter для File Search:
 | `_save_chunks_json()` | Генерация JSON для RAG |
 | `_save_summary_md()` | Генерация Markdown с frontmatter |
 | `_save_raw_transcript()` | Сохранение текста с таймкодами |
+| `_save_cleaned_transcript()` | Сохранение очищенного текста |
+| `_save_pipeline_results()` | Сохранение полных результатов для UI |
 | `_copy_audio()` | Копирование аудио как `audio.mp3` |
 | `_move_video()` | Перемещение видео в archive |
 
@@ -75,6 +91,7 @@ Markdown с YAML frontmatter для File Search:
 Метод `save()` принимает:
 - `metadata` — VideoMetadata с путями
 - `raw_transcript` — сырая транскрипция
+- `cleaned_transcript` — очищенная транскрипция
 - `chunks` — семантические чанки
 - `summary` — структурированное саммари
 - `audio_path` — путь к извлечённому аудио (опционально)

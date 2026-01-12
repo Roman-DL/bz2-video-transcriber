@@ -3,6 +3,7 @@ import { useArchive } from '@/api/hooks/useArchive';
 import { Card, CardContent, CardHeader } from '@/components/common/Card';
 import { Spinner } from '@/components/common/Spinner';
 import { Button } from '@/components/common/Button';
+import { ArchiveResultsModal } from './ArchiveResultsModal';
 import {
   Archive,
   RefreshCw,
@@ -11,13 +12,35 @@ import {
   Folder,
   FileText,
 } from 'lucide-react';
-import type { ArchiveItem } from '@/api/types';
+import type { ArchiveItem, ArchiveItemWithPath } from '@/api/types';
 
 export function ArchiveCatalog() {
   const { data, isLoading, isError, refetch, isFetching } = useArchive();
+  const [selectedItem, setSelectedItem] = useState<ArchiveItemWithPath | null>(
+    null
+  );
+
+  const handleItemClick = (
+    year: string,
+    eventFolder: string,
+    item: ArchiveItem
+  ) => {
+    // Reconstruct topic folder name: "title (speaker)" or just "title"
+    const topicFolder = item.speaker
+      ? `${item.title} (${item.speaker})`
+      : item.title;
+
+    setSelectedItem({
+      ...item,
+      year,
+      eventFolder,
+      topicFolder,
+    });
+  };
 
   return (
-    <Card>
+    <>
+      <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -51,7 +74,12 @@ export function ArchiveCatalog() {
         ) : data && data.total > 0 ? (
           <div className="py-2">
             {Object.entries(data.tree).map(([year, events]) => (
-              <YearSection key={year} year={year} events={events} />
+              <YearSection
+                key={year}
+                year={year}
+                events={events}
+                onItemClick={handleItemClick}
+              />
             ))}
           </div>
         ) : (
@@ -59,15 +87,23 @@ export function ArchiveCatalog() {
         )}
       </CardContent>
     </Card>
+
+      <ArchiveResultsModal
+        isOpen={selectedItem !== null}
+        onClose={() => setSelectedItem(null)}
+        item={selectedItem}
+      />
+    </>
   );
 }
 
 interface YearSectionProps {
   year: string;
   events: Record<string, ArchiveItem[]>;
+  onItemClick: (year: string, eventFolder: string, item: ArchiveItem) => void;
 }
 
-function YearSection({ year, events }: YearSectionProps) {
+function YearSection({ year, events, onItemClick }: YearSectionProps) {
   const [expanded, setExpanded] = useState(true);
   const totalItems = Object.values(events).flat().length;
 
@@ -91,8 +127,10 @@ function YearSection({ year, events }: YearSectionProps) {
           {Object.entries(events).map(([eventFolder, items]) => (
             <EventSection
               key={eventFolder}
+              year={year}
               eventFolder={eventFolder}
               items={items}
+              onItemClick={onItemClick}
             />
           ))}
         </div>
@@ -102,11 +140,18 @@ function YearSection({ year, events }: YearSectionProps) {
 }
 
 interface EventSectionProps {
+  year: string;
   eventFolder: string;
   items: ArchiveItem[];
+  onItemClick: (year: string, eventFolder: string, item: ArchiveItem) => void;
 }
 
-function EventSection({ eventFolder, items }: EventSectionProps) {
+function EventSection({
+  year,
+  eventFolder,
+  items,
+  onItemClick,
+}: EventSectionProps) {
   const [expanded, setExpanded] = useState(true);
 
   return (
@@ -127,9 +172,10 @@ function EventSection({ eventFolder, items }: EventSectionProps) {
       {expanded && (
         <div className="ml-4">
           {items.map((item, idx) => (
-            <div
+            <button
               key={idx}
-              className="flex items-center gap-2 px-4 py-1.5 text-sm"
+              onClick={() => onItemClick(year, eventFolder, item)}
+              className="w-full flex items-center gap-2 px-4 py-1.5 text-sm hover:bg-gray-50 text-left"
             >
               <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
               <span className="text-gray-700 truncate">{item.title}</span>
@@ -138,7 +184,7 @@ function EventSection({ eventFolder, items }: EventSectionProps) {
                   ({item.speaker})
                 </span>
               )}
-            </div>
+            </button>
           ))}
         </div>
       )}

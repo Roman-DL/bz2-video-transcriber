@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../client';
-import type { ArchiveResponse } from '../types';
+import type { ArchiveResponse, PipelineResultsResponse } from '../types';
 
 export function useArchive() {
   return useQuery({
@@ -10,5 +10,33 @@ export function useArchive() {
       return data;
     },
     refetchInterval: 30000,
+  });
+}
+
+/**
+ * Fetch pipeline results for an archived video.
+ * Returns null when params are not set (modal closed).
+ */
+export function useArchiveResults(
+  year: string | null,
+  eventFolder: string | null,
+  topicFolder: string | null
+) {
+  return useQuery({
+    queryKey: ['archive-results', year, eventFolder, topicFolder],
+    queryFn: async () => {
+      const { data } = await apiClient.get<PipelineResultsResponse>(
+        '/api/archive/results',
+        {
+          params: {
+            year,
+            event_folder: eventFolder,
+            topic_folder: topicFolder,
+          },
+        }
+      );
+      return data;
+    },
+    enabled: !!(year && eventFolder && topicFolder),
   });
 }

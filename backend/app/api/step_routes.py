@@ -436,6 +436,7 @@ async def step_save(request: StepSaveRequest) -> list[str]:
         files = await orchestrator.save(
             metadata=request.metadata,
             raw_transcript=request.raw_transcript,
+            cleaned_transcript=request.cleaned_transcript,
             chunks=request.chunks,
             summary=request.summary,
             audio_path=audio_path,

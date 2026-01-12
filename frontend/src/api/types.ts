@@ -112,6 +112,7 @@ export interface StepSummarizeRequest {
 export interface StepSaveRequest {
   metadata: VideoMetadata;
   raw_transcript: RawTranscript;
+  cleaned_transcript: CleanedTranscript;
   chunks: TranscriptChunks;
   summary: VideoSummary;
   audio_path?: string;
@@ -148,4 +149,30 @@ export interface ArchiveItem {
 export interface ArchiveResponse {
   tree: Record<string, Record<string, ArchiveItem[]>>;
   total: number;
+}
+
+// Extended archive item with path info for API call
+export interface ArchiveItemWithPath extends ArchiveItem {
+  year: string;
+  eventFolder: string;
+  topicFolder: string;
+}
+
+// Pipeline results stored in archive
+export interface PipelineResults {
+  version: string;
+  created_at: string;
+  metadata: VideoMetadata;
+  raw_transcript: RawTranscript;
+  display_text: string;
+  cleaned_transcript: CleanedTranscript;
+  chunks: TranscriptChunks;
+  summary: VideoSummary;
+}
+
+// Response from /archive/results endpoint
+export interface PipelineResultsResponse {
+  available: boolean;
+  message?: string;
+  data?: PipelineResults;
 }
