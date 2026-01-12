@@ -122,10 +122,12 @@ score = success_rate * (1 - chunk_penalty * 0.5) * (0.5 + avg_normal_ratio * 0.5
 
 ```python
 # backend/app/config.py
-llm_model: str = "qwen2.5:14b"      # Для суммаризации
-cleaner_model: str = "gemma2:9b"    # Для очистки
-chunker_model: str = "gemma2:9b"    # Для чанкирования
+summarizer_model: str = "qwen2.5:14b"  # Для суммаризации
+cleaner_model: str = "gemma2:9b"       # Для очистки
+chunker_model: str = "gemma2:9b"       # Для чанкирования
 ```
+
+Параметры чанкирования для каждой модели настраиваются в `config/models.yaml`.
 
 ---
 

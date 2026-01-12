@@ -206,7 +206,7 @@ transcript_file: "transcript_chunks.json"
 
 # === Служебное ===
 created: "2025-04-08T10:30:00Z"
-llm_model: "qwen2.5:14b"
+llm_model: "qwen2.5:14b"  # Модель суммаризации (summarizer_model)
 pipeline_version: "1.0.0"
 ---
 

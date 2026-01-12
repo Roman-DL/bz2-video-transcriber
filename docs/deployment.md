@@ -129,7 +129,8 @@ services:
     environment:
       - OLLAMA_URL=http://192.168.1.152:11434
       - WHISPER_URL=http://192.168.1.152:9000
-      - LLM_MODEL=qwen2.5:14b
+      - SUMMARIZER_MODEL=qwen2.5:14b
+      - CLEANER_MODEL=gemma2:9b
       - DATA_ROOT=/data
       - INBOX_DIR=/data/inbox
       - ARCHIVE_DIR=/data/archive
@@ -235,7 +236,9 @@ sudo docker compose up -d --build
 |------------|--------------|----------|
 | `OLLAMA_URL` | `http://192.168.1.152:11434` | URL Ollama API |
 | `WHISPER_URL` | `http://192.168.1.152:9000` | URL Whisper API |
-| `LLM_MODEL` | `qwen2.5:14b` | Модель для обработки текста |
+| `SUMMARIZER_MODEL` | `qwen2.5:14b` | Модель для суммаризации |
+| `CLEANER_MODEL` | `gemma2:9b` | Модель для очистки транскрипта |
+| `CHUNKER_MODEL` | `gemma2:9b` | Модель для чанкирования |
 | `LLM_TIMEOUT` | `300` | Таймаут запросов к Ollama (сек) |
 | `WHISPER_LANGUAGE` | `ru` | Язык транскрипции |
 | `DATA_ROOT` | `/data` | Корень данных |
