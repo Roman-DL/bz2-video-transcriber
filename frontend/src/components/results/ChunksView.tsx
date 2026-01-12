@@ -41,7 +41,7 @@ export function ChunksView({ chunks }: ChunksViewProps) {
             </div>
           </button>
           {expandedChunk === chunk.id && (
-            <div className="mt-2 ml-6 text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 rounded-lg p-3">
+            <div className="mt-2 ml-6 text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 rounded-lg p-3 max-h-80 overflow-y-auto">
               {chunk.text}
             </div>
           )}
