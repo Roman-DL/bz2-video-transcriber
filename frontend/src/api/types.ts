@@ -91,22 +91,26 @@ export interface ServicesHealth {
 // Request types
 export interface StepParseRequest {
   video_filename: string;
+  whisper_model?: string;
 }
 
 export interface StepCleanRequest {
   raw_transcript: RawTranscript;
   metadata: VideoMetadata;
+  model?: string;
 }
 
 export interface StepChunkRequest {
   cleaned_transcript: CleanedTranscript;
   metadata: VideoMetadata;
+  model?: string;
 }
 
 export interface StepSummarizeRequest {
   cleaned_transcript: CleanedTranscript;
   metadata: VideoMetadata;
   prompt_name?: string;
+  model?: string;
 }
 
 export interface StepSaveRequest {
@@ -175,4 +179,48 @@ export interface PipelineResultsResponse {
   available: boolean;
   message?: string;
   data?: PipelineResults;
+}
+
+// Model configuration types
+export interface AvailableModelsResponse {
+  ollama_models: string[];
+  whisper_models: string[];
+}
+
+export interface DefaultModelsResponse {
+  transcribe: string;
+  clean: string;
+  chunk: string;
+  summarize: string;
+}
+
+export interface StageConfig {
+  chunk_size?: number;
+  chunk_overlap?: number;
+  small_text_threshold?: number;
+  large_text_threshold?: number;
+  min_chunk_words?: number;
+  target_chunk_words?: number;
+  part_size?: number;
+  overlap_size?: number;
+  min_part_size?: number;
+}
+
+export interface ModelConfig {
+  context_tokens?: number;
+  cleaner?: StageConfig;
+  chunker?: StageConfig;
+  text_splitter?: StageConfig;
+}
+
+export interface ModelsConfigResponse {
+  [modelFamily: string]: ModelConfig;
+}
+
+// User settings for model selection
+export interface ModelSettings {
+  transcribe?: string;
+  clean?: string;
+  chunk?: string;
+  summarize?: string;
 }

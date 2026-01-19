@@ -317,6 +317,10 @@ class StepParseRequest(BaseModel):
     """Request for /step/parse endpoint."""
 
     video_filename: str
+    whisper_model: str | None = Field(
+        default=None,
+        description="Override Whisper model (for transcribe step)",
+    )
 
 
 class StepCleanRequest(BaseModel):
@@ -324,6 +328,10 @@ class StepCleanRequest(BaseModel):
 
     raw_transcript: RawTranscript
     metadata: VideoMetadata
+    model: str | None = Field(
+        default=None,
+        description="Override LLM model for cleaning",
+    )
 
 
 class StepChunkRequest(BaseModel):
@@ -331,6 +339,10 @@ class StepChunkRequest(BaseModel):
 
     cleaned_transcript: CleanedTranscript
     metadata: VideoMetadata
+    model: str | None = Field(
+        default=None,
+        description="Override LLM model for chunking",
+    )
 
 
 class StepSummarizeRequest(BaseModel):
@@ -341,6 +353,10 @@ class StepSummarizeRequest(BaseModel):
     prompt_name: str = Field(
         default="summarizer",
         description="Prompt name from config/prompts/",
+    )
+    model: str | None = Field(
+        default=None,
+        description="Override LLM model for summarization",
     )
 
 

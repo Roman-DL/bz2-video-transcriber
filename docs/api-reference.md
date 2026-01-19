@@ -391,6 +391,63 @@ def call_ollama(prompt: str, model: str = "qwen2.5:14b") -> str:
 
 ---
 
+---
+
+## Backend API (bz2-transcriber)
+
+**Base URL:** `http://100.64.0.1:8801`
+
+### Models API
+
+Эндпоинты для получения информации о доступных моделях и их конфигурациях.
+
+#### GET /api/models/available
+
+Список доступных моделей из Ollama и Whisper.
+
+**Response:**
+```json
+{
+  "ollama_models": ["gemma2:9b", "qwen2.5:14b", "qwen2.5:7b"],
+  "whisper_models": ["large-v3", "large-v3-turbo"]
+}
+```
+
+#### GET /api/models/default
+
+Модели по умолчанию из настроек сервера.
+
+**Response:**
+```json
+{
+  "transcribe": "large-v3-turbo",
+  "clean": "gemma2:9b",
+  "chunk": "gemma2:9b",
+  "summarize": "qwen2.5:14b"
+}
+```
+
+#### GET /api/models/config
+
+Конфигурации моделей из `config/models.yaml`.
+
+**Response:**
+```json
+{
+  "gemma2": {
+    "context_tokens": 8192,
+    "cleaner": {"chunk_size": 3000, "chunk_overlap": 200},
+    "chunker": {"large_text_threshold": 10000}
+  },
+  "qwen2": {
+    "context_tokens": 32768,
+    "cleaner": {"chunk_size": 12000}
+  }
+}
+```
+
+---
+
 ## Связанные документы
 
 - [architecture.md](architecture.md) — схема системы

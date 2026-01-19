@@ -5,6 +5,7 @@ models:
   gemma2:
     # Context: 8K tokens (~24K chars)
     # Current production model - conservative settings
+    context_tokens: 8192
     cleaner:
       chunk_size: 3000          # Max characters per chunk
       chunk_overlap: 200        # Overlap between chunks
@@ -21,6 +22,7 @@ models:
   qwen2:
     # Context: 32K tokens (~100K chars)
     # Larger chunks for better context understanding
+    context_tokens: 32768
     cleaner:
       chunk_size: 8000
       chunk_overlap: 500
@@ -37,6 +39,7 @@ models:
   qwen3:
     # Context: 40K tokens (~120K chars)
     # Even larger chunks for maximum context
+    context_tokens: 40960
     cleaner:
       chunk_size: 10000
       chunk_overlap: 600

@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import routes, step_routes
+from app.api import models_routes, routes, step_routes
 from app.config import get_settings
 from app.logging_config import setup_logging
 from app.services.ai_client import AIClient
@@ -62,6 +62,7 @@ app.add_middleware(
 # Include routers
 app.include_router(routes.router)
 app.include_router(step_routes.router)
+app.include_router(models_routes.router)
 
 
 @app.get("/health")

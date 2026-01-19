@@ -54,6 +54,7 @@
 ```yaml
 models:
   gemma2:
+    context_tokens: 8192      # Размер контекстного окна модели
     cleaner:
       chunk_size: 3000        # Размер чанка для очистки
       chunk_overlap: 200      # Перекрытие между чанками
@@ -67,9 +68,21 @@ models:
       overlap_size: 1500
       min_part_size: 2000
 
+  qwen2:
+    context_tokens: 32768     # Большее окно → большие чанки
+    cleaner:
+      chunk_size: 12000
+    # ...
+
 defaults:
   # Fallback значения если модель не найдена
 ```
+
+| Параметр | Описание |
+|----------|----------|
+| `context_tokens` | Размер контекстного окна модели (отображается в UI) |
+| `cleaner.chunk_size` | Размер чанка текста для очистки |
+| `chunker.large_text_threshold` | Порог для Map-Reduce режима |
 
 ### glossary.yaml
 
@@ -129,6 +142,18 @@ stages:
 | Изменить промпт LLM | `config/prompts/*.md` |
 | Добавить тип события | `config/events.yaml` |
 
+## Override моделей через UI
+
+Пользователь может временно переопределить модели для обработки через веб-интерфейс:
+
+1. Нажать иконку настроек (шестерёнка) в Header
+2. Выбрать модели для каждого этапа pipeline
+3. Сохранить — настройки сохраняются в localStorage браузера
+
+**Приоритет:** UI override > переменные окружения > defaults
+
+Настройки из UI передаются в API как параметр `model` в запросах `/step/clean`, `/step/chunk`, `/step/summarize`.
+
 ## Применение изменений
 
 **Переменные окружения:** требуют пересборки контейнера
@@ -141,3 +166,5 @@ stages:
 # На сервере
 docker compose restart bz2-transcriber
 ```
+
+**UI настройки:** применяются сразу (localStorage)

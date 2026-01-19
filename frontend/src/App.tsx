@@ -4,6 +4,8 @@ import { Layout } from '@/components/layout/Layout';
 import { InboxList } from '@/components/inbox/InboxList';
 import { ArchiveCatalog } from '@/components/archive/ArchiveCatalog';
 import { ProcessingModal } from '@/components/processing/ProcessingModal';
+import { SettingsProvider } from '@/contexts/SettingsContext';
+import { SettingsModal } from '@/components/settings/SettingsModal';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,9 +40,12 @@ function Dashboard() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Layout>
-        <Dashboard />
-      </Layout>
+      <SettingsProvider>
+        <Layout>
+          <Dashboard />
+        </Layout>
+        <SettingsModal />
+      </SettingsProvider>
     </QueryClientProvider>
   );
 }

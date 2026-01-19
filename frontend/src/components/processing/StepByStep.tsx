@@ -27,6 +27,7 @@ import {
 } from '@/components/results/TranscriptView';
 import { ChunksView } from '@/components/results/ChunksView';
 import { SummaryView } from '@/components/results/SummaryView';
+import { useSettings } from '@/contexts/SettingsContext';
 import {
   CheckCircle,
   Circle,
@@ -64,6 +65,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
   const [data, setData] = useState<StepData>({});
   const [error, setError] = useState<string | null>(null);
   const [expandedBlocks, setExpandedBlocks] = useState<Set<BlockType>>(new Set());
+  const { models } = useSettings();
 
   const toggleBlock = (block: BlockType) => {
     setExpandedBlocks((prev) => {
@@ -182,6 +184,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
         case 'parse':
           const metadata = await stepParse.mutateAsync({
             video_filename: filename,
+            whisper_model: models.transcribe,
           });
           setData((prev) => ({ ...prev, metadata }));
           expandOnlyBlock('metadata');
@@ -191,6 +194,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
         case 'transcribe':
           const transcribeResult = await stepTranscribe.mutate({
             video_filename: filename,
+            whisper_model: models.transcribe,
           });
           setData((prev) => ({
             ...prev,
@@ -207,6 +211,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           const cleanedTranscript = await stepClean.mutate({
             raw_transcript: data.rawTranscript,
             metadata: data.metadata,
+            model: models.clean,
           });
           setData((prev) => ({ ...prev, cleanedTranscript }));
           expandOnlyBlock('cleanedTranscript');
@@ -218,6 +223,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           const chunks = await stepChunk.mutate({
             cleaned_transcript: data.cleanedTranscript,
             metadata: data.metadata,
+            model: models.chunk,
           });
           setData((prev) => ({ ...prev, chunks }));
           expandOnlyBlock('chunks');
@@ -229,6 +235,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           const summary = await stepSummarize.mutate({
             cleaned_transcript: data.cleanedTranscript,
             metadata: data.metadata,
+            model: models.summarize,
           });
           setData((prev) => ({ ...prev, summary }));
           expandOnlyBlock('summary');

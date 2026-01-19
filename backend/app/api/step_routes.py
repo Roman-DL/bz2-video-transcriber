@@ -329,6 +329,7 @@ async def step_clean(request: StepCleanRequest) -> StreamingResponse:
             operation=lambda: orchestrator.clean(
                 raw_transcript=request.raw_transcript,
                 metadata=request.metadata,
+                model=request.model,
             ),
         )
     )
@@ -364,6 +365,7 @@ async def step_chunk(request: StepChunkRequest) -> StreamingResponse:
             operation=lambda: orchestrator.chunk(
                 cleaned_transcript=request.cleaned_transcript,
                 metadata=request.metadata,
+                model=request.model,
             ),
         )
     )
@@ -406,6 +408,7 @@ async def step_summarize(request: StepSummarizeRequest) -> StreamingResponse:
                 cleaned_transcript=request.cleaned_transcript,
                 metadata=request.metadata,
                 prompt_name=request.prompt_name,
+                model=request.model,
             ),
         )
     )

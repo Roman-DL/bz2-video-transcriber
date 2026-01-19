@@ -143,6 +143,52 @@ class PipelineOrchestrator:
         self.settings = settings or get_settings()
         self.estimator = ProgressEstimator(self.settings)
 
+    def _get_settings_with_model(
+        self, model: str | None, stage: str
+    ) -> Settings:
+        """
+        Get settings with optional model override.
+
+        Args:
+            model: Optional model override (e.g., "qwen2.5:14b")
+            stage: Stage name ("cleaner", "chunker", "summarizer")
+
+        Returns:
+            Settings instance (original or copy with override)
+        """
+        if not model:
+            return self.settings
+
+        # Create a copy with overridden model
+        settings_dict = {
+            "ollama_url": self.settings.ollama_url,
+            "whisper_url": self.settings.whisper_url,
+            "summarizer_model": self.settings.summarizer_model,
+            "cleaner_model": self.settings.cleaner_model,
+            "chunker_model": self.settings.chunker_model,
+            "whisper_model": self.settings.whisper_model,
+            "whisper_language": self.settings.whisper_language,
+            "whisper_include_timestamps": self.settings.whisper_include_timestamps,
+            "llm_timeout": self.settings.llm_timeout,
+            "data_root": self.settings.data_root,
+            "inbox_dir": self.settings.inbox_dir,
+            "archive_dir": self.settings.archive_dir,
+            "temp_dir": self.settings.temp_dir,
+            "config_dir": self.settings.config_dir,
+            "log_level": self.settings.log_level,
+            "log_format": self.settings.log_format,
+        }
+
+        # Override the specific model
+        if stage == "cleaner":
+            settings_dict["cleaner_model"] = model
+        elif stage == "chunker":
+            settings_dict["chunker_model"] = model
+        elif stage == "summarizer":
+            settings_dict["summarizer_model"] = model
+
+        return Settings(**settings_dict)
+
     # ═══════════════════════════════════════════════════════════════════════════
     # Full Pipeline
     # ═══════════════════════════════════════════════════════════════════════════
@@ -307,6 +353,7 @@ class PipelineOrchestrator:
         self,
         raw_transcript: RawTranscript,
         metadata: VideoMetadata,
+        model: str | None = None,
     ) -> CleanedTranscript:
         """
         Clean raw transcript using glossary and LLM.
@@ -314,18 +361,21 @@ class PipelineOrchestrator:
         Args:
             raw_transcript: Raw transcript from Whisper
             metadata: Video metadata
+            model: Optional model override for cleaning
 
         Returns:
             CleanedTranscript with cleaned text
         """
-        async with AIClient(self.settings) as ai_client:
-            cleaner = TranscriptCleaner(ai_client, self.settings)
+        settings = self._get_settings_with_model(model, "cleaner")
+        async with AIClient(settings) as ai_client:
+            cleaner = TranscriptCleaner(ai_client, settings)
             return await cleaner.clean(raw_transcript, metadata)
 
     async def chunk(
         self,
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
+        model: str | None = None,
     ) -> TranscriptChunks:
         """
         Split cleaned transcript into semantic chunks.
@@ -333,12 +383,14 @@ class PipelineOrchestrator:
         Args:
             cleaned_transcript: Cleaned transcript
             metadata: Video metadata (for chunk IDs)
+            model: Optional model override for chunking
 
         Returns:
             TranscriptChunks with semantic chunks
         """
-        async with AIClient(self.settings) as ai_client:
-            chunker = SemanticChunker(ai_client, self.settings)
+        settings = self._get_settings_with_model(model, "chunker")
+        async with AIClient(settings) as ai_client:
+            chunker = SemanticChunker(ai_client, settings)
             return await chunker.chunk(cleaned_transcript, metadata)
 
     async def summarize(
@@ -346,6 +398,7 @@ class PipelineOrchestrator:
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
         prompt_name: str = "summarizer",
+        model: str | None = None,
     ) -> VideoSummary:
         """
         Create structured summary from cleaned transcript.
@@ -357,15 +410,17 @@ class PipelineOrchestrator:
             cleaned_transcript: Cleaned transcript
             metadata: Video metadata
             prompt_name: Name of prompt file (without .md) from config/prompts/
+            model: Optional model override for summarization
 
         Returns:
             VideoSummary with structured content
         """
-        async with AIClient(self.settings) as ai_client:
+        settings = self._get_settings_with_model(model, "summarizer")
+        async with AIClient(settings) as ai_client:
             # Extract outline for large texts (step-by-step mode)
             _, outline = await self._extract_outline(cleaned_transcript, ai_client)
 
-            summarizer = VideoSummarizer(ai_client, self.settings)
+            summarizer = VideoSummarizer(ai_client, settings)
             if prompt_name != "summarizer":
                 summarizer.set_prompt(prompt_name)
 
