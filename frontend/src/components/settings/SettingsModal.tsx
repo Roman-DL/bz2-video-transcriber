@@ -149,9 +149,12 @@ export function SettingsModal() {
   const isLoading = isLoadingAvailable || isLoadingDefault || isLoadingConfig;
 
   // Get config for a specific model
+  // Extract family name: "gemma2:9b" → "gemma2", "qwen2.5:14b" → "qwen2"
   const getModelConfig = (modelName: string | undefined): ModelConfig | undefined => {
     if (!modelName || !modelsConfig) return undefined;
-    const family = modelName.split(':')[0].replace(/[0-9.]+$/, '');
+    // Remove tag (after colon), then remove only minor version (after dot)
+    // gemma2:9b → gemma2, qwen2.5:14b → qwen2, qwen3:30b → qwen3
+    const family = modelName.split(':')[0].replace(/\.\d+$/, '');
     return modelsConfig[family];
   };
 

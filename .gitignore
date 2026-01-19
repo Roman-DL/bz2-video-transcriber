@@ -54,3 +54,9 @@ temp/
 credentials.json
 *.pem
 *.key
+
+# Backups
+*.backup
+
+# Claude Code (local session files)
+.claude/
