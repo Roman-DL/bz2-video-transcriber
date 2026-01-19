@@ -150,7 +150,14 @@ class SemanticChunker:
                 f"text={part.char_count} chars"
             )
 
-            response = await self.ai_client.generate(prompt, model=model)
+            # Динамический расчёт num_predict на основе размера текста
+            # Chunker копирует весь текст в output, поэтому нужен большой num_predict
+            estimated_tokens = (part.char_count // 3) * 1.3
+            num_predict = max(4096, int(estimated_tokens) + 500)
+
+            response = await self.ai_client.generate(
+                prompt, model=model, num_predict=num_predict
+            )
 
             # Проверка пустого ответа с диагностикой
             if not response or not response.strip():
@@ -169,6 +176,14 @@ class SemanticChunker:
             part_chunks = self._parse_chunks(
                 response, metadata.video_id, index_offset=len(all_chunks)
             )
+
+            # Fallback: если парсинг не удался, создаём простые чанки по словам
+            if not part_chunks:
+                logger.warning(f"Part {part.index}: using fallback chunking")
+                part_chunks = self._create_fallback_part_chunks(
+                    part.text, metadata.video_id, index_offset=len(all_chunks)
+                )
+
             all_chunks.extend(part_chunks)
 
             # Log chunk sizes for debugging
@@ -265,7 +280,14 @@ class SemanticChunker:
                 f"text={part.char_count} chars"
             )
 
-            response = await self.ai_client.generate(prompt, model=model)
+            # Динамический расчёт num_predict на основе размера текста
+            # Chunker копирует весь текст в output, поэтому нужен большой num_predict
+            estimated_tokens = (part.char_count // 3) * 1.3
+            num_predict = max(4096, int(estimated_tokens) + 500)
+
+            response = await self.ai_client.generate(
+                prompt, model=model, num_predict=num_predict
+            )
 
             # Проверка пустого ответа с диагностикой
             if not response or not response.strip():
@@ -284,6 +306,14 @@ class SemanticChunker:
             part_chunks = self._parse_chunks(
                 response, metadata.video_id, index_offset=len(all_chunks)
             )
+
+            # Fallback: если парсинг не удался, создаём простые чанки по словам
+            if not part_chunks:
+                logger.warning(f"Part {part.index}: using fallback chunking")
+                part_chunks = self._create_fallback_part_chunks(
+                    part.text, metadata.video_id, index_offset=len(all_chunks)
+                )
+
             all_chunks.extend(part_chunks)
 
             # Log chunk sizes for debugging
@@ -363,30 +393,31 @@ class SemanticChunker:
         Returns:
             List of TranscriptChunk objects
         """
-        # Check for empty response
+        # Check for empty response - return empty list for fallback
         if not response or not response.strip():
-            logger.error("LLM returned empty response - text may be too large for model context")
-            raise ValueError("LLM returned empty response - text may be too large")
+            logger.warning("LLM returned empty response - will use fallback chunking")
+            return []
 
         # Extract JSON from response (handles markdown code blocks)
         json_str = self._extract_json(response)
 
-        # Check if extraction found anything
+        # Check if extraction found anything - return empty list for fallback
         if not json_str or not json_str.strip():
-            logger.error(f"Could not extract JSON from response: {response[:500]}...")
-            raise ValueError("Could not extract JSON from LLM response")
+            logger.warning(f"Could not extract JSON from response, will use fallback: {response[:200]}...")
+            return []
 
         # Parse JSON
         try:
             data = json.loads(json_str)
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON: {e}")
+            logger.warning(f"Failed to parse JSON: {e}, will use fallback chunking")
             logger.debug(f"Response was: {response[:500]}...")
-            raise ValueError(f"Invalid JSON in LLM response: {e}")
+            return []
 
-        # Validate it's a list
+        # Validate it's a list - return empty for fallback
         if not isinstance(data, list):
-            raise ValueError(f"Expected JSON array, got {type(data).__name__}")
+            logger.warning(f"Expected JSON array, got {type(data).__name__}, will use fallback")
+            return []
 
         # Convert to TranscriptChunk objects
         chunks = []
@@ -573,6 +604,48 @@ class SemanticChunker:
             )
 
         return merged
+
+    def _create_fallback_part_chunks(
+        self,
+        text: str,
+        video_id: str,
+        index_offset: int = 0,
+    ) -> list[TranscriptChunk]:
+        """
+        Create fallback chunks when LLM parsing fails for a text part.
+
+        Simply splits text into fixed-size chunks (~300 words) without
+        semantic analysis. Used as graceful degradation when LLM fails.
+
+        Args:
+            text: Text to chunk
+            video_id: Video ID for generating chunk IDs
+            index_offset: Offset for chunk indices
+
+        Returns:
+            List of TranscriptChunk objects
+        """
+        words = text.split()
+        chunk_size = self.target_chunk_words or 300
+        chunks: list[TranscriptChunk] = []
+
+        for i, start in enumerate(range(0, len(words), chunk_size)):
+            chunk_words = words[start : start + chunk_size]
+            chunk_text = " ".join(chunk_words)
+            actual_index = index_offset + i + 1
+
+            chunks.append(
+                TranscriptChunk(
+                    id=f"{video_id}_{actual_index:03d}",
+                    index=actual_index,
+                    topic=f"Часть {actual_index}",
+                    text=chunk_text,
+                    word_count=len(chunk_words),
+                )
+            )
+
+        logger.info(f"Created {len(chunks)} fallback chunks from {len(words)} words")
+        return chunks
 
 
 if __name__ == "__main__":

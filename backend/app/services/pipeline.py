@@ -402,6 +402,60 @@ class PipelineOrchestrator:
             chunker = SemanticChunker(ai_client, settings)
             return await chunker.chunk(cleaned_transcript, metadata)
 
+    async def longread(
+        self,
+        chunks: TranscriptChunks,
+        metadata: VideoMetadata,
+        outline: TranscriptOutline | None = None,
+        model: str | None = None,
+    ) -> Longread:
+        """
+        Generate longread document from transcript chunks.
+
+        Args:
+            chunks: Transcript chunks from chunking stage
+            metadata: Video metadata
+            outline: Optional transcript outline for context
+            model: Optional model override for generation
+
+        Returns:
+            Longread document with sections
+        """
+        settings = self._get_settings_with_model(model, "summarizer")
+        async with AIClient(settings) as ai_client:
+            generator = LongreadGenerator(ai_client, settings)
+            try:
+                return await generator.generate(chunks, metadata, outline)
+            except Exception as e:
+                logger.warning(f"Longread generation failed: {e}, using fallback")
+                return self._create_fallback_longread(metadata, chunks)
+
+    async def summarize_from_longread(
+        self,
+        longread: Longread,
+        metadata: VideoMetadata,
+        model: str | None = None,
+    ) -> Summary:
+        """
+        Generate summary (конспект) from longread document.
+
+        Args:
+            longread: Longread document
+            metadata: Video metadata
+            model: Optional model override for generation
+
+        Returns:
+            Summary with essence, concepts, tools, quotes
+        """
+        settings = self._get_settings_with_model(model, "summarizer")
+        async with AIClient(settings) as ai_client:
+            generator = SummaryGenerator(ai_client, settings)
+            try:
+                return await generator.generate(longread, metadata)
+            except Exception as e:
+                logger.warning(f"Summary generation failed: {e}, using fallback")
+                return self._create_fallback_summary_from_longread(longread, metadata)
+
     async def summarize(
         self,
         cleaned_transcript: CleanedTranscript,
@@ -441,7 +495,8 @@ class PipelineOrchestrator:
         raw_transcript: RawTranscript,
         cleaned_transcript: CleanedTranscript,
         chunks: TranscriptChunks,
-        summary: VideoSummary,
+        longread: Longread,
+        summary: Summary,
         audio_path: Path | None = None,
     ) -> list[str]:
         """
@@ -452,7 +507,8 @@ class PipelineOrchestrator:
             raw_transcript: Raw transcript
             cleaned_transcript: Cleaned transcript after LLM processing
             chunks: Semantic chunks
-            summary: Video summary
+            longread: Longread document
+            summary: Summary (конспект)
             audio_path: Path to extracted audio file (optional)
 
         Returns:
@@ -460,7 +516,8 @@ class PipelineOrchestrator:
         """
         saver = FileSaver(self.settings)
         return await saver.save(
-            metadata, raw_transcript, cleaned_transcript, chunks, summary, audio_path
+            metadata, raw_transcript, cleaned_transcript, chunks,
+            longread, summary, audio_path
         )
 
     # ═══════════════════════════════════════════════════════════════════════════

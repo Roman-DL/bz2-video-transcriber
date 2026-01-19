@@ -25,8 +25,9 @@ metadata = orchestrator.parse(video_path)
 raw = await orchestrator.transcribe(video_path)
 cleaned = await orchestrator.clean(raw, metadata)
 chunks = await orchestrator.chunk(cleaned, metadata)
-summary = await orchestrator.summarize(cleaned, metadata, "summarizer_v2")
-files = await orchestrator.save(metadata, raw, chunks, summary)
+longread = await orchestrator.longread(chunks, metadata)
+summary = await orchestrator.summarize_from_longread(longread, metadata)
+files = await orchestrator.save(metadata, raw, cleaned, chunks, longread, summary)
 ```
 
 ---
@@ -66,22 +67,22 @@ print(f"Files: {result.files_created}")
 ### Режим 2: Пошаговый
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  Каждый метод независим — можно повторять любой этап        │
-│                                                              │
-│  parse()      → VideoMetadata                                │
-│  transcribe() → RawTranscript                                │
-│  clean()      → CleanedTranscript   ◄── тестировать глоссарий│
-│  chunk()      → TranscriptChunks                             │
-│  longread()   → Longread            ◄── тестировать промпты  │
-│  summarize()  → Summary             ◄── тестировать промпты  │
-│  save()       → list[str]                                    │
-└──────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────┐
+│  Каждый метод независим — можно повторять любой этап             │
+│                                                                   │
+│  parse()                  → VideoMetadata                         │
+│  transcribe()             → RawTranscript                         │
+│  clean()                  → CleanedTranscript   ◄── глоссарий     │
+│  chunk()                  → TranscriptChunks                      │
+│  longread()               → Longread            ◄── промпты       │
+│  summarize_from_longread()→ Summary             ◄── промпты       │
+│  save()                   → list[str]                             │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
 **Использование для тестирования промптов:**
 ```python
-orchestrator = PipelineOrchestrator()
+orchestrator = PipelineOrchestrator(settings)
 video_path = Path("inbox/video.mp4")
 
 # Выполняем тяжёлые этапы один раз
@@ -90,13 +91,15 @@ raw = await orchestrator.transcribe(video_path)
 cleaned = await orchestrator.clean(raw, metadata)
 chunks = await orchestrator.chunk(cleaned, metadata)
 
-# Тестируем разные промпты
-summary_v1 = await orchestrator.summarize(cleaned, metadata, "summarizer")
-summary_v2 = await orchestrator.summarize(cleaned, metadata, "summarizer_v2")
-summary_v3 = await orchestrator.summarize(cleaned, metadata, "summarizer_detailed")
+# Тестируем разные модели для longread
+longread_qwen = await orchestrator.longread(chunks, metadata, model="qwen2.5:14b")
+longread_gemma = await orchestrator.longread(chunks, metadata, model="gemma2:9b")
 
-# Сохраняем лучший вариант
-files = await orchestrator.save(metadata, raw, chunks, summary_v2)
+# Генерируем summary из лучшего longread
+summary = await orchestrator.summarize_from_longread(longread_qwen, metadata)
+
+# Сохраняем результат
+files = await orchestrator.save(metadata, raw, cleaned, chunks, longread_qwen, summary)
 ```
 
 ---
@@ -129,11 +132,13 @@ async def callback(
 |-------|-------|------|-------|
 | `parse(video_path)` | Нет | `Path` | `VideoMetadata` |
 | `transcribe(video_path)` | Да | `Path` | `RawTranscript` |
-| `clean(raw, metadata)` | Да | `RawTranscript`, `VideoMetadata` | `CleanedTranscript` |
-| `chunk(cleaned, metadata)` | Да | `CleanedTranscript`, `VideoMetadata` | `TranscriptChunks` |
-| `longread(chunks, metadata, outline)` | Да | `TranscriptChunks`, `VideoMetadata`, `TranscriptOutline` | `Longread` |
-| `summarize(longread, metadata)` | Да | `Longread`, `VideoMetadata` | `Summary` |
-| `save(metadata, raw, chunks, longread, summary)` | Да | Все результаты | `list[str]` |
+| `clean(raw, metadata, model?)` | Да | `RawTranscript`, `VideoMetadata` | `CleanedTranscript` |
+| `chunk(cleaned, metadata, model?)` | Да | `CleanedTranscript`, `VideoMetadata` | `TranscriptChunks` |
+| `longread(chunks, metadata, outline?, model?)` | Да | `TranscriptChunks`, `VideoMetadata` | `Longread` |
+| `summarize_from_longread(longread, metadata, model?)` | Да | `Longread`, `VideoMetadata` | `Summary` |
+| `save(metadata, raw, cleaned, chunks, longread, summary)` | Да | Все результаты | `list[str]` |
+
+> **model?** — опциональный параметр для выбора модели (например `model="qwen2.5:14b"`)
 
 ---
 

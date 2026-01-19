@@ -34,12 +34,8 @@ from app.models.schemas import (
     TranscriptChunks,
     VideoMetadata,
 )
-from app.services.ai_client import AIClient
-from app.services.longread_generator import LongreadGenerator
 from app.services.pipeline import PipelineOrchestrator, get_video_duration
 from app.services.progress_estimator import ProgressEstimator
-from app.services.saver import FileSaver
-from app.services.summary_generator import SummaryGenerator
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/step", tags=["step-by-step"])
@@ -391,6 +387,7 @@ async def step_longread(request: StepLongreadRequest) -> StreamingResponse:
         StreamingResponse with SSE events -> Longread
     """
     settings = get_settings()
+    orchestrator = get_orchestrator()
     estimator = ProgressEstimator(settings)
 
     # Calculate input size for time estimation (~6 chars per word)
@@ -398,23 +395,18 @@ async def step_longread(request: StepLongreadRequest) -> StreamingResponse:
     estimate = estimator.estimate_summarize(input_chars)
     estimated_seconds = estimate.estimated_seconds * 1.5  # Longread takes longer
 
-    async def generate_longread() -> Longread:
-        current_settings = get_settings()
-        async with AIClient(current_settings) as ai_client:
-            generator = LongreadGenerator(ai_client, current_settings)
-            return await generator.generate(
-                chunks=request.chunks,
-                metadata=request.metadata,
-                outline=request.outline,
-            )
-
     return create_sse_response(
         run_with_sse_progress(
             stage=ProcessingStatus.LONGREAD,
             estimator=estimator,
             estimated_seconds=estimated_seconds,
             message=f"Generating longread from {request.chunks.total_chunks} chunks",
-            operation=generate_longread,
+            operation=lambda: orchestrator.longread(
+                chunks=request.chunks,
+                metadata=request.metadata,
+                outline=request.outline,
+                model=request.model,
+            ),
         )
     )
 
@@ -433,6 +425,7 @@ async def step_summarize(request: StepSummarizeRequest) -> StreamingResponse:
         StreamingResponse with SSE events -> Summary
     """
     settings = get_settings()
+    orchestrator = get_orchestrator()
     estimator = ProgressEstimator(settings)
 
     # Calculate input size for time estimation
@@ -440,22 +433,17 @@ async def step_summarize(request: StepSummarizeRequest) -> StreamingResponse:
     estimate = estimator.estimate_summarize(input_chars)
     estimated_seconds = estimate.estimated_seconds * 0.5  # Summary is faster
 
-    async def generate_summary() -> Summary:
-        current_settings = get_settings()
-        async with AIClient(current_settings) as ai_client:
-            generator = SummaryGenerator(ai_client, current_settings)
-            return await generator.generate(
-                longread=request.longread,
-                metadata=request.metadata,
-            )
-
     return create_sse_response(
         run_with_sse_progress(
             stage=ProcessingStatus.SUMMARIZING,
             estimator=estimator,
             estimated_seconds=estimated_seconds,
             message=f"Generating summary from longread ({request.longread.total_sections} sections)",
-            operation=generate_summary,
+            operation=lambda: orchestrator.summarize_from_longread(
+                longread=request.longread,
+                metadata=request.metadata,
+                model=request.model,
+            ),
         )
     )
 
@@ -477,14 +465,13 @@ async def step_save(request: StepSaveRequest) -> list[str]:
     Raises:
         500: Save error
     """
-    settings = get_settings()
+    orchestrator = get_orchestrator()
 
     # Convert audio_path string to Path if provided
     audio_path = Path(request.audio_path) if request.audio_path else None
 
     try:
-        saver = FileSaver(settings)
-        files = await saver.save(
+        files = await orchestrator.save(
             metadata=request.metadata,
             raw_transcript=request.raw_transcript,
             cleaned_transcript=request.cleaned_transcript,
