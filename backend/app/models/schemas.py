@@ -582,29 +582,47 @@ class StepChunkRequest(BaseModel):
     )
 
 
-class StepSummarizeRequest(BaseModel):
-    """Request for /step/summarize endpoint."""
+class StepLongreadRequest(BaseModel):
+    """Request for /step/longread endpoint."""
 
-    cleaned_transcript: CleanedTranscript
+    chunks: TranscriptChunks
     metadata: VideoMetadata
-    prompt_name: str = Field(
-        default="summarizer",
-        description="Prompt name from config/prompts/",
+    outline: TranscriptOutline | None = Field(
+        default=None,
+        description="Transcript outline for context (optional)",
     )
     model: str | None = Field(
         default=None,
-        description="Override LLM model for summarization",
+        description="Override LLM model for longread generation",
+    )
+
+
+class StepSummarizeRequest(BaseModel):
+    """Request for /step/summarize endpoint.
+
+    Updated in v0.13: Now takes Longread instead of CleanedTranscript.
+    """
+
+    longread: Longread
+    metadata: VideoMetadata
+    model: str | None = Field(
+        default=None,
+        description="Override LLM model for summary generation",
     )
 
 
 class StepSaveRequest(BaseModel):
-    """Request for /step/save endpoint."""
+    """Request for /step/save endpoint.
+
+    Updated in v0.13: Now takes Longread + Summary instead of VideoSummary.
+    """
 
     metadata: VideoMetadata
     raw_transcript: RawTranscript
     cleaned_transcript: CleanedTranscript
     chunks: TranscriptChunks
-    summary: VideoSummary
+    longread: Longread
+    summary: Summary
     audio_path: str | None = Field(
         default=None,
         description="Path to extracted audio file (from transcribe step)",

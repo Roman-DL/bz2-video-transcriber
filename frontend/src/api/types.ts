@@ -80,6 +80,66 @@ export interface VideoSummary {
   model_name: string;
 }
 
+// New models for v0.13 step-by-step pipeline
+
+export interface LongreadSection {
+  index: number;
+  title: string;
+  content: string;
+  source_chunks: number[];
+  word_count: number;
+}
+
+export interface Longread {
+  video_id: string;
+  title: string;
+  speaker: string;
+  date: string;
+  event_type: string;
+  stream: string;
+  introduction: string;
+  sections: LongreadSection[];
+  conclusion: string;
+  total_sections: number;
+  total_word_count: number;
+  section: string;
+  subsection: string;
+  tags: string[];
+  access_level: number;
+  model_name: string;
+}
+
+export interface Summary {
+  video_id: string;
+  title: string;
+  speaker: string;
+  date: string;
+  essence: string;
+  key_concepts: string[];
+  practical_tools: string[];
+  quotes: string[];
+  insight: string;
+  actions: string[];
+  section: string;
+  subsection: string;
+  tags: string[];
+  access_level: number;
+  model_name: string;
+}
+
+export interface PartOutline {
+  part_index: number;
+  topics: string[];
+  key_points: string[];
+  summary: string;
+}
+
+export interface TranscriptOutline {
+  parts: PartOutline[];
+  all_topics: string[];
+  total_parts: number;
+}
+
 export interface ServicesHealth {
   whisper: boolean;
   ollama: boolean;
@@ -106,10 +166,16 @@ export interface StepChunkRequest {
   model?: string;
 }
 
-export interface StepSummarizeRequest {
-  cleaned_transcript: CleanedTranscript;
+export interface StepLongreadRequest {
+  chunks: TranscriptChunks;
   metadata: VideoMetadata;
-  prompt_name?: string;
+  outline?: TranscriptOutline;
+  model?: string;
+}
+
+export interface StepSummarizeRequest {
+  longread: Longread;
+  metadata: VideoMetadata;
   model?: string;
 }
 
@@ -118,7 +184,8 @@ export interface StepSaveRequest {
   raw_transcript: RawTranscript;
   cleaned_transcript: CleanedTranscript;
   chunks: TranscriptChunks;
-  summary: VideoSummary;
+  longread: Longread;
+  summary: Summary;
   audio_path?: string;
 }
 
@@ -128,6 +195,7 @@ export const PIPELINE_STEPS = [
   'transcribe',
   'clean',
   'chunk',
+  'longread',
   'summarize',
   'save',
 ] as const;
@@ -139,7 +207,8 @@ export const STEP_LABELS: Record<PipelineStep, string> = {
   transcribe: 'Транскрипция (Whisper)',
   clean: 'Очистка текста',
   chunk: 'Разбиение на чанки',
-  summarize: 'Суммаризация',
+  longread: 'Генерация лонгрида',
+  summarize: 'Генерация конспекта',
   save: 'Сохранение в архив',
 };
 

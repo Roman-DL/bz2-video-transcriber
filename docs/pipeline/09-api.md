@@ -46,7 +46,8 @@ uvicorn app.main:app --reload --port 8801
 | POST | `/api/step/transcribe` | Транскрипция (долго) |
 | POST | `/api/step/clean` | Очистка через LLM |
 | POST | `/api/step/chunk` | Семантическое разбиение |
-| POST | `/api/step/summarize` | Создание саммари |
+| POST | `/api/step/longread` | Генерация лонгрида из чанков |
+| POST | `/api/step/summarize` | Генерация конспекта из лонгрида |
 | POST | `/api/step/save` | Сохранение результатов |
 
 ---
@@ -202,7 +203,9 @@ metadata = r.json()
 
 # 2. Transcribe (долго - один раз)
 r = requests.post(f"{BASE}/transcribe", json={"video_filename": "video.mp4"})
-raw_transcript = r.json()
+result = r.json()
+raw_transcript = result["raw_transcript"]
+audio_path = result["audio_path"]
 
 # 3. Clean
 r = requests.post(f"{BASE}/clean", json={
@@ -218,43 +221,65 @@ r = requests.post(f"{BASE}/chunk", json={
 })
 chunks = r.json()
 
-# 5. Summarize с разными промптами
-for prompt in ["summarizer", "summarizer_v2", "summarizer_detailed"]:
-    r = requests.post(f"{BASE}/summarize", json={
-        "cleaned_transcript": cleaned,
-        "metadata": metadata,
-        "prompt_name": prompt
-    })
-    summary = r.json()
-    print(f"\n=== {prompt} ===")
-    print(f"Summary: {summary['summary'][:200]}...")
-    print(f"Key points: {len(summary['key_points'])}")
+# 5. Longread (генерация из чанков)
+r = requests.post(f"{BASE}/longread", json={
+    "chunks": chunks,
+    "metadata": metadata
+})
+longread = r.json()
+print(f"Longread: {longread['total_sections']} sections, {longread['total_word_count']} words")
 
-# 6. Save лучший вариант
+# 6. Summarize (конспект из лонгрида)
+r = requests.post(f"{BASE}/summarize", json={
+    "longread": longread,
+    "metadata": metadata
+})
+summary = r.json()
+print(f"Summary: {len(summary['key_concepts'])} concepts, {len(summary['quotes'])} quotes")
+
+# 7. Save
 r = requests.post(f"{BASE}/save", json={
     "metadata": metadata,
     "raw_transcript": raw_transcript,
+    "cleaned_transcript": cleaned,
     "chunks": chunks,
-    "summary": best_summary
+    "longread": longread,
+    "summary": summary,
+    "audio_path": audio_path
 })
 files = r.json()
 print(f"Saved: {files}")
 ```
 
-### POST /api/step/summarize
+### POST /api/step/longread
 
-Тестирование разных промптов.
+Генерация лонгрида из чанков.
 
 **Request:**
 ```json
 {
-  "cleaned_transcript": {...},
+  "chunks": {...},
   "metadata": {...},
-  "prompt_name": "summarizer_v2"
+  "model": "qwen2.5:14b"  // optional override
 }
 ```
 
-Промпты читаются из `config/prompts/{prompt_name}.md`.
+**Response:** `Longread` с introduction, sections, conclusion.
+
+### POST /api/step/summarize
+
+Генерация конспекта из лонгрида.
+
+**Request:**
+```json
+{
+  "longread": {...},
+  "metadata": {...},
+  "model": "qwen2.5:14b"  // optional override
+}
+```
+
+**Response:** `Summary` с essence, key_concepts, practical_tools, quotes, insight, actions.
 
 ---
 

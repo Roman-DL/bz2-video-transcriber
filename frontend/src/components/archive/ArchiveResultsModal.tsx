@@ -9,7 +9,7 @@ import {
   CleanedTranscriptView,
 } from '@/components/results/TranscriptView';
 import { ChunksView } from '@/components/results/ChunksView';
-import { SummaryView } from '@/components/results/SummaryView';
+import { VideoSummaryView } from '@/components/results/VideoSummaryView';
 import { useArchiveResults } from '@/api/hooks/useArchive';
 import { AlertCircle, FileText, Zap, Layers, Clock } from 'lucide-react';
 import type { ArchiveItemWithPath } from '@/api/types';
@@ -193,7 +193,7 @@ export function ArchiveResultsModal({
             expanded={expandedBlocks.has('summary')}
             onToggle={() => toggleBlock('summary')}
           >
-            <SummaryView summary={data.data.summary} />
+            <VideoSummaryView summary={data.data.summary} />
           </CollapsibleCard>
         </div>
       )}

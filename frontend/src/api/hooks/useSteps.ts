@@ -6,11 +6,13 @@ import type {
   VideoMetadata,
   CleanedTranscript,
   TranscriptChunks,
-  VideoSummary,
+  Longread,
+  Summary,
   TranscribeResult,
   StepParseRequest,
   StepCleanRequest,
   StepChunkRequest,
+  StepLongreadRequest,
   StepSummarizeRequest,
   StepSaveRequest,
 } from '../types';
@@ -182,10 +184,18 @@ export const useStepChunk = createStepWithProgress<TranscriptChunks, StepChunkRe
 );
 
 /**
- * Create structured summary from cleaned transcript.
+ * Generate longread document from transcript chunks.
  * Uses SSE with progress.
  */
-export const useStepSummarize = createStepWithProgress<VideoSummary, StepSummarizeRequest>(
+export const useStepLongread = createStepWithProgress<Longread, StepLongreadRequest>(
+  '/api/step/longread'
+);
+
+/**
+ * Generate summary (конспект) from longread.
+ * Uses SSE with progress.
+ */
+export const useStepSummarize = createStepWithProgress<Summary, StepSummarizeRequest>(
   '/api/step/summarize'
 );
 

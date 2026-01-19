@@ -21,19 +21,25 @@ from fastapi.responses import StreamingResponse
 from app.config import get_settings
 from app.models.schemas import (
     CleanedTranscript,
+    Longread,
     ProcessingStatus,
     RawTranscript,
     StepChunkRequest,
     StepCleanRequest,
+    StepLongreadRequest,
     StepParseRequest,
     StepSaveRequest,
     StepSummarizeRequest,
+    Summary,
     TranscriptChunks,
     VideoMetadata,
-    VideoSummary,
 )
+from app.services.ai_client import AIClient
+from app.services.longread_generator import LongreadGenerator
 from app.services.pipeline import PipelineOrchestrator, get_video_duration
 from app.services.progress_estimator import ProgressEstimator
+from app.services.saver import FileSaver
+from app.services.summary_generator import SummaryGenerator
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/step", tags=["step-by-step"])
@@ -371,45 +377,83 @@ async def step_chunk(request: StepChunkRequest) -> StreamingResponse:
     )
 
 
+@router.post("/longread")
+async def step_longread(request: StepLongreadRequest) -> StreamingResponse:
+    """
+    Generate longread document from transcript chunks with SSE progress.
+
+    Creates a structured longread with introduction, sections, and conclusion.
+
+    Args:
+        request: StepLongreadRequest with chunks, metadata, and optional outline
+
+    Returns:
+        StreamingResponse with SSE events -> Longread
+    """
+    settings = get_settings()
+    estimator = ProgressEstimator(settings)
+
+    # Calculate input size for time estimation (~6 chars per word)
+    input_chars = sum(c.word_count * 6 for c in request.chunks.chunks)
+    estimate = estimator.estimate_summarize(input_chars) * 1.5  # Longread takes longer
+
+    async def generate_longread() -> Longread:
+        current_settings = get_settings()
+        async with AIClient(current_settings) as ai_client:
+            generator = LongreadGenerator(ai_client, current_settings)
+            return await generator.generate(
+                chunks=request.chunks,
+                metadata=request.metadata,
+                outline=request.outline,
+            )
+
+    return create_sse_response(
+        run_with_sse_progress(
+            stage=ProcessingStatus.LONGREAD,
+            estimator=estimator,
+            estimated_seconds=estimate.estimated_seconds,
+            message=f"Generating longread from {request.chunks.total_chunks} chunks",
+            operation=generate_longread,
+        )
+    )
+
+
 @router.post("/summarize")
 async def step_summarize(request: StepSummarizeRequest) -> StreamingResponse:
     """
-    Create structured summary from cleaned transcript with SSE progress.
+    Generate summary (конспект) from longread with SSE progress.
 
-    Supports different prompt files for A/B testing.
+    Updated in v0.13: Now takes Longread instead of CleanedTranscript.
 
     Args:
-        request: StepSummarizeRequest with cleaned_transcript, metadata, and prompt_name
+        request: StepSummarizeRequest with longread and metadata
 
     Returns:
-        StreamingResponse with SSE events
-
-    Example:
-        Test different prompts by changing prompt_name:
-        - "summarizer" (default)
-        - "summarizer_v2"
-        - "summarizer_detailed"
+        StreamingResponse with SSE events -> Summary
     """
     settings = get_settings()
-    orchestrator = get_orchestrator()
     estimator = ProgressEstimator(settings)
 
     # Calculate input size for time estimation
-    input_chars = len(request.cleaned_transcript.text)
-    estimate = estimator.estimate_summarize(input_chars)
+    input_chars = request.longread.total_word_count * 6
+    estimate = estimator.estimate_summarize(input_chars) * 0.5  # Summary is faster
+
+    async def generate_summary() -> Summary:
+        current_settings = get_settings()
+        async with AIClient(current_settings) as ai_client:
+            generator = SummaryGenerator(ai_client, current_settings)
+            return await generator.generate(
+                longread=request.longread,
+                metadata=request.metadata,
+            )
 
     return create_sse_response(
         run_with_sse_progress(
             stage=ProcessingStatus.SUMMARIZING,
             estimator=estimator,
             estimated_seconds=estimate.estimated_seconds,
-            message=f"Summarizing {input_chars:,} chars",
-            operation=lambda: orchestrator.summarize(
-                cleaned_transcript=request.cleaned_transcript,
-                metadata=request.metadata,
-                prompt_name=request.prompt_name,
-                model=request.model,
-            ),
+            message=f"Generating summary from longread ({request.longread.total_sections} sections)",
+            operation=generate_summary,
         )
     )
 
@@ -419,10 +463,11 @@ async def step_save(request: StepSaveRequest) -> list[str]:
     """
     Save all processing results to archive.
 
+    Updated in v0.13: Now takes Longread + Summary instead of VideoSummary.
     Fast operation - no SSE needed.
 
     Args:
-        request: StepSaveRequest with all pipeline outputs (including audio_path)
+        request: StepSaveRequest with all pipeline outputs (including longread, summary)
 
     Returns:
         List of created file names
@@ -430,17 +475,19 @@ async def step_save(request: StepSaveRequest) -> list[str]:
     Raises:
         500: Save error
     """
-    orchestrator = get_orchestrator()
+    settings = get_settings()
 
     # Convert audio_path string to Path if provided
     audio_path = Path(request.audio_path) if request.audio_path else None
 
     try:
-        files = await orchestrator.save(
+        saver = FileSaver(settings)
+        files = await saver.save(
             metadata=request.metadata,
             raw_transcript=request.raw_transcript,
             cleaned_transcript=request.cleaned_transcript,
             chunks=request.chunks,
+            longread=request.longread,
             summary=request.summary,
             audio_path=audio_path,
         )

@@ -4,6 +4,7 @@ import {
   useStepTranscribe,
   useStepClean,
   useStepChunk,
+  useStepLongread,
   useStepSummarize,
   useStepSave,
 } from '@/api/hooks/useSteps';
@@ -12,7 +13,8 @@ import type {
   RawTranscript,
   CleanedTranscript,
   TranscriptChunks,
-  VideoSummary,
+  Longread,
+  Summary,
   PipelineStep,
 } from '@/api/types';
 import { PIPELINE_STEPS, STEP_LABELS } from '@/api/types';
@@ -26,6 +28,7 @@ import {
   CleanedTranscriptView,
 } from '@/components/results/TranscriptView';
 import { ChunksView } from '@/components/results/ChunksView';
+import { LongreadView } from '@/components/results/LongreadView';
 import { SummaryView } from '@/components/results/SummaryView';
 import { useSettings } from '@/contexts/SettingsContext';
 import {
@@ -54,11 +57,12 @@ interface StepData {
   audioPath?: string;
   cleanedTranscript?: CleanedTranscript;
   chunks?: TranscriptChunks;
-  summary?: VideoSummary;
+  longread?: Longread;
+  summary?: Summary;
   savedFiles?: string[];
 }
 
-type BlockType = 'metadata' | 'rawTranscript' | 'cleanedTranscript' | 'chunks' | 'summary';
+type BlockType = 'metadata' | 'rawTranscript' | 'cleanedTranscript' | 'chunks' | 'longread' | 'summary';
 
 export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: StepByStepProps) {
   const [currentStep, setCurrentStep] = useState<PipelineStep>('parse');
@@ -88,6 +92,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
   const stepTranscribe = useStepTranscribe();
   const stepClean = useStepClean();
   const stepChunk = useStepChunk();
+  const stepLongread = useStepLongread();
   const stepSummarize = useStepSummarize();
   const stepSave = useStepSave();
 
@@ -96,6 +101,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
     stepTranscribe.isPending ||
     stepClean.isPending ||
     stepChunk.isPending ||
+    stepLongread.isPending ||
     stepSummarize.isPending ||
     stepSave.isPending;
 
@@ -128,6 +134,13 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           estimatedSeconds: stepChunk.estimatedSeconds,
           elapsedSeconds: stepChunk.elapsedSeconds,
         };
+      case 'longread':
+        return {
+          progress: stepLongread.progress,
+          message: stepLongread.message,
+          estimatedSeconds: stepLongread.estimatedSeconds,
+          elapsedSeconds: stepLongread.elapsedSeconds,
+        };
       case 'summarize':
         return {
           progress: stepSummarize.progress,
@@ -152,8 +165,9 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
       case 'transcribe': return !!data.metadata;
       case 'clean': return !!data.rawTranscript && !!data.metadata;
       case 'chunk': return !!data.cleanedTranscript && !!data.metadata;
-      case 'summarize': return !!data.cleanedTranscript && !!data.metadata;
-      case 'save': return !!data.metadata && !!data.rawTranscript && !!data.cleanedTranscript && !!data.chunks && !!data.summary;
+      case 'longread': return !!data.chunks && !!data.metadata;
+      case 'summarize': return !!data.longread && !!data.metadata;
+      case 'save': return !!data.metadata && !!data.rawTranscript && !!data.cleanedTranscript && !!data.chunks && !!data.longread && !!data.summary;
     }
   };
 
@@ -227,13 +241,25 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           });
           setData((prev) => ({ ...prev, chunks }));
           expandOnlyBlock('chunks');
+          setCurrentStep('longread');
+          break;
+
+        case 'longread':
+          if (!data.chunks || !data.metadata) return;
+          const longread = await stepLongread.mutate({
+            chunks: data.chunks,
+            metadata: data.metadata,
+            model: models.summarize, // Use summarize model for longread
+          });
+          setData((prev) => ({ ...prev, longread }));
+          expandOnlyBlock('longread');
           setCurrentStep('summarize');
           break;
 
         case 'summarize':
-          if (!data.cleanedTranscript || !data.metadata) return;
+          if (!data.longread || !data.metadata) return;
           const summary = await stepSummarize.mutate({
-            cleaned_transcript: data.cleanedTranscript,
+            longread: data.longread,
             metadata: data.metadata,
             model: models.summarize,
           });
@@ -248,6 +274,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
             !data.rawTranscript ||
             !data.cleanedTranscript ||
             !data.chunks ||
+            !data.longread ||
             !data.summary
           )
             return;
@@ -256,6 +283,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
             raw_transcript: data.rawTranscript,
             cleaned_transcript: data.cleanedTranscript,
             chunks: data.chunks,
+            longread: data.longread,
             summary: data.summary,
             audio_path: data.audioPath,
           });
@@ -456,14 +484,31 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
             </CollapsibleCard>
           )}
 
-          {data.summary && (
+          {data.longread && (
             <CollapsibleCard
-              title="Саммари"
+              title="Лонгрид"
               icon={FileText}
               stats={
                 <>
-                  <span>{data.summary.key_points.length} тезисов</span>
-                  <span>{data.summary.tags.length} тегов</span>
+                  <span>{data.longread.total_sections} секций</span>
+                  <span>{data.longread.total_word_count} слов</span>
+                </>
+              }
+              expanded={expandedBlocks.has('longread')}
+              onToggle={() => toggleBlock('longread')}
+            >
+              <LongreadView longread={data.longread} />
+            </CollapsibleCard>
+          )}
+
+          {data.summary && (
+            <CollapsibleCard
+              title="Конспект"
+              icon={FileText}
+              stats={
+                <>
+                  <span>{data.summary.key_concepts.length} концепций</span>
+                  <span>{data.summary.quotes.length} цитат</span>
                 </>
               }
               expanded={expandedBlocks.has('summary')}
@@ -514,8 +559,10 @@ function getStepDescription(step: PipelineStep): string {
       return 'Очистка текста с использованием глоссария и LLM';
     case 'chunk':
       return 'Разбиение на семантические чанки';
+    case 'longread':
+      return 'Генерация лонгрида из чанков (структурированный документ)';
     case 'summarize':
-      return 'Создание структурированного саммари';
+      return 'Генерация конспекта из лонгрида (краткое изложение)';
     case 'save':
       return 'Сохранение результатов в архив';
   }

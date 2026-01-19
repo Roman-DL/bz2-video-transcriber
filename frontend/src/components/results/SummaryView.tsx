@@ -1,52 +1,64 @@
-import type { VideoSummary } from '@/api/types';
+import type { Summary } from '@/api/types';
 import { Badge } from '@/components/common/Badge';
 
 interface SummaryViewProps {
-  summary: VideoSummary;
+  summary: Summary;
 }
 
-function formatSummaryAsMarkdown(summary: VideoSummary): string {
+function formatSummaryAsMarkdown(summary: Summary): string {
   const lines: string[] = [];
 
-  // Краткое содержание
-  lines.push('## Краткое содержание');
+  // Суть темы
+  lines.push('## Суть темы');
   lines.push('');
-  lines.push(summary.summary);
+  lines.push(summary.essence);
   lines.push('');
 
-  // Ключевые тезисы
-  if (summary.key_points.length > 0) {
-    lines.push('## Ключевые тезисы');
+  // Ключевые концепции
+  if (summary.key_concepts.length > 0) {
+    lines.push('## Ключевые концепции');
     lines.push('');
-    for (const point of summary.key_points) {
-      lines.push(`• ${point}`);
+    for (const concept of summary.key_concepts) {
+      lines.push(`• ${concept}`);
     }
     lines.push('');
   }
 
-  // Практические рекомендации
-  if (summary.recommendations.length > 0) {
-    lines.push('## Практические рекомендации');
+  // Инструменты и методы
+  if (summary.practical_tools.length > 0) {
+    lines.push('## Инструменты и методы');
     lines.push('');
-    summary.recommendations.forEach((rec, i) => {
-      lines.push(`${i + 1}. ${rec}`);
+    for (const tool of summary.practical_tools) {
+      lines.push(`• ${tool}`);
+    }
+    lines.push('');
+  }
+
+  // Ключевые цитаты
+  if (summary.quotes.length > 0) {
+    lines.push('## Ключевые цитаты');
+    lines.push('');
+    for (const quote of summary.quotes) {
+      lines.push(`> "${quote}"`);
+      lines.push('');
+    }
+  }
+
+  // Главный инсайт
+  if (summary.insight) {
+    lines.push('## Главный инсайт');
+    lines.push('');
+    lines.push(`**${summary.insight}**`);
+    lines.push('');
+  }
+
+  // Что сделать
+  if (summary.actions.length > 0) {
+    lines.push('## Что сделать');
+    lines.push('');
+    summary.actions.forEach((action, i) => {
+      lines.push(`${i + 1}. ${action}`);
     });
-    lines.push('');
-  }
-
-  // Для кого полезно
-  lines.push('## Для кого полезно');
-  lines.push('');
-  lines.push(summary.target_audience);
-  lines.push('');
-
-  // Вопросы
-  if (summary.questions_answered.length > 0) {
-    lines.push('## Вопросы, на которые отвечает видео');
-    lines.push('');
-    for (const q of summary.questions_answered) {
-      lines.push(`• ${q}`);
-    }
   }
 
   return lines.join('\n');
@@ -60,6 +72,7 @@ export function SummaryView({ summary }: SummaryViewProps) {
       <div className="text-xs text-gray-500 mb-2">
         Модель: <span className="font-mono">{summary.model_name}</span>
       </div>
+
       {/* Summary text as markdown */}
       <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
         {markdownText}
@@ -71,20 +84,23 @@ export function SummaryView({ summary }: SummaryViewProps) {
           <div>
             <span className="text-gray-500">Раздел:</span>{' '}
             <span className="text-gray-900">
-              {summary.section} / {summary.subsection}
+              {summary.section}
+              {summary.subsection && ` / ${summary.subsection}`}
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-gray-500">Теги:</span>
-            <div className="flex flex-wrap gap-1">
-              {summary.tags.map((tag) => (
-                <Badge key={tag} variant="default">
-                  {tag}
-                </Badge>
-              ))}
+          {summary.tags.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Теги:</span>
+              <div className="flex flex-wrap gap-1">
+                {summary.tags.map((tag) => (
+                  <Badge key={tag} variant="default">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
