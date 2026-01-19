@@ -2,6 +2,7 @@
 Pydantic models for the video transcription pipeline.
 """
 
+import datetime as dt
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
@@ -16,6 +17,7 @@ class ProcessingStatus(str, Enum):
     TRANSCRIBING = "transcribing"
     CLEANING = "cleaning"
     CHUNKING = "chunking"
+    LONGREAD = "longread"
     SUMMARIZING = "summarizing"
     SAVING = "saving"
     COMPLETED = "completed"
@@ -261,6 +263,241 @@ class VideoSummary(BaseModel):
     tags: list[str]
     access_level: int = Field(ge=1, le=4, default=1)
     model_name: str
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Longread and Summary Models (two-stage generation)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class LongreadSection(BaseModel):
+    """Single section of a longread document.
+
+    Each section is a self-contained piece of content for RAG retrieval.
+    """
+
+    index: int = Field(..., ge=1, description="Section number (1-based)")
+    title: str = Field(..., min_length=1, description="Section title")
+    content: str = Field(..., min_length=1, description="Section content in markdown")
+    source_chunks: list[int] = Field(
+        default_factory=list, description="Indices of source chunks used"
+    )
+    word_count: int = Field(..., ge=0, description="Word count in content")
+
+
+class Longread(BaseModel):
+    """Full longread document generated from transcript chunks.
+
+    A longread is an edited version of the transcript for those who
+    didn't watch the video. It preserves the speaker's voice and logic.
+    """
+
+    video_id: str = Field(..., description="Video identifier")
+    title: str = Field(..., description="Video title")
+    speaker: str = Field(..., description="Speaker name")
+    date: dt.date = Field(..., description="Video date")
+    event_type: str = Field(..., description="Event type code")
+    stream: str = Field(default="", description="Stream code")
+
+    introduction: str = Field(default="", description="Introduction text")
+    sections: list[LongreadSection] = Field(
+        default_factory=list, description="Main content sections"
+    )
+    conclusion: str = Field(default="", description="Conclusion text")
+
+    # Classification (same as VideoSummary)
+    section: str = Field(default="Обучение", description="BZ 2.0 section")
+    subsection: str = Field(default="", description="BZ 2.0 subsection")
+    tags: list[str] = Field(default_factory=list, description="Tags for search")
+    access_level: int = Field(ge=1, le=4, default=1, description="Access level 1-4")
+
+    model_name: str = Field(default="", description="LLM model used")
+
+    @computed_field
+    @property
+    def total_sections(self) -> int:
+        """Total number of sections."""
+        return len(self.sections)
+
+    @computed_field
+    @property
+    def total_word_count(self) -> int:
+        """Total word count across all sections."""
+        intro_words = len(self.introduction.split()) if self.introduction else 0
+        section_words = sum(s.word_count for s in self.sections)
+        conclusion_words = len(self.conclusion.split()) if self.conclusion else 0
+        return intro_words + section_words + conclusion_words
+
+    def to_markdown(self) -> str:
+        """Convert longread to markdown format.
+
+        Returns:
+            Full markdown document with YAML frontmatter.
+        """
+        lines = [
+            "---",
+            f'type: "лонгрид"',
+            f'video_id: "{self.video_id}"',
+            f'title: "{self.title}"',
+            f'speaker: "{self.speaker}"',
+            f'date: "{self.date.isoformat()}"',
+            f'event_type: "{self.event_type}"',
+            f'stream: "{self.stream}"',
+            f'section: "{self.section}"',
+            f'subsection: "{self.subsection}"',
+            f"access_level: {self.access_level}",
+            "tags:",
+        ]
+        for tag in self.tags:
+            lines.append(f'  - "{tag}"')
+        lines.append("---")
+        lines.append("")
+        lines.append(f"# {self.title}")
+        lines.append("")
+
+        if self.introduction:
+            lines.append("## Вступление")
+            lines.append("")
+            lines.append(self.introduction)
+            lines.append("")
+
+        for section in self.sections:
+            lines.append(f"## {section.title}")
+            lines.append("")
+            lines.append(section.content)
+            lines.append("")
+
+        if self.conclusion:
+            lines.append("## Заключение")
+            lines.append("")
+            lines.append(self.conclusion)
+            lines.append("")
+
+        return "\n".join(lines)
+
+
+class Summary(BaseModel):
+    """Condensed summary (конспект) generated from longread.
+
+    A summary is a navigation document for those who ALREADY watched/read
+    the content. It helps recall key points quickly.
+    """
+
+    video_id: str = Field(..., description="Video identifier")
+    title: str = Field(..., description="Video title")
+    speaker: str = Field(..., description="Speaker name")
+    date: dt.date = Field(..., description="Video date")
+
+    essence: str = Field(..., description="2-3 paragraphs about the main idea")
+    key_concepts: list[str] = Field(
+        default_factory=list, description="Key concepts and distinctions"
+    )
+    practical_tools: list[str] = Field(
+        default_factory=list, description="Tools and methods mentioned"
+    )
+    quotes: list[str] = Field(
+        default_factory=list, description="2-4 direct quotes from speaker"
+    )
+    insight: str = Field(default="", description="Main takeaway (one sentence)")
+    actions: list[str] = Field(
+        default_factory=list, description="Concrete actions to take"
+    )
+
+    # Classification (copied from Longread)
+    section: str = Field(default="Обучение", description="BZ 2.0 section")
+    subsection: str = Field(default="", description="BZ 2.0 subsection")
+    tags: list[str] = Field(default_factory=list, description="Tags for search")
+    access_level: int = Field(ge=1, le=4, default=1, description="Access level 1-4")
+
+    model_name: str = Field(default="", description="LLM model used")
+
+    def to_markdown(self) -> str:
+        """Convert summary to markdown format with Obsidian callouts.
+
+        Returns:
+            Full markdown document with YAML frontmatter.
+        """
+        lines = [
+            "---",
+            f'type: "конспект"',
+            f'video_id: "{self.video_id}"',
+            f'title: "{self.title}"',
+            f'speaker: "{self.speaker}"',
+            f'date: "{self.date.isoformat()}"',
+            f'section: "{self.section}"',
+            f'subsection: "{self.subsection}"',
+            f"access_level: {self.access_level}",
+            "tags:",
+        ]
+        for tag in self.tags:
+            lines.append(f'  - "{tag}"')
+        lines.append("related:")
+        lines.append(f'  - "[[{self.speaker} — {self.title}]]"')
+        lines.append("---")
+        lines.append("")
+        lines.append(f"# {self.title}")
+        lines.append("")
+
+        # Essence
+        lines.append("## Суть темы")
+        lines.append("")
+        lines.append("> [!abstract] Главная идея")
+        lines.append("> ")
+        for para in self.essence.split("\n\n"):
+            lines.append(f"> {para}")
+        lines.append("")
+
+        # Key concepts
+        if self.key_concepts:
+            lines.append("## Ключевые концепции")
+            lines.append("")
+            lines.append("> [!info] Основные понятия")
+            lines.append("> ")
+            for concept in self.key_concepts:
+                lines.append(f"> - {concept}")
+            lines.append("")
+
+        # Practical tools
+        if self.practical_tools:
+            lines.append("## Инструменты и методы")
+            lines.append("")
+            for tool in self.practical_tools:
+                lines.append(f"> [!tip] {tool.split(':')[0] if ':' in tool else tool}")
+                lines.append("> ")
+                if ":" in tool:
+                    lines.append(f"> {tool.split(':', 1)[1].strip()}")
+                lines.append("")
+
+        # Quotes
+        if self.quotes:
+            lines.append("## Ключевые цитаты")
+            lines.append("")
+            for quote in self.quotes:
+                lines.append("> [!quote]")
+                lines.append("> ")
+                lines.append(f"> {quote}")
+                lines.append("")
+
+        # Insight
+        if self.insight:
+            lines.append("## Главный инсайт")
+            lines.append("")
+            lines.append("> [!success] Запомнить")
+            lines.append("> ")
+            lines.append(f"> {self.insight}")
+            lines.append("")
+
+        # Actions
+        if self.actions:
+            lines.append("## Применение")
+            lines.append("")
+            lines.append("> [!todo] Что сделать после изучения")
+            lines.append("> ")
+            for action in self.actions:
+                lines.append(f"> - [ ] {action}")
+            lines.append("")
+
+        return "\n".join(lines)
 
 
 class ProcessingResult(BaseModel):

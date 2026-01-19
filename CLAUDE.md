@@ -34,7 +34,7 @@ http://100.64.0.1:8801      # Backend API
 ## Архитектура
 
 ```
-Video → Parse → Whisper → Clean → Chunk → Summarize → Save
+Video → Parse → Whisper → Clean → Chunk → Longread → Summary → Save
 ```
 
 ## Документация
@@ -73,9 +73,10 @@ config/glossary.yaml    # Терминология
 
 | Задача | Модель | Почему |
 |--------|--------|--------|
-| Суммаризация | qwen2.5:14b | Лучшее качество текста |
 | Очистка | gemma2:9b | Стабильный JSON, умеренное сжатие |
 | Чанкирование | gemma2:9b | Оптимальное количество чанков |
+| Лонгрид | qwen2.5:14b | Лучшее качество длинного текста |
+| Конспект | qwen2.5:14b | Структурированный вывод |
 
 Подробнее: [docs/model-testing.md](docs/model-testing.md)
 
@@ -83,9 +84,10 @@ config/glossary.yaml    # Терминология
 
 | Настройка | Где менять | Эффект |
 |-----------|------------|--------|
-| `SUMMARIZER_MODEL` | docker-compose.yml | Модель для суммаризации |
 | `CLEANER_MODEL` | docker-compose.yml | Модель для очистки транскрипта |
 | `CHUNKER_MODEL` | docker-compose.yml | Модель для чанкирования |
+| `LONGREAD_MODEL` | docker-compose.yml | Модель для генерации лонгрида |
+| `SUMMARY_MODEL` | docker-compose.yml | Модель для генерации конспекта |
 | `WHISPER_INCLUDE_TIMESTAMPS` | docker-compose.yml | `true` — таймкоды в транскрипте и файле |
 
 ### Конфигурационные файлы

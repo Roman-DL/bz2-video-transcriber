@@ -13,7 +13,9 @@ from pathlib import Path
 from app.config import Settings, get_settings, load_events_config
 from app.models.schemas import (
     CleanedTranscript,
+    Longread,
     RawTranscript,
+    Summary,
     TranscriptChunks,
     VideoMetadata,
     VideoSummary,
@@ -65,7 +67,8 @@ class FileSaver:
         raw_transcript: RawTranscript,
         cleaned_transcript: CleanedTranscript,
         chunks: TranscriptChunks,
-        summary: VideoSummary,
+        longread: Longread,
+        summary: Summary,
         audio_path: Path | None = None,
     ) -> list[str]:
         """
@@ -74,7 +77,8 @@ class FileSaver:
         Creates archive directory structure and saves:
         - pipeline_results.json (full results for archive viewing)
         - transcript_chunks.json
-        - summary.md
+        - longread.md (full longread document)
+        - summary.md (condensed summary / конспект)
         - transcript_raw.txt
         - transcript_cleaned.txt
         - audio.mp3 (if provided)
@@ -85,7 +89,8 @@ class FileSaver:
             raw_transcript: Raw transcript from Whisper
             cleaned_transcript: Cleaned transcript after LLM processing
             chunks: Semantic chunks
-            summary: Video summary
+            longread: Longread document
+            summary: Condensed summary (конспект)
             audio_path: Path to extracted audio file (optional)
 
         Returns:
@@ -102,7 +107,8 @@ class FileSaver:
 
         # Save pipeline results JSON (for archive viewing)
         pipeline_path = self._save_pipeline_results(
-            archive_path, metadata, raw_transcript, cleaned_transcript, chunks, summary
+            archive_path, metadata, raw_transcript, cleaned_transcript,
+            chunks, longread, summary
         )
         created_files.append(pipeline_path.name)
 
@@ -112,10 +118,12 @@ class FileSaver:
         )
         created_files.append(chunks_path.name)
 
-        # Save summary markdown
-        summary_path = self._save_summary_md(
-            archive_path, metadata, raw_transcript, summary
-        )
+        # Save longread markdown
+        longread_path = self._save_longread_md(archive_path, longread)
+        created_files.append(longread_path.name)
+
+        # Save summary markdown (конспект)
+        summary_path = self._save_summary_md(archive_path, summary)
         created_files.append(summary_path.name)
 
         # Save raw transcript
@@ -146,7 +154,8 @@ class FileSaver:
         raw_transcript: RawTranscript,
         cleaned_transcript: CleanedTranscript,
         chunks: TranscriptChunks,
-        summary: VideoSummary,
+        longread: Longread,
+        summary: Summary,
     ) -> Path:
         """
         Save complete pipeline results for archive viewing.
@@ -160,7 +169,8 @@ class FileSaver:
             raw_transcript: Raw transcript from Whisper
             cleaned_transcript: Cleaned transcript after LLM processing
             chunks: Semantic chunks
-            summary: Video summary
+            longread: Longread document
+            summary: Condensed summary
 
         Returns:
             Path to created file
@@ -226,12 +236,37 @@ class FileSaver:
                 "total_chunks": chunks.total_chunks,
                 "avg_chunk_size": chunks.avg_chunk_size,
             },
+            "longread": {
+                "video_id": longread.video_id,
+                "title": longread.title,
+                "introduction": longread.introduction,
+                "sections": [
+                    {
+                        "index": s.index,
+                        "title": s.title,
+                        "content": s.content,
+                        "source_chunks": s.source_chunks,
+                        "word_count": s.word_count,
+                    }
+                    for s in longread.sections
+                ],
+                "conclusion": longread.conclusion,
+                "total_sections": longread.total_sections,
+                "total_word_count": longread.total_word_count,
+                "section": longread.section,
+                "subsection": longread.subsection,
+                "tags": longread.tags,
+                "access_level": longread.access_level,
+                "model_name": longread.model_name,
+            },
             "summary": {
-                "summary": summary.summary,
-                "key_points": summary.key_points,
-                "recommendations": summary.recommendations,
-                "target_audience": summary.target_audience,
-                "questions_answered": summary.questions_answered,
+                "video_id": summary.video_id,
+                "essence": summary.essence,
+                "key_concepts": summary.key_concepts,
+                "practical_tools": summary.practical_tools,
+                "quotes": summary.quotes,
+                "insight": summary.insight,
+                "actions": summary.actions,
                 "section": summary.section,
                 "subsection": summary.subsection,
                 "tags": summary.tags,
@@ -317,117 +352,54 @@ class FileSaver:
 
         return file_path
 
-    def _save_summary_md(
+    def _save_longread_md(
         self,
         archive_path: Path,
-        metadata: VideoMetadata,
-        raw_transcript: RawTranscript,
-        summary: VideoSummary,
+        longread: Longread,
     ) -> Path:
         """
-        Save summary as Markdown with YAML frontmatter.
+        Save longread document as Markdown.
+
+        Uses the Longread.to_markdown() method for consistent formatting.
 
         Args:
             archive_path: Archive directory path
-            metadata: Video metadata
-            raw_transcript: Raw transcript
-            summary: Video summary
+            longread: Longread document
 
         Returns:
             Path to created file
         """
-        stream_name = self._get_stream_name(metadata.event_type, metadata.stream)
-        date_formatted = self._format_date_russian(metadata.date)
-        duration_formatted = self._format_duration(raw_transcript.duration_seconds)
+        file_path = archive_path / "longread.md"
 
-        # Build YAML frontmatter
-        frontmatter_lines = [
-            "---",
-            "# === Identification ===",
-            f'video_id: "{metadata.video_id}"',
-            f'title: "{metadata.title}"',
-            'type: "video_summary"',
-            "",
-            "# === Source ===",
-            f'speaker: "{metadata.speaker}"',
-            f'date: "{metadata.date.isoformat()}"',
-            f'event_type: "{metadata.event_type}"',
-            f'stream: "{metadata.stream}"',
-            f'stream_name: "{stream_name}"',
-            f'duration: "{duration_formatted}"',
-            "",
-            "# === Classification for BZ 2.0 ===",
-            f'section: "{summary.section}"',
-            f'subsection: "{summary.subsection}"',
-            f"access_level: {summary.access_level}",
-            "tags:",
-        ]
+        content = longread.to_markdown()
 
-        for tag in summary.tags:
-            frontmatter_lines.append(f'  - "{tag}"')
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
 
-        frontmatter_lines.extend([
-            "",
-            "# === Files ===",
-            f'video_file: "{metadata.original_filename}"',
-            'transcript_file: "transcript_chunks.json"',
-            "",
-            "# === Service ===",
-            f'created: "{datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")}"',
-            f'llm_model: "{self.settings.summarizer_model}"',
-            f'pipeline_version: "{PIPELINE_VERSION}"',
-            "---",
-        ])
+        logger.debug(f"Saved longread MD: {file_path}")
 
-        # Build Markdown body
-        body_lines = [
-            "",
-            f"# {metadata.title}",
-            "",
-            f"**Спикер:** {metadata.speaker}  ",
-            f"**Дата:** {date_formatted}  ",
-            f"**Поток:** {stream_name}",
-            "",
-            "---",
-            "",
-            "## Краткое содержание",
-            "",
-            summary.summary,
-            "",
-            "## Ключевые тезисы",
-            "",
-        ]
+        return file_path
 
-        for point in summary.key_points:
-            body_lines.append(f"- {point}")
+    def _save_summary_md(
+        self,
+        archive_path: Path,
+        summary: Summary,
+    ) -> Path:
+        """
+        Save summary (конспект) as Markdown with Obsidian callouts.
 
-        body_lines.extend([
-            "",
-            "## Практические рекомендации",
-            "",
-        ])
+        Uses the Summary.to_markdown() method for consistent formatting.
 
-        for i, rec in enumerate(summary.recommendations, 1):
-            body_lines.append(f"{i}. {rec}")
+        Args:
+            archive_path: Archive directory path
+            summary: Condensed summary
 
-        body_lines.extend([
-            "",
-            "## Для кого полезно",
-            "",
-            summary.target_audience,
-            "",
-            "## Вопросы, на которые отвечает видео",
-            "",
-        ])
-
-        for q in summary.questions_answered:
-            body_lines.append(f"- {q}")
-
-        body_lines.append("")
-
-        # Combine and write
-        content = "\n".join(frontmatter_lines + body_lines)
+        Returns:
+            Path to created file
+        """
         file_path = archive_path / "summary.md"
+
+        content = summary.to_markdown()
 
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)

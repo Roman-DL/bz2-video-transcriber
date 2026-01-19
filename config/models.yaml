@@ -28,6 +28,11 @@ models:
       part_size: 6000           # Target size per part in characters
       overlap_size: 1500        # Overlap between adjacent parts
       min_part_size: 2000       # Minimum size for last part
+    longread:
+      chunks_per_section: 4     # Chunks to process per longread section
+      max_parallel_sections: 2  # Max parallel LLM calls for sections
+    summary:
+      max_input_chars: 8000     # Max chars from longread for summary prompt
 
   qwen2:
     # Context: 32K tokens (~100K chars)
@@ -45,6 +50,11 @@ models:
       part_size: 15000
       overlap_size: 3000
       min_part_size: 5000
+    longread:
+      chunks_per_section: 6
+      max_parallel_sections: 3
+    summary:
+      max_input_chars: 25000
 
   qwen3:
     # Context: 40K tokens (~120K chars)
@@ -62,6 +72,11 @@ models:
       part_size: 20000
       overlap_size: 4000
       min_part_size: 6000
+    longread:
+      chunks_per_section: 8
+      max_parallel_sections: 4
+    summary:
+      max_input_chars: 40000
 
 # Default fallback values (used when model not found)
 defaults:
@@ -77,3 +92,8 @@ defaults:
     part_size: 6000
     overlap_size: 1500
     min_part_size: 2000
+  longread:
+    chunks_per_section: 4
+    max_parallel_sections: 2
+  summary:
+    max_input_chars: 8000

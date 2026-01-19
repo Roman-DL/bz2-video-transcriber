@@ -192,3 +192,33 @@ def load_model_config(model: str, stage: str, settings: Settings | None = None) 
 
     # Fallback to defaults
     return config.get("defaults", {}).get(stage, {})
+
+
+def get_model_config(model: str, settings: Settings | None = None) -> dict:
+    """
+    Get full model configuration for all stages.
+
+    Extracts model family from model name and returns all settings.
+    Falls back to defaults if model not found.
+
+    Model family extraction:
+    - "gemma2:9b" -> "gemma2"
+    - "qwen2.5:14b" -> "qwen2"
+    - "qwen3:14b" -> "qwen3"
+
+    Args:
+        model: Full model name (e.g., "gemma2:9b")
+        settings: Optional settings instance
+
+    Returns:
+        Full configuration dictionary for the model
+    """
+    config = load_models_config(settings)
+    model_family = model.split(":")[0].rstrip("0123456789.")
+
+    # Try model-specific config first
+    if model_family in config.get("models", {}):
+        return config["models"][model_family]
+
+    # Fallback to defaults
+    return config.get("defaults", {})

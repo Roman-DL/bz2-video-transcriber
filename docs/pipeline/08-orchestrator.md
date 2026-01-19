@@ -1,6 +1,6 @@
 # Pipeline Orchestrator
 
-[< Назад: Save](06-save.md) | [Обзор Pipeline](README.md)
+[< Назад: Save](07-save.md) | [Обзор Pipeline](README.md)
 
 ---
 
@@ -39,10 +39,10 @@ files = await orchestrator.save(metadata, raw, chunks, summary)
 process(video_path, progress_callback)
          │
          ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Parse → Transcribe → Clean → [Chunk + Summarize] → Save   │
-│                                 └─── параллельно ───┘       │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│  Parse → Transcribe → Clean → Chunk → Longread → Summarize → Save │
+│                                 └───────── последовательно ───────┘ │
+└────────────────────────────────────────────────────────────────────┘
          │
          ▼
    ProcessingResult
@@ -73,7 +73,8 @@ print(f"Files: {result.files_created}")
 │  transcribe() → RawTranscript                                │
 │  clean()      → CleanedTranscript   ◄── тестировать глоссарий│
 │  chunk()      → TranscriptChunks                             │
-│  summarize()  → VideoSummary        ◄── тестировать промпты  │
+│  longread()   → Longread            ◄── тестировать промпты  │
+│  summarize()  → Summary             ◄── тестировать промпты  │
 │  save()       → list[str]                                    │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -130,8 +131,9 @@ async def callback(
 | `transcribe(video_path)` | Да | `Path` | `RawTranscript` |
 | `clean(raw, metadata)` | Да | `RawTranscript`, `VideoMetadata` | `CleanedTranscript` |
 | `chunk(cleaned, metadata)` | Да | `CleanedTranscript`, `VideoMetadata` | `TranscriptChunks` |
-| `summarize(cleaned, metadata, prompt_name)` | Да | `CleanedTranscript`, `VideoMetadata`, `str` | `VideoSummary` |
-| `save(metadata, raw, chunks, summary)` | Да | Все результаты | `list[str]` |
+| `longread(chunks, metadata, outline)` | Да | `TranscriptChunks`, `VideoMetadata`, `TranscriptOutline` | `Longread` |
+| `summarize(longread, metadata)` | Да | `Longread`, `VideoMetadata` | `Summary` |
+| `save(metadata, raw, chunks, longread, summary)` | Да | Все результаты | `list[str]` |
 
 ---
 
@@ -142,10 +144,11 @@ async def callback(
 | Этап | Вес | Накопительный % | Обоснование |
 |------|-----|-----------------|-------------|
 | PARSING | 2% | 0-2% | Синхронный regex |
-| TRANSCRIBING | 50% | 2-52% | Whisper (самый долгий, ~77% времени) |
-| CLEANING | 13% | 52-65% | Один LLM вызов |
-| CHUNKING | 16% | 65-81% | Параллельно с SUMMARIZING |
-| SUMMARIZING | 16% | 65-97% | Параллельно с CHUNKING |
+| TRANSCRIBING | 40% | 2-42% | Whisper (самый долгий) |
+| CLEANING | 10% | 42-52% | Один LLM вызов |
+| CHUNKING | 13% | 52-65% | Map-Reduce разбиение |
+| LONGREAD | 18% | 65-83% | Map-Reduce генерация секций |
+| SUMMARIZING | 14% | 83-97% | Один LLM вызов |
 | SAVING | 3% | 97-100% | Мгновенно (<1s) |
 
 > **Калибровка весов:** Веса сбалансированы по реальному времени выполнения, чтобы прогресс рос плавно. См. [справочник калибровки](../reference/progress-calibration.md).
@@ -156,13 +159,17 @@ async def callback(
 [parsing] 0% - Parsing: 2025.01.09 ПШ.SV Video Title (Speaker).mp4
 [parsing] 100% - Parsed: 2025-01-09_ПШ-SV_video-title
 [transcribing] 2% - Transcribing: 2025.01.09 ПШ.SV Video Title (Speaker).mp4
-[transcribing] 47% - Transcribed: 156 segments, 3600s
-[cleaning] 47% - Cleaning transcript with glossary and LLM
-[cleaning] 62% - Cleaned: 45000 -> 42000 chars
-[chunking] 62% - Starting parallel chunking and summarization
-[summarizing] 88% - Completed: 12 chunks, summary ready
-[saving] 88% - Saving to: /archive/2025/01/ПШ.SV/Video Title (Speaker)
-[saving] 100% - Saved 4 files
+[transcribing] 42% - Transcribed: 156 segments, 3600s
+[cleaning] 42% - Cleaning transcript with glossary and LLM
+[cleaning] 52% - Cleaned: 45000 -> 42000 chars
+[chunking] 52% - Starting semantic chunking
+[chunking] 65% - Completed: 12 chunks
+[longread] 65% - Generating longread sections
+[longread] 83% - Generated 5 sections, 3500 words
+[summarizing] 83% - Generating summary from longread
+[summarizing] 97% - Summary ready
+[saving] 97% - Saving to: /archive/2025/01/ПШ.SV/Video Title (Speaker)
+[saving] 100% - Saved 6 files
 ```
 
 ---
@@ -250,13 +257,14 @@ except PipelineError as e:
 
 ### Graceful Degradation
 
-При ошибках в Chunk или Summarize pipeline продолжает работу:
+При ошибках в Chunk, Longread или Summary pipeline продолжает работу:
 
 | Ситуация | Поведение |
 |----------|-----------|
 | Chunker упал | Fallback на разбиение по ~300 слов |
-| Summarizer упал | Fallback на минимальное саммари |
-| Оба упали | PipelineError |
+| Longread упал | Fallback — текст из chunks без секций |
+| Summarizer упал | Fallback на минимальный конспект |
+| Все три упали | PipelineError |
 | Parse/Transcribe/Save упал | Немедленный PipelineError |
 
 **Fallback chunks:**
@@ -271,13 +279,29 @@ TranscriptChunk(
 )
 ```
 
+**Fallback longread:**
+```python
+Longread(
+    video_id="...",
+    introduction="Материал недоступен из-за технической ошибки",
+    conclusion="",
+    sections=[],  # Пустой список секций
+    classification={"section": "Обучение", ...},
+)
+```
+
 **Fallback summary:**
 ```python
-VideoSummary(
-    summary="Видео 'Title' от Speaker",
-    key_points=["Саммари недоступно из-за технической ошибки"],
-    section="Обучение",  # Default
-    tags=["ПШ", "SV"],   # Из метаданных
+Summary(
+    video_id="...",
+    essence="Конспект недоступен из-за технической ошибки",
+    key_concepts=[],
+    practical_tools=[],
+    quotes=[],
+    insight="",
+    actions=[],
+    section="Обучение",
+    tags=["ПШ", "SV"],
     access_level=1,
 )
 ```

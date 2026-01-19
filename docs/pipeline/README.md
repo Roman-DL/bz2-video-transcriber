@@ -5,38 +5,44 @@
 ## Схема Pipeline
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                      VIDEO PROCESSING PIPELINE                       │
-│                                                                      │
-│           Координируется PipelineOrchestrator                        │
-├──────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────────────┐   │
-│  │ 1.PARSE │───▶│2.WHISPER│───▶│3.CLEAN  │───▶│ OUTLINE         │   │
-│  │ filename│    │transcr. │    │ + gloss │    │ EXTRACTION      │   │
-│  └─────────┘    └─────────┘    └─────────┘    │ (для >10K chars)│   │
-│                                               └────────┬────────┘   │
-│                                                        │            │
-│                                          ┌─────────────┴────────┐   │
-│                                          │    TranscriptOutline │   │
-│                                          │      (shared)        │   │
-│                                          └───┬─────────────┬────┘   │
-│                                              │             │        │
-│                                         параллельно   параллельно   │
-│                                              │             │        │
-│                                         ┌────▼────┐  ┌─────▼────┐   │
-│                                         │4.CHUNK  │  │5.SUMMAR. │   │
-│                                         │semantic │  │ + class  │   │
-│                                         └────┬────┘  └─────┬────┘   │
-│                                              │             │        │
-│                                              └──────┬──────┘        │
-│                                                     │               │
-│                                              ┌──────▼──────┐        │
-│                                              │   6.SAVE    │        │
-│                                              │   files     │        │
-│                                              └─────────────┘        │
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                       VIDEO PROCESSING PIPELINE                           │
+│                                                                           │
+│            Координируется PipelineOrchestrator                            │
+├───────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────────────┐         │
+│  │ 1.PARSE │───▶│2.WHISPER│───▶│3.CLEAN  │───▶│ OUTLINE         │         │
+│  │ filename│    │transcr. │    │ + gloss │    │ EXTRACTION      │         │
+│  └─────────┘    └─────────┘    └─────────┘    │ (для >10K chars)│         │
+│                                               └────────┬────────┘         │
+│                                                        │                  │
+│                                          ┌─────────────▼────────┐         │
+│                                          │    TranscriptOutline │         │
+│                                          │      (shared)        │         │
+│                                          └─────────┬────────────┘         │
+│                                                    │                      │
+│                                               ┌────▼────┐                 │
+│                                               │4.CHUNK  │                 │
+│                                               │semantic │                 │
+│                                               └────┬────┘                 │
+│                                                    │                      │
+│                                               ┌────▼────┐                 │
+│                                               │5.LONGRD │                 │
+│                                               │map-red. │                 │
+│                                               └────┬────┘                 │
+│                                                    │                      │
+│                                               ┌────▼────┐                 │
+│                                               │6.SUMMAR.│                 │
+│                                               │конспект │                 │
+│                                               └────┬────┘                 │
+│                                                    │                      │
+│                                               ┌────▼────┐                 │
+│                                               │ 7.SAVE  │                 │
+│                                               │  files  │                 │
+│                                               └─────────┘                 │
+│                                                                           │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Этапы
@@ -48,17 +54,18 @@
 | 3 | Clean | [03-clean.md](03-clean.md) | Ollama + Glossary | `RawTranscript` | `CleanedTranscript` |
 | — | Outline | (часть pipeline) | Ollama | `CleanedTranscript` | `TranscriptOutline` |
 | 4 | Chunk | [04-chunk.md](04-chunk.md) | Ollama | `CleanedTranscript` + Outline | `TranscriptChunks` |
-| 5 | Summarize | [05-summarize.md](05-summarize.md) | Ollama | Outline (или текст) | `VideoSummary` |
-| 6 | Save | [06-save.md](06-save.md) | Python | All data | Files in archive |
+| 5 | Longread | [05-longread.md](05-longread.md) | Ollama | Chunks + Outline | `Longread` |
+| 6 | Summarize | [06-summarize.md](06-summarize.md) | Ollama | Longread | `Summary` |
+| 7 | Save | [07-save.md](07-save.md) | Python | All data | Files in archive |
 
-> **Outline Extraction:** Выполняется только для больших текстов (>10K символов). Для маленьких — chunk и summarize работают с полным текстом.
+> **Outline Extraction:** Выполняется только для больших текстов (>10K символов). Для маленьких — longread и summary работают с полным текстом.
 
 ## Оркестрация и API
 
 | Компонент | Документ | Описание |
 |-----------|----------|----------|
-| PipelineOrchestrator | [07-orchestrator.md](07-orchestrator.md) | Координация этапов, progress callback |
-| FastAPI | [08-api.md](08-api.md) | HTTP API, WebSocket, пошаговый режим |
+| PipelineOrchestrator | [08-orchestrator.md](08-orchestrator.md) | Координация этапов, progress callback |
+| FastAPI | [09-api.md](09-api.md) | HTTP API, WebSocket, пошаговый режим |
 
 ## Step-by-step режим
 
@@ -68,7 +75,8 @@
 - `/api/steps/transcribe` — транскрипция
 - `/api/steps/clean` — очистка
 - `/api/steps/chunk` — чанкирование (сам извлекает outline)
-- `/api/steps/summarize` — саммаризация (сам извлекает outline)
+- `/api/steps/longread` — генерация лонгрида из чанков
+- `/api/steps/summarize` — генерация конспекта из лонгрида
 - `/api/steps/save` — сохранение
 
 ## Связанные документы

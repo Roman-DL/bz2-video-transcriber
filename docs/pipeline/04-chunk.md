@@ -1,6 +1,6 @@
 # Этап 4: Chunk (Semantic Splitting)
 
-[< Назад: Clean](03-clean.md) | [Обзор Pipeline](README.md) | [Далее: Summarize >](05-summarize.md)
+[< Назад: Clean](03-clean.md) | [Обзор Pipeline](README.md) | [Далее: Longread >](05-longread.md)
 
 ---
 
@@ -112,9 +112,9 @@ TextSplitter разбивает текст на предложения по `.!?
 
 ---
 
-## Shared Outline с Summarizer
+## Shared Outline
 
-В full pipeline outline извлекается **один раз** и передаётся в оба сервиса:
+В full pipeline outline извлекается **один раз** и передаётся в Chunker и LongreadGenerator:
 
 ```
 CleanedTranscript
@@ -122,18 +122,29 @@ CleanedTranscript
        ▼
 [Outline Extraction]  ← Выполняется в pipeline
        │
-       ├───────────────────┬──────────────────┐
-       ▼                   ▼                  │
-   Chunker             Summarizer        (параллельно)
-       │                   │                  │
-       ▼                   ▼                  │
-TranscriptChunks     VideoSummary             │
+       ▼
+   Chunker
+       │
+       ▼
+TranscriptChunks
+       │
+       ▼
+LongreadGenerator  ← Получает тот же outline
+       │
+       ▼
+   Longread
+       │
+       ▼
+SummaryGenerator  ← Работает с longread
+       │
+       ▼
+   Summary
 ```
 
 **Почему важно:**
 - Нет дублирования работы (outline не извлекается дважды)
-- Одинаковый контекст для обоих сервисов
-- В step-by-step режиме каждый сервис извлекает outline самостоятельно
+- Одинаковый контекст для Chunker и LongreadGenerator
+- В step-by-step режиме сервисы могут извлекать outline самостоятельно
 
 ---
 

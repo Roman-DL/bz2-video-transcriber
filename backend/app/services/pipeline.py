@@ -16,9 +16,12 @@ from app.config import Settings, get_settings
 from app.services.progress_estimator import ProgressEstimator
 from app.models.schemas import (
     CleanedTranscript,
+    Longread,
+    LongreadSection,
     ProcessingResult,
     ProcessingStatus,
     RawTranscript,
+    Summary,
     TextPart,
     TranscriptChunk,
     TranscriptChunks,
@@ -29,7 +32,9 @@ from app.models.schemas import (
 from app.services.ai_client import AIClient
 from app.services.chunker import DEFAULT_LARGE_TEXT_THRESHOLD, SemanticChunker
 from app.services.cleaner import TranscriptCleaner
+from app.services.longread_generator import LongreadGenerator
 from app.services.outline_extractor import OutlineExtractor
+from app.services.summary_generator import SummaryGenerator
 from app.services.text_splitter import TextSplitter
 from app.services.parser import FilenameParseError, parse_filename
 from app.services.saver import FileSaver
@@ -123,13 +128,14 @@ class PipelineOrchestrator:
     """
 
     # Progress weights for each stage (must sum to 100)
-    # Based on actual times: transcribe=87s, clean=7.5s, chunk+summarize=18s, save<1s
+    # Based on actual times: transcribe=87s, clean=7.5s, chunk+longread+summary=25s, save<1s
     STAGE_WEIGHTS = {
         ProcessingStatus.PARSING: 2,       # 0-2%: instant
-        ProcessingStatus.TRANSCRIBING: 50, # 2-52%: dominant stage (~77% of time)
-        ProcessingStatus.CLEANING: 13,     # 52-65%
-        ProcessingStatus.CHUNKING: 16,     # 65-81%: parallel with SUMMARIZING
-        ProcessingStatus.SUMMARIZING: 16,  # 65-97%: combined = 32%
+        ProcessingStatus.TRANSCRIBING: 45, # 2-47%: dominant stage
+        ProcessingStatus.CLEANING: 10,     # 47-57%
+        ProcessingStatus.CHUNKING: 12,     # 57-69%
+        ProcessingStatus.LONGREAD: 18,     # 69-87%: map-reduce sections
+        ProcessingStatus.SUMMARIZING: 10,  # 87-97%: from longread
         ProcessingStatus.SAVING: 3,        # 97-100%: instant
     }
 
@@ -255,13 +261,14 @@ class PipelineOrchestrator:
             f"Parsed: {metadata.video_id} ({metadata.duration_seconds:.0f}s)",
         )
 
-        # Stages 2-5: Require AI client
+        # Stages 2-6: Require AI client
         async with AIClient(self.settings) as ai_client:
             # Initialize services
             transcriber = WhisperTranscriber(ai_client, self.settings)
             cleaner = TranscriptCleaner(ai_client, self.settings)
             chunker = SemanticChunker(ai_client, self.settings)
-            summarizer = VideoSummarizer(ai_client, self.settings)
+            longread_gen = LongreadGenerator(ai_client, self.settings)
+            summary_gen = SummaryGenerator(ai_client, self.settings)
             saver = FileSaver(self.settings)
 
             # Stage 2: Transcribe (extracts audio first, then sends to Whisper)
@@ -274,23 +281,25 @@ class PipelineOrchestrator:
                 cleaner, raw_transcript, metadata, progress_callback
             )
 
-            # Stage 4-5: Chunk + Summarize (parallel with shared outline)
-            chunks, summary = await self._do_chunk_and_summarize(
+            # Stage 4-6: Chunk -> Longread -> Summary (sequential with shared outline)
+            chunks, longread, summary = await self._do_chunk_longread_summarize(
                 chunker,
-                summarizer,
+                longread_gen,
+                summary_gen,
                 cleaned_transcript,
                 metadata,
                 progress_callback,
                 ai_client,
             )
 
-            # Stage 6: Save (includes audio.mp3)
+            # Stage 7: Save (includes audio.mp3, longread.md, summary.md)
             files_created = await self._do_save(
                 saver,
                 metadata,
                 raw_transcript,
                 cleaned_transcript,
                 chunks,
+                longread,
                 summary,
                 audio_path,
                 progress_callback,
@@ -592,23 +601,22 @@ class PipelineOrchestrator:
 
         return text_parts, outline
 
-    async def _do_chunk_and_summarize(
+    async def _do_chunk_longread_summarize(
         self,
         chunker: SemanticChunker,
-        summarizer: VideoSummarizer,
+        longread_gen: LongreadGenerator,
+        summary_gen: SummaryGenerator,
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
         callback: ProgressCallback | None,
         ai_client: AIClient,
-    ) -> tuple[TranscriptChunks, VideoSummary]:
+    ) -> tuple[TranscriptChunks, Longread, Summary]:
         """
-        Execute outline extraction, chunking and summarization.
+        Execute outline extraction, chunking, longread generation, and summarization.
 
-        For large texts: extracts outline first, then runs chunking and
-        summarization in parallel with shared outline context.
+        Pipeline: Outline -> Chunk -> Longread -> Summary
 
-        For small texts: runs chunking and summarization in parallel
-        without outline (uses full transcript).
+        The outline is extracted once and used by both chunker and longread generator.
         """
         input_chars = len(cleaned_transcript.text)
 
@@ -617,84 +625,88 @@ class PipelineOrchestrator:
             cleaned_transcript, ai_client, callback
         )
 
-        # Calculate estimates for parallel stages
+        # Phase 2: Chunking
         chunk_estimate = self.estimator.estimate_chunk(input_chars)
-        summarize_estimate = self.estimator.estimate_summarize(input_chars)
-        combined_estimated = max(
-            chunk_estimate.estimated_seconds,
-            summarize_estimate.estimated_seconds,
-        )
-
-        # Start progress ticker for combined parallel operation
         ticker = None
         if callback:
             ticker = await self.estimator.start_ticker(
                 stage=ProcessingStatus.CHUNKING,
-                estimated_seconds=combined_estimated,
-                message="Chunking and summarizing in parallel",
+                estimated_seconds=chunk_estimate.estimated_seconds,
+                message="Chunking transcript",
                 callback=lambda s, p, m: self._update_progress(callback, s, p, m),
             )
 
-        # Phase 2: Parallel chunking and summarization (both use outline)
-        chunk_task = asyncio.create_task(
-            chunker.chunk_with_outline(cleaned_transcript, metadata, text_parts, outline)
-        )
-        summarize_task = asyncio.create_task(
-            summarizer.summarize(outline, metadata, cleaned_transcript)
-        )
-
-        # Wait for both, catching exceptions
-        results = await asyncio.gather(
-            chunk_task, summarize_task, return_exceptions=True
-        )
-
-        chunk_result, summarize_result = results
-
-        # Handle results with graceful degradation
-        chunks: TranscriptChunks | None = None
-        summary: VideoSummary | None = None
-        errors: list[str] = []
-
-        if isinstance(chunk_result, Exception):
-            errors.append(f"Chunking failed: {chunk_result}")
-            logger.error(f"Chunking error: {chunk_result}")
-        else:
-            chunks = chunk_result
-
-        if isinstance(summarize_result, Exception):
-            errors.append(f"Summarization failed: {summarize_result}")
-            logger.error(f"Summarization error: {summarize_result}")
-        else:
-            summary = summarize_result
-
-        # If both failed, raise error
-        if chunks is None and summary is None:
+        try:
+            chunks = await chunker.chunk_with_outline(
+                cleaned_transcript, metadata, text_parts, outline
+            )
+        except Exception as e:
             if ticker:
                 ticker.cancel()
-            raise PipelineError(
-                ProcessingStatus.CHUNKING,
-                f"Both chunking and summarization failed: {'; '.join(errors)}",
-            )
-
-        # Graceful degradation: create fallbacks if one failed
-        if chunks is None:
-            logger.warning("Using fallback chunks due to chunker failure")
+            logger.warning(f"Chunking failed: {e}, using fallback")
             chunks = self._create_fallback_chunks(cleaned_transcript, metadata)
 
-        if summary is None:
-            logger.warning("Using fallback summary due to summarizer failure")
-            summary = self._create_fallback_summary(metadata)
+        if callback and ticker:
+            await self.estimator.stop_ticker(
+                ticker,
+                ProcessingStatus.CHUNKING,
+                lambda s, p, m: self._update_progress(callback, s, p, m),
+                f"Chunked: {chunks.total_chunks} chunks",
+            )
 
-        # Stop ticker and send 100%
+        # Phase 3: Longread generation
+        longread_estimate = self.estimator.estimate_summarize(input_chars) * 1.5
         if callback:
+            ticker = await self.estimator.start_ticker(
+                stage=ProcessingStatus.LONGREAD,
+                estimated_seconds=longread_estimate,
+                message="Generating longread",
+                callback=lambda s, p, m: self._update_progress(callback, s, p, m),
+            )
+
+        try:
+            longread = await longread_gen.generate(chunks, metadata, outline)
+        except Exception as e:
+            if ticker:
+                ticker.cancel()
+            logger.error(f"Longread generation failed: {e}")
+            longread = self._create_fallback_longread(metadata, chunks)
+
+        if callback and ticker:
+            await self.estimator.stop_ticker(
+                ticker,
+                ProcessingStatus.LONGREAD,
+                lambda s, p, m: self._update_progress(callback, s, p, m),
+                f"Longread: {longread.total_sections} sections, {longread.total_word_count} words",
+            )
+
+        # Phase 4: Summary generation from longread
+        summary_estimate = self.estimator.estimate_summarize(input_chars) * 0.5
+        if callback:
+            ticker = await self.estimator.start_ticker(
+                stage=ProcessingStatus.SUMMARIZING,
+                estimated_seconds=summary_estimate,
+                message="Generating summary from longread",
+                callback=lambda s, p, m: self._update_progress(callback, s, p, m),
+            )
+
+        try:
+            summary = await summary_gen.generate(longread, metadata)
+        except Exception as e:
+            if ticker:
+                ticker.cancel()
+            logger.error(f"Summary generation failed: {e}")
+            summary = self._create_fallback_summary_from_longread(longread, metadata)
+
+        if callback and ticker:
             await self.estimator.stop_ticker(
                 ticker,
                 ProcessingStatus.SUMMARIZING,
                 lambda s, p, m: self._update_progress(callback, s, p, m),
-                f"Completed: {chunks.total_chunks} chunks, summary ready",
+                f"Summary: {len(summary.key_concepts)} concepts, {len(summary.quotes)} quotes",
             )
 
-        return chunks, summary
+        return chunks, longread, summary
 
     async def _do_save(
         self,
@@ -703,7 +715,8 @@ class PipelineOrchestrator:
         raw_transcript: RawTranscript,
         cleaned_transcript: CleanedTranscript,
         chunks: TranscriptChunks,
-        summary: VideoSummary,
+        longread: Longread,
+        summary: Summary,
         audio_path: Path | None,
         callback: ProgressCallback | None,
     ) -> list[str]:
@@ -722,7 +735,8 @@ class PipelineOrchestrator:
 
         try:
             files = await saver.save(
-                metadata, raw_transcript, cleaned_transcript, chunks, summary, audio_path
+                metadata, raw_transcript, cleaned_transcript, chunks,
+                longread, summary, audio_path
             )
         except Exception as e:
             if ticker:
@@ -872,6 +886,70 @@ class PipelineOrchestrator:
             subsection="",
             tags=[metadata.event_type, metadata.stream],
             access_level=1,
+            model_name=self.settings.summarizer_model,
+        )
+
+    def _create_fallback_longread(
+        self,
+        metadata: VideoMetadata,
+        chunks: TranscriptChunks,
+    ) -> Longread:
+        """
+        Create fallback longread when generation fails.
+
+        Uses chunks directly as sections.
+        """
+        sections = [
+            LongreadSection(
+                index=chunk.index,
+                title=chunk.topic,
+                content=chunk.text,
+                source_chunks=[chunk.index],
+                word_count=chunk.word_count,
+            )
+            for chunk in chunks.chunks
+        ]
+
+        return Longread(
+            video_id=metadata.video_id,
+            title=metadata.title,
+            speaker=metadata.speaker,
+            date=metadata.date,
+            event_type=metadata.event_type,
+            stream=metadata.stream,
+            introduction="",
+            sections=sections,
+            conclusion="",
+            section="Обучение",
+            subsection="",
+            tags=[metadata.event_type, metadata.stream] if metadata.stream else [metadata.event_type],
+            access_level=1,
+            model_name=self.settings.summarizer_model,
+        )
+
+    def _create_fallback_summary_from_longread(
+        self,
+        longread: Longread,
+        metadata: VideoMetadata,
+    ) -> Summary:
+        """
+        Create fallback summary from longread when summary generation fails.
+        """
+        return Summary(
+            video_id=metadata.video_id,
+            title=metadata.title,
+            speaker=metadata.speaker,
+            date=metadata.date,
+            essence=longread.introduction or f"Тема: {metadata.title}",
+            key_concepts=[s.title for s in longread.sections[:5]],
+            practical_tools=[],
+            quotes=[],
+            insight="Конспект недоступен из-за технической ошибки",
+            actions=[],
+            section=longread.section,
+            subsection=longread.subsection,
+            tags=longread.tags,
+            access_level=longread.access_level,
             model_name=self.settings.summarizer_model,
         )
 

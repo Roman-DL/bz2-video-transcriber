@@ -34,7 +34,7 @@ priority: high
 | Документ | Описание |
 |----------|----------|
 | [overview.md](overview.md) | Обзор системы, цели, AI сервисы |
-| [pipeline/](pipeline/) | Детальный pipeline (6 этапов) |
+| [pipeline/](pipeline/) | Детальный pipeline (7 этапов) |
 | [web-ui.md](web-ui.md) | Web интерфейс |
 | [deployment.md](deployment.md) | Развёртывание, Docker, доступ |
 | [data-formats.md](data-formats.md) | Форматы файлов, конфигурация |
@@ -74,8 +74,9 @@ priority: high
 │  │                     │         │ 2.Whisper ─┼──► API     │    │
 │  │                     │         │ 3.Cleaner ─┼──► API     │    │
 │  │                     │         │ 4.Chunker ─┼──► API     │    │
-│  │                     │         │ 5.Summary ─┼──► API     │    │
-│  │                     │         │ 6.Saver    │            │    │
+│  │                     │         │ 5.Longread─┼──► API     │    │
+│  │                     │         │ 6.Summary ─┼──► API     │    │
+│  │                     │         │ 7.Saver    │            │    │
 │  │                     │         └──────┬─────┘            │    │
 │  └─────────────────────┼────────────────┼──────────────────┘    │
 │                        │                │                       │
@@ -93,7 +94,8 @@ priority: high
 │  │  Задачи:                 │    │  Задачи:                 │   │
 │  │  • Cleaner               │    │  • Транскрипция          │   │
 │  │  • Chunker               │    │                          │   │
-│  │  • Summarizer            │    │                          │   │
+│  │  • Longread              │    │                          │   │
+│  │  • Summary               │    │                          │   │
 │  └──────────────────────────┘    └──────────────────────────┘   │
 │                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐   │
@@ -123,7 +125,8 @@ priority: high
 | **Transcriber** | HTTP → faster-whisper API | Вызов внешнего сервиса |
 | **Cleaner** | HTTP → Ollama Chat API (gemma2:9b) | Очистка транскрипта |
 | **Chunker** | HTTP → Ollama API | Смысловое разбиение |
-| **Summarizer** | HTTP → Ollama API | Саммаризация + классификация |
+| **LongreadGenerator** | HTTP → Ollama API | Генерация развёрнутого текста |
+| **SummaryGenerator** | HTTP → Ollama API | Генерация конспекта |
 
 ---
 
@@ -137,7 +140,7 @@ bz2-video-transcriber/
 │   ├── overview.md              # Обзор системы
 │   ├── architecture.md          # Этот документ
 │   ├── web-ui.md                # Документация Web UI
-│   ├── pipeline/                # Детальный pipeline (6 этапов)
+│   ├── pipeline/                # Детальный pipeline (7 этапов)
 │   ├── data-formats.md          # Форматы файлов
 │   ├── deployment.md            # Развёртывание
 │   └── CONTRIBUTING.md          # Процесс разработки
@@ -150,15 +153,16 @@ bz2-video-transcriber/
 │   │   │   ├── routes.py        # API: inbox, archive
 │   │   │   └── step_routes.py   # Step API с SSE прогрессом
 │   │   ├── services/
-│   │   │   ├── parser.py           # Парсинг имени файла
-│   │   │   ├── transcriber.py      # HTTP → Whisper API
-│   │   │   ├── cleaner.py          # HTTP → Ollama API
-│   │   │   ├── chunker.py          # HTTP → Ollama API
-│   │   │   ├── text_splitter.py    # Разбиение с overlap
-│   │   │   ├── outline_extractor.py # MAP-REDUCE для outline
-│   │   │   ├── summarizer.py       # HTTP → Ollama API
-│   │   │   ├── saver.py            # Сохранение в архив
-│   │   │   └── pipeline.py         # Оркестрация
+│   │   │   ├── parser.py              # Парсинг имени файла
+│   │   │   ├── transcriber.py         # HTTP → Whisper API
+│   │   │   ├── cleaner.py             # HTTP → Ollama API
+│   │   │   ├── chunker.py             # HTTP → Ollama API
+│   │   │   ├── text_splitter.py       # Разбиение с overlap
+│   │   │   ├── outline_extractor.py   # MAP-REDUCE для outline
+│   │   │   ├── longread_generator.py  # Генерация лонгрида
+│   │   │   ├── summary_generator.py   # Генерация конспекта
+│   │   │   ├── saver.py               # Сохранение в архив
+│   │   │   └── pipeline.py            # Оркестрация
 │   │   └── models/
 │   │       └── schemas.py       # Pydantic модели
 │   └── requirements.txt
@@ -188,11 +192,13 @@ bz2-video-transcriber/
 │
 ├── config/
 │   ├── prompts/
-│   │   ├── cleaner_system.md   # System prompt для очистки
-│   │   ├── cleaner_user.md     # User template для очистки
-│   │   ├── chunker.md          # Chunking с контекстом
-│   │   ├── map_outline.md      # Извлечение outline части
-│   │   └── summarizer.md
+│   │   ├── cleaner_system.md      # System prompt для очистки
+│   │   ├── cleaner_user.md        # User template для очистки
+│   │   ├── chunker.md             # Chunking с контекстом
+│   │   ├── map_outline.md         # Извлечение outline части
+│   │   ├── longread_section.md    # Генерация секции лонгрида
+│   │   ├── longread_combine.md    # Объединение + классификация
+│   │   └── summary.md             # Генерация конспекта
 │   ├── glossary.yaml
 │   └── events.yaml
 │
@@ -222,7 +228,8 @@ bz2-video-transcriber/
 | POST | `/api/step/transcribe` | Транскрипция (Whisper) — SSE |
 | POST | `/api/step/clean` | Очистка текста — SSE |
 | POST | `/api/step/chunk` | Разбиение на чанки — SSE |
-| POST | `/api/step/summarize` | Саммаризация — SSE |
+| POST | `/api/step/longread` | Генерация лонгрида — SSE |
+| POST | `/api/step/summarize` | Генерация конспекта — SSE |
 | POST | `/api/step/save` | Сохранение в архив |
 
 ### Health
