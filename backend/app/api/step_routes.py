@@ -437,7 +437,8 @@ async def step_summarize(request: StepSummarizeRequest) -> StreamingResponse:
 
     # Calculate input size for time estimation
     input_chars = request.longread.total_word_count * 6
-    estimate = estimator.estimate_summarize(input_chars) * 0.5  # Summary is faster
+    estimate = estimator.estimate_summarize(input_chars)
+    estimated_seconds = estimate.estimated_seconds * 0.5  # Summary is faster
 
     async def generate_summary() -> Summary:
         current_settings = get_settings()
@@ -452,7 +453,7 @@ async def step_summarize(request: StepSummarizeRequest) -> StreamingResponse:
         run_with_sse_progress(
             stage=ProcessingStatus.SUMMARIZING,
             estimator=estimator,
-            estimated_seconds=estimate.estimated_seconds,
+            estimated_seconds=estimated_seconds,
             message=f"Generating summary from longread ({request.longread.total_sections} sections)",
             operation=generate_summary,
         )
