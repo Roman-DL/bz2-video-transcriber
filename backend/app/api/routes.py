@@ -13,9 +13,6 @@ from fastapi import APIRouter
 
 from app.config import get_settings
 
-# Compatible versions for pipeline_results.json
-COMPATIBLE_VERSIONS = ["1.0.0"]
-
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["pipeline"])
 
@@ -134,15 +131,6 @@ async def get_archive_results(year: str, event_folder: str, topic_folder: str) -
         return {
             "available": False,
             "message": "Ошибка чтения файла результатов",
-        }
-
-    # Check version compatibility
-    version = data.get("version", "unknown")
-    if version not in COMPATIBLE_VERSIONS:
-        logger.info(f"Incompatible version {version} in {results_file}")
-        return {
-            "available": False,
-            "message": f"Формат устарел (v{version}). Поддерживаются версии: {', '.join(COMPATIBLE_VERSIONS)}",
         }
 
     return {"available": True, "data": data}

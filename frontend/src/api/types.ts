@@ -232,15 +232,20 @@ export interface ArchiveItemWithPath extends ArchiveItem {
 }
 
 // Pipeline results stored in archive
+// All blocks are optional to support different pipeline versions
 export interface PipelineResults {
   version: string;
   created_at: string;
   metadata: VideoMetadata;
-  raw_transcript: RawTranscript;
-  display_text: string;
-  cleaned_transcript: CleanedTranscript;
-  chunks: TranscriptChunks;
-  summary: VideoSummary;
+  raw_transcript?: RawTranscript;
+  display_text?: string;
+  cleaned_transcript?: CleanedTranscript;
+  chunks?: TranscriptChunks;
+  // Old pipeline: VideoSummary, New pipeline: Summary
+  // We treat both as generic object and render as text
+  summary?: Record<string, unknown>;
+  // New pipeline only
+  longread?: Record<string, unknown>;
 }
 
 // Response from /archive/results endpoint
