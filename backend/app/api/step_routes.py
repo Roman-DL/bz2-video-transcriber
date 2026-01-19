@@ -167,7 +167,7 @@ async def run_with_sse_progress(
         result = result_holder[0]
         # Handle different result types
         if hasattr(result, "model_dump"):
-            data = result.model_dump()
+            data = result.model_dump(mode='json')
         elif isinstance(result, dict):
             data = result
         elif isinstance(result, list):
@@ -289,7 +289,7 @@ async def step_transcribe(request: StepParseRequest) -> StreamingResponse:
             else transcript.full_text
         )
         return {
-            "raw_transcript": transcript.model_dump(),
+            "raw_transcript": transcript.model_dump(mode='json'),
             "audio_path": str(audio_path),
             "display_text": display_text,
         }
