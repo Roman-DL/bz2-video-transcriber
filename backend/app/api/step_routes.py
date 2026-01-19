@@ -395,7 +395,8 @@ async def step_longread(request: StepLongreadRequest) -> StreamingResponse:
 
     # Calculate input size for time estimation (~6 chars per word)
     input_chars = sum(c.word_count * 6 for c in request.chunks.chunks)
-    estimate = estimator.estimate_summarize(input_chars) * 1.5  # Longread takes longer
+    estimate = estimator.estimate_summarize(input_chars)
+    estimated_seconds = estimate.estimated_seconds * 1.5  # Longread takes longer
 
     async def generate_longread() -> Longread:
         current_settings = get_settings()
@@ -411,7 +412,7 @@ async def step_longread(request: StepLongreadRequest) -> StreamingResponse:
         run_with_sse_progress(
             stage=ProcessingStatus.LONGREAD,
             estimator=estimator,
-            estimated_seconds=estimate.estimated_seconds,
+            estimated_seconds=estimated_seconds,
             message=f"Generating longread from {request.chunks.total_chunks} chunks",
             operation=generate_longread,
         )
