@@ -1,6 +1,16 @@
 # Model-specific configurations for pipeline stages
 # Each model family can have different parameters based on its context window size
 
+# Available Whisper models for transcription
+# Only models listed here will be shown in the UI
+whisper_models:
+  - id: "Systran/faster-whisper-large-v3"
+    name: "large-v3"
+    description: "Высокое качество, медленнее"
+  - id: "deepdml/faster-whisper-large-v3-turbo-ct2"
+    name: "large-v3-turbo"
+    description: "Быстрее, хорошее качество"
+
 models:
   gemma2:
     # Context: 8K tokens (~24K chars)

@@ -403,24 +403,35 @@ def call_ollama(prompt: str, model: str = "qwen2.5:14b") -> str:
 
 #### GET /api/models/available
 
-Список доступных моделей из Ollama и Whisper.
+Список доступных моделей. Ollama модели получаются динамически, Whisper модели — из `config/models.yaml`.
 
 **Response:**
 ```json
 {
   "ollama_models": ["gemma2:9b", "qwen2.5:14b", "qwen2.5:7b"],
-  "whisper_models": ["large-v3", "large-v3-turbo"]
+  "whisper_models": [
+    {
+      "id": "Systran/faster-whisper-large-v3",
+      "name": "large-v3",
+      "description": "Высокое качество, медленнее"
+    },
+    {
+      "id": "deepdml/faster-whisper-large-v3-turbo-ct2",
+      "name": "large-v3-turbo",
+      "description": "Быстрее, хорошее качество"
+    }
+  ]
 }
 ```
 
 #### GET /api/models/default
 
-Модели по умолчанию из настроек сервера.
+Модели по умолчанию из настроек сервера. Для `transcribe` возвращается полный ID модели.
 
 **Response:**
 ```json
 {
-  "transcribe": "large-v3-turbo",
+  "transcribe": "deepdml/faster-whisper-large-v3-turbo-ct2",
   "clean": "gemma2:9b",
   "chunk": "gemma2:9b",
   "summarize": "qwen2.5:14b"

@@ -4,7 +4,7 @@ import { Button } from '@/components/common/Button';
 import { Spinner } from '@/components/common/Spinner';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useAvailableModels, useDefaultModels, useModelsConfig } from '@/api/hooks/useModels';
-import type { ModelSettings, ModelConfig } from '@/api/types';
+import type { ModelSettings, ModelConfig, WhisperModelConfig } from '@/api/types';
 import { ChevronDown, RotateCcw } from 'lucide-react';
 
 type PipelineStage = 'transcribe' | 'clean' | 'chunk' | 'summarize';
@@ -23,11 +23,17 @@ const STAGE_CONFIG_KEYS: Record<PipelineStage, keyof ModelConfig | null> = {
   summarize: null, // Summarizer doesn't have stage-specific config
 };
 
+interface ModelOption {
+  value: string;
+  label: string;
+  description?: string;
+}
+
 interface ModelSelectorProps {
   stage: PipelineStage;
   value: string | undefined;
   defaultValue: string;
-  options: string[];
+  options: ModelOption[];
   onChange: (value: string | undefined) => void;
   config?: ModelConfig;
 }
@@ -38,6 +44,9 @@ function ModelSelector({ stage, value, defaultValue, options, onChange, config }
 
   const stageConfigKey = STAGE_CONFIG_KEYS[stage];
   const stageConfig = stageConfigKey && config ? config[stageConfigKey] : null;
+
+  // Find selected option for description
+  const selectedOption = options.find((o) => o.value === selectedValue);
 
   return (
     <div className="space-y-2">
@@ -54,15 +63,20 @@ function ModelSelector({ stage, value, defaultValue, options, onChange, config }
           }}
           className="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-10 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none"
         >
-          {options.map((model) => (
-            <option key={model} value={model}>
-              {model}
-              {model === defaultValue ? ' (по умолчанию)' : ''}
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+              {opt.value === defaultValue ? ' (по умолчанию)' : ''}
             </option>
           ))}
         </select>
         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
       </div>
+
+      {/* Description for whisper models */}
+      {selectedOption?.description && (
+        <p className="text-xs text-gray-500">{selectedOption.description}</p>
+      )}
 
       {/* Model config info */}
       {config && (
@@ -93,6 +107,20 @@ function ModelSelector({ stage, value, defaultValue, options, onChange, config }
       )}
     </div>
   );
+}
+
+/** Convert whisper models from config to options format */
+function whisperToOptions(models: WhisperModelConfig[]): ModelOption[] {
+  return models.map((m) => ({
+    value: m.id,
+    label: m.name,
+    description: m.description,
+  }));
+}
+
+/** Convert ollama model names to options format */
+function ollamaToOptions(models: string[]): ModelOption[] {
+  return models.map((m) => ({ value: m, label: m }));
 }
 
 function formatTokens(tokens: number): string {
@@ -128,21 +156,22 @@ export function SettingsModal() {
   };
 
   // Determine which models to show for each stage
-  const whisperOptions = useMemo(() => {
+  const whisperOptions = useMemo((): ModelOption[] => {
     if (!availableModels?.whisper_models.length) {
-      return defaultModels ? [defaultModels.transcribe] : [];
+      // Fallback to default model if no config
+      return defaultModels ? [{ value: defaultModels.transcribe, label: defaultModels.transcribe }] : [];
     }
-    return availableModels.whisper_models;
+    return whisperToOptions(availableModels.whisper_models);
   }, [availableModels, defaultModels]);
 
-  const ollamaOptions = useMemo(() => {
+  const ollamaOptions = useMemo((): ModelOption[] => {
     if (!availableModels?.ollama_models.length) {
       if (!defaultModels) return [];
       // Return unique default models
       const defaults = new Set([defaultModels.clean, defaultModels.chunk, defaultModels.summarize]);
-      return Array.from(defaults);
+      return ollamaToOptions(Array.from(defaults));
     }
-    return availableModels.ollama_models;
+    return ollamaToOptions(availableModels.ollama_models);
   }, [availableModels, defaultModels]);
 
   const handleSave = () => {

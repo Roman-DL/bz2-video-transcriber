@@ -182,9 +182,15 @@ export interface PipelineResultsResponse {
 }
 
 // Model configuration types
+export interface WhisperModelConfig {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export interface AvailableModelsResponse {
   ollama_models: string[];
-  whisper_models: string[];
+  whisper_models: WhisperModelConfig[];
 }
 
 export interface DefaultModelsResponse {
