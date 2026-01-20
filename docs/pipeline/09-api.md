@@ -1,6 +1,6 @@
 # Pipeline API
 
-[< Назад: Orchestrator](07-orchestrator.md) | [Обзор Pipeline](README.md)
+[< Назад: Orchestrator](08-orchestrator.md) | [Обзор Pipeline](README.md)
 
 ---
 
@@ -49,6 +49,16 @@ uvicorn app.main:app --reload --port 8801
 | POST | `/api/step/longread` | Генерация лонгрида из чанков |
 | POST | `/api/step/summarize` | Генерация конспекта из лонгрида |
 | POST | `/api/step/save` | Сохранение результатов |
+
+### Cache API (v0.18+)
+
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| GET | `/api/cache/{video_id}` | Информация о кэше видео |
+| POST | `/api/cache/rerun` | Перезапуск этапа с другой моделью |
+| POST | `/api/cache/version` | Установка текущей версии результата |
+
+> **Подробнее:** [ADR-005: Result Caching](../adr/005-result-caching.md)
 
 ---
 
@@ -188,7 +198,7 @@ data: {"type": "progress", "status": "transcribing", "progress": 48.2, "message"
 data: {"type": "result", "data": {...}}
 ```
 
-> **Архитектура прогресса:** [docs/pipeline/07-orchestrator.md#progressestimator](07-orchestrator.md#progressestimator)
+> **Архитектура прогресса:** [docs/pipeline/08-orchestrator.md#progressmanager](08-orchestrator.md#progressmanager)
 
 ### Сценарий тестирования промптов
 
@@ -289,20 +299,20 @@ print(f"Saved: {files}")
 ┌─────────────────────────────────────────────────────────────────┐
 │                         FastAPI App                              │
 │                                                                  │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
-│  │   routes    │  │ step_routes │  │  websocket  │              │
-│  │ /api/*      │  │ /api/step/* │  │  /ws/*      │              │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘              │
-│         │                │                │                      │
-│         └────────────────┼────────────────┘                      │
-│                          │                                       │
-│                   ┌──────▼──────┐                                │
-│                   │ JobManager  │ ← in-memory dict               │
-│                   └──────┬──────┘                                │
-│                          │                                       │
-│                   ┌──────▼──────┐                                │
-│                   │ Orchestrator│                                │
-│                   └─────────────┘                                │
+│  ┌───────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐  │
+│  │  routes   │ │ step_routes │ │cache_routes │ │  websocket  │  │
+│  │ /api/*    │ │ /api/step/* │ │ /api/cache/*│ │  /ws/*      │  │
+│  └─────┬─────┘ └──────┬──────┘ └──────┬──────┘ └──────┬──────┘  │
+│        │              │               │               │          │
+│        └──────────────┴───────────────┴───────────────┘          │
+│                               │                                  │
+│                        ┌──────▼──────┐                           │
+│                        │ JobManager  │ ← in-memory dict          │
+│                        └──────┬──────┘                           │
+│                               │                                  │
+│                        ┌──────▼──────┐                           │
+│                        │ Orchestrator│                           │
+│                        └─────────────┘                           │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -315,5 +325,6 @@ print(f"Saved: {files}")
 | `backend/app/main.py` | FastAPI приложение |
 | `backend/app/api/routes.py` | HTTP endpoints |
 | `backend/app/api/step_routes.py` | Пошаговый режим |
+| `backend/app/api/cache_routes.py` | Cache API (v0.18+) |
 | `backend/app/api/websocket.py` | WebSocket handler |
 | `backend/app/services/job_manager.py` | In-memory job store |

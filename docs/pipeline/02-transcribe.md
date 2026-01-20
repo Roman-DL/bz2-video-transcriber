@@ -25,7 +25,7 @@ Audio (MP3, 128kbps)
 WhisperTranscriber
        │
        ▼
-AIClient (httpx)
+OllamaClient (httpx)
        │
        ▼
 Whisper HTTP API
@@ -135,5 +135,5 @@ python -m backend.app.services.transcriber
 
 - [`backend/app/services/audio_extractor.py`](../../backend/app/services/audio_extractor.py) — извлечение аудио
 - [`backend/app/services/transcriber.py`](../../backend/app/services/transcriber.py) — транскрипция
-- [`backend/app/services/ai_client.py`](../../backend/app/services/ai_client.py) — HTTP клиент
+- [`backend/app/services/ai_clients/ollama_client.py`](../../backend/app/services/ai_clients/ollama_client.py) — HTTP клиент для Ollama/Whisper
 - [`backend/app/models/schemas.py`](../../backend/app/models/schemas.py) — модели данных

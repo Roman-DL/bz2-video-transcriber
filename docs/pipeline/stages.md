@@ -21,7 +21,7 @@ backend/app/services/stages/
 
 ### StageContext
 
-Контекст, передаваемый между стадиями. Хранит результаты предыдущих стадий.
+Иммутабельный контекст, передаваемый между стадиями. Хранит результаты предыдущих стадий.
 
 ```python
 from app.services.stages import StageContext
@@ -30,7 +30,7 @@ from app.services.stages import StageContext
 context = StageContext()
 context = context.with_metadata("video_path", Path("video.mp4"))
 
-# Добавление результатов
+# Добавление результатов (возвращает новый контекст)
 context = context.with_result("parse", metadata)
 context = context.with_result("transcribe", (raw_transcript, audio_path))
 
@@ -72,16 +72,17 @@ class MyStage(BaseStage):
 
 ### StageRegistry
 
-Реестр для управления стадиями и построения pipeline.
+Реестр для управления стадиями и построения pipeline. Автоматически разрешает зависимости через топологическую сортировку (алгоритм Кана).
 
 ```python
 from app.services.stages import StageRegistry, create_default_stages
+from app.services.ai_clients import OllamaClient
 
 # Создание реестра со стандартными стадиями
-async with AIClient(settings) as ai_client:
+async with OllamaClient.from_settings(settings) as ai_client:
     registry = create_default_stages(ai_client, settings)
 
-# Построение pipeline
+# Построение pipeline (автоматически добавляет зависимости)
 stages = registry.build_pipeline(["parse", "transcribe", "clean"])
 
 # Выполнение
@@ -90,6 +91,10 @@ for stage in stages:
     result = await stage.execute(context)
     context = context.with_result(stage.name, result)
 ```
+
+> **API классов:** См. docstrings в `backend/app/services/stages/base.py`
+
+---
 
 ## Добавление нового шага
 
@@ -104,7 +109,7 @@ for stage in stages:
 
 from app.config import Settings
 from app.models.schemas import Longread
-from app.services.ai_client import AIClient
+from app.services.ai_clients import BaseAIClient
 from app.services.stages.base import BaseStage, StageContext, StageError
 from pydantic import BaseModel
 
@@ -126,7 +131,7 @@ class TelegramSummaryStage(BaseStage):
     depends_on = ["longread"]
     optional = True  # Не обязательный шаг
 
-    def __init__(self, ai_client: AIClient, settings: Settings):
+    def __init__(self, ai_client: BaseAIClient, settings: Settings):
         self.ai_client = ai_client
         self.settings = settings
 
@@ -193,6 +198,10 @@ stages = registry.build_pipeline([
 # Результат будет в context.get_result("telegram_summary")
 ```
 
+> **Выбор AI провайдера:** Для автоматического выбора между local (Ollama) и cloud (Claude) используйте `ProcessingStrategy`. См. [ADR-004](../adr/004-ai-client-abstraction.md).
+
+---
+
 ## Граф зависимостей
 
 ```
@@ -215,67 +224,7 @@ parse ─────┬──────────────────�
            └──→ telegram_summary (optional) ──────────────────┘
 ```
 
-## API Reference
-
-### StageContext
-
-| Метод | Описание |
-|-------|----------|
-| `with_result(name, result)` | Добавить результат стадии |
-| `get_result(name)` | Получить результат стадии |
-| `has_result(name)` | Проверить наличие результата |
-| `with_metadata(key, value)` | Добавить метаданные |
-| `get_metadata(key, default)` | Получить метаданные |
-
-### BaseStage
-
-| Атрибут | Тип | Описание |
-|---------|-----|----------|
-| `name` | `str` | Уникальный идентификатор |
-| `depends_on` | `list[str]` | Зависимости |
-| `optional` | `bool` | Опциональная стадия |
-| `status` | `ProcessingStatus` | Статус для прогресса |
-
-| Метод | Описание |
-|-------|----------|
-| `execute(context)` | Выполнить стадию (async) |
-| `estimate_time(input_size)` | Оценить время |
-| `validate_context(context)` | Проверить зависимости |
-
-### StageRegistry
-
-| Метод | Описание |
-|-------|----------|
-| `register(stage)` | Зарегистрировать стадию |
-| `get(name)` | Получить стадию по имени |
-| `get_all()` | Все стадии в порядке зависимостей |
-| `build_pipeline(names)` | Построить pipeline |
-
-## Встроенные тесты
-
-Запуск тестов:
-
-```bash
-PYTHONPATH=backend python3 backend/app/services/stages/base.py
-```
-
-Вывод:
-```
-Running Stage abstraction tests...
-
-Test 1: StageContext basic operations... OK
-Test 2: StageContext missing result... OK
-Test 3: StageRegistry registration... OK
-Test 4: Duplicate registration... OK
-Test 5: Dependency resolution... OK
-Test 6: Circular dependency detection... OK
-Test 7: Stage execution... OK
-Test 8: validate_context... OK
-Test 9: StageError... OK
-
-========================================
-All tests passed!
-```
+---
 
 ## Обработка ошибок
 
@@ -302,3 +251,19 @@ async def execute(self, context: StageContext) -> Result:
         logger.warning(f"Stage {self.name} failed: {e}, using fallback")
         return self._create_fallback_result()
 ```
+
+---
+
+## Встроенные тесты
+
+```bash
+PYTHONPATH=backend python3 backend/app/services/stages/base.py
+```
+
+---
+
+## Связанные документы
+
+- [Pipeline Orchestrator](08-orchestrator.md) — координация stages
+- [ADR-004: AI Client Abstraction](../adr/004-ai-client-abstraction.md) — OllamaClient, ClaudeClient
+- [ADR-006: Cloud Model Integration](../adr/006-cloud-model-integration.md) — ProcessingStrategy

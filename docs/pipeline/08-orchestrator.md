@@ -10,10 +10,10 @@
 1. **Полный pipeline** — автоматическое выполнение всех этапов
 2. **Пошаговый режим** — независимое выполнение каждого этапа для тестирования
 
-## Класс PipelineOrchestrator
+## Использование
 
 ```python
-from app.services.pipeline import PipelineOrchestrator, PipelineError
+from app.services.pipeline import PipelineOrchestrator
 
 orchestrator = PipelineOrchestrator(settings)
 
@@ -29,6 +29,36 @@ longread = await orchestrator.longread(chunks, metadata)
 summary = await orchestrator.summarize_from_longread(longread, metadata)
 files = await orchestrator.save(metadata, raw, cleaned, chunks, longread, summary)
 ```
+
+> **API методов:** См. docstrings в `backend/app/services/pipeline/orchestrator.py`
+
+---
+
+## Декомпозиция pipeline (v0.15+)
+
+С версии 0.15 pipeline декомпозирован на отдельные модули с чёткими обязанностями:
+
+```
+backend/app/services/pipeline/
+├── __init__.py              # Экспорт публичного API
+├── orchestrator.py          # Координация этапов, PipelineError
+├── progress_manager.py      # Веса этапов, расчёт прогресса
+├── fallback_factory.py      # Создание fallback объектов при ошибках
+├── config_resolver.py       # Override моделей для пошагового режима
+├── stage_cache.py           # Версионирование результатов (v0.18+)
+└── processing_strategy.py   # Выбор local/cloud провайдера (v0.19+)
+```
+
+| Модуль | Назначение |
+|--------|------------|
+| **orchestrator** | Координация stages, управление потоком выполнения |
+| **progress_manager** | Калиброванные веса STAGE_WEIGHTS, расчёт % прогресса |
+| **fallback_factory** | Создание fallback chunks/longread/summary при ошибках |
+| **config_resolver** | Подмена модели для конкретного этапа (model override) |
+| **stage_cache** | Сохранение/загрузка версионированных результатов этапов |
+| **processing_strategy** | Выбор между local (Ollama) и cloud (Claude) провайдером |
+
+> **Архитектурные решения:** [ADR-002](../adr/002-pipeline-decomposition.md)
 
 ---
 
@@ -104,44 +134,6 @@ files = await orchestrator.save(metadata, raw, cleaned, chunks, longread_qwen, s
 
 ---
 
-## API методов
-
-### process()
-
-```python
-async def process(
-    video_path: Path,
-    progress_callback: ProgressCallback | None = None,
-) -> ProcessingResult
-```
-
-Полный pipeline с параллельным выполнением Chunk и Summarize.
-
-**Progress callback signature:**
-```python
-async def callback(
-    status: ProcessingStatus,  # Текущий этап
-    progress: float,           # 0-100%
-    message: str,              # Человекочитаемое сообщение
-) -> None
-```
-
-### Пошаговые методы
-
-| Метод | Async | Вход | Выход |
-|-------|-------|------|-------|
-| `parse(video_path)` | Нет | `Path` | `VideoMetadata` |
-| `transcribe(video_path)` | Да | `Path` | `RawTranscript` |
-| `clean(raw, metadata, model?)` | Да | `RawTranscript`, `VideoMetadata` | `CleanedTranscript` |
-| `chunk(cleaned, metadata, model?)` | Да | `CleanedTranscript`, `VideoMetadata` | `TranscriptChunks` |
-| `longread(chunks, metadata, outline?, model?)` | Да | `TranscriptChunks`, `VideoMetadata` | `Longread` |
-| `summarize_from_longread(longread, metadata, model?)` | Да | `Longread`, `VideoMetadata` | `Summary` |
-| `save(metadata, raw, cleaned, chunks, longread, summary)` | Да | Все результаты | `list[str]` |
-
-> **model?** — опциональный параметр для выбора модели (например `model="qwen2.5:14b"`)
-
----
-
 ## Progress Callback
 
 ### Распределение прогресса по этапам
@@ -149,14 +141,14 @@ async def callback(
 | Этап | Вес | Накопительный % | Обоснование |
 |------|-----|-----------------|-------------|
 | PARSING | 2% | 0-2% | Синхронный regex |
-| TRANSCRIBING | 40% | 2-42% | Whisper (самый долгий) |
-| CLEANING | 10% | 42-52% | Один LLM вызов |
-| CHUNKING | 13% | 52-65% | Map-Reduce разбиение |
-| LONGREAD | 18% | 65-83% | Map-Reduce генерация секций |
-| SUMMARIZING | 14% | 83-97% | Один LLM вызов |
+| TRANSCRIBING | 45% | 2-47% | Whisper (доминирующий этап) |
+| CLEANING | 10% | 47-57% | Один LLM вызов |
+| CHUNKING | 12% | 57-69% | Map-Reduce разбиение |
+| LONGREAD | 18% | 69-87% | Map-Reduce генерация секций |
+| SUMMARIZING | 10% | 87-97% | Один LLM вызов из longread |
 | SAVING | 3% | 97-100% | Мгновенно (<1s) |
 
-> **Калибровка весов:** Веса сбалансированы по реальному времени выполнения, чтобы прогресс рос плавно. См. [справочник калибровки](../reference/progress-calibration.md).
+> **Калибровка:** Веса основаны на замерах: transcribe ~87s, clean ~7.5s, chunk+longread+summary ~25s. См. константу `STAGE_WEIGHTS` в `progress_manager.py`.
 
 ### Пример вывода
 
@@ -164,14 +156,14 @@ async def callback(
 [parsing] 0% - Parsing: 2025.01.09 ПШ.SV Video Title (Speaker).mp4
 [parsing] 100% - Parsed: 2025-01-09_ПШ-SV_video-title
 [transcribing] 2% - Transcribing: 2025.01.09 ПШ.SV Video Title (Speaker).mp4
-[transcribing] 42% - Transcribed: 156 segments, 3600s
-[cleaning] 42% - Cleaning transcript with glossary and LLM
-[cleaning] 52% - Cleaned: 45000 -> 42000 chars
-[chunking] 52% - Starting semantic chunking
-[chunking] 65% - Completed: 12 chunks
-[longread] 65% - Generating longread sections
-[longread] 83% - Generated 5 sections, 3500 words
-[summarizing] 83% - Generating summary from longread
+[transcribing] 47% - Transcribed: 156 segments, 3600s
+[cleaning] 47% - Cleaning transcript with glossary and LLM
+[cleaning] 57% - Cleaned: 45000 -> 42000 chars
+[chunking] 57% - Starting semantic chunking
+[chunking] 69% - Completed: 12 chunks
+[longread] 69% - Generating longread sections
+[longread] 87% - Generated 5 sections, 3500 words
+[summarizing] 87% - Generating summary from longread
 [summarizing] 97% - Summary ready
 [saving] 97% - Saving to: /archive/2025/01/ПШ.SV/Video Title (Speaker)
 [saving] 100% - Saved 6 files
@@ -179,63 +171,100 @@ async def callback(
 
 ---
 
-## ProgressEstimator
+## ProgressManager
 
-Сервис оценки времени выполнения каждого этапа. Используется для показа % прогресса.
+Сервис расчёта прогресса выполнения pipeline.
 
 ### Архитектура
 
 ```
-Pipeline._do_*()
+PipelineOrchestrator._do_*()
     │
-    ├─ estimator.estimate_*(input) → TimeEstimate
+    ├─ manager.calculate_overall_progress(stage, stage_progress)
     │       ↓
-    │   {estimated_seconds: 92.3, formula: "5 + 301 * 0.29"}
+    │   float (0-100%)
     │
-    ├─ estimator.start_ticker(stage, estimated_seconds, callback)
-    │   └─ asyncio.Task (обновляет % каждую секунду)
-    │
-    ├─ await operation()  ← asyncio.to_thread() для Whisper
-    │
-    └─ estimator.stop_ticker() → 100%
+    └─ manager.update_progress(callback, status, stage_progress, message)
+            ↓
+        await callback(status, overall_progress, message)
 ```
 
-### Оценка времени
+**Ключевой метод:**
+```python
+# Пример: TRANSCRIBING на 50% → 2 + (45 * 0.5) = 24.5%
+overall = manager.calculate_overall_progress(ProcessingStatus.TRANSCRIBING, 50)
+```
 
-Время выполнения оценивается по входным данным:
+> **API:** См. docstrings в `backend/app/services/pipeline/progress_manager.py`
 
-| Этап | Входные данные | Формула |
-|------|----------------|---------|
-| transcribe | video duration (сек) | `base_time + duration * factor` |
-| clean | input chars | `base_time + chars/1000 * factor` |
-| chunk | input chars | `base_time + chars/1000 * factor` |
-| summarize | input chars | `base_time + chars/1000 * factor` |
+---
 
-Коэффициенты хранятся в `config/performance.yaml`.
+## ProcessingStrategy (v0.19+)
 
-### Ticker
-
-Ticker — asyncio.Task, который каждую секунду вызывает callback с обновлённым %:
+Автоматический выбор AI провайдера по имени модели:
 
 ```python
-async def _ticker_loop(self, ...):
-    while elapsed < estimated_seconds * 1.5:
-        progress = min(99.0, (elapsed / estimated_seconds) * 100)
-        await callback(stage, progress, message)
-        await asyncio.sleep(1.0)
-        elapsed += 1.0
+from app.services.pipeline import ProcessingStrategy
+
+strategy = ProcessingStrategy(settings)
+
+# Автоматический выбор: "claude-*" → cloud, остальное → local
+async with strategy.create_client("claude-sonnet") as client:
+    response = await client.generate("...")
+
+# С fallback на локальную модель
+client, model = await strategy.get_client_with_fallback(
+    "claude-sonnet",   # Предпочтительная
+    "qwen2.5:14b"      # Fallback если Claude недоступен
+)
 ```
 
-**Важно:** Ticker ограничен 99% — финальные 100% устанавливает `stop_ticker()` после завершения операции.
+| Модель | Провайдер |
+|--------|-----------|
+| `claude-*` | Cloud (Anthropic API) |
+| Всё остальное | Local (Ollama) |
 
-### Ключевые файлы
+> **Подробнее:** [ADR-006](../adr/006-cloud-model-integration.md)
 
-| Файл | Описание |
-|------|----------|
-| `backend/app/services/progress_estimator.py` | ProgressEstimator сервис |
-| `config/performance.yaml` | Коэффициенты оценки времени |
+---
 
-> **Калибровка коэффициентов:** [docs/reference/progress-calibration.md](../reference/progress-calibration.md)
+## Stage Result Cache (v0.18+)
+
+Версионированное сохранение результатов каждого этапа для повторных запусков:
+
+```python
+from app.services.pipeline import StageResultCache
+from app.models.cache import CacheStageName
+
+cache = StageResultCache(settings)
+
+# Сохранить результат (автоматически создаёт новую версию)
+entry = await cache.save(
+    archive_path=Path("/data/archive/2025/..."),
+    stage=CacheStageName.CLEANING,
+    result=cleaned_transcript,
+    model_name="gemma2:9b",
+)
+
+# Загрузить текущую версию
+result = await cache.load(archive_path, CacheStageName.CLEANING)
+
+# Загрузить конкретную версию
+result = await cache.load(archive_path, CacheStageName.CLEANING, version=1)
+```
+
+**Структура кэша:**
+```
+archive/2025/01.09 ПШ/Video Title/
+├── pipeline_results.json    # Текущие результаты
+└── .cache/
+    ├── manifest.json        # Версии и метаданные
+    ├── cleaning/v1.json     # Версия 1
+    ├── cleaning/v2.json     # Re-run с другой моделью
+    └── ...
+```
+
+> **Подробнее:** [ADR-005](../adr/005-result-caching.md)
 
 ---
 
@@ -244,14 +273,8 @@ async def _ticker_loop(self, ...):
 ### PipelineError
 
 ```python
-class PipelineError(Exception):
-    stage: ProcessingStatus  # Этап, где произошла ошибка
-    message: str             # Описание ошибки
-    cause: Exception | None  # Оригинальное исключение
-```
+from app.services.pipeline import PipelineError
 
-**Пример обработки:**
-```python
 try:
     result = await orchestrator.process(video_path)
 except PipelineError as e:
@@ -262,58 +285,21 @@ except PipelineError as e:
 
 ### Graceful Degradation
 
-При ошибках в Chunk, Longread или Summary pipeline продолжает работу:
+При ошибках в некритичных этапах pipeline продолжает работу:
 
 | Ситуация | Поведение |
 |----------|-----------|
 | Chunker упал | Fallback на разбиение по ~300 слов |
-| Longread упал | Fallback — текст из chunks без секций |
+| Longread упал | Fallback — минимальный longread |
 | Summarizer упал | Fallback на минимальный конспект |
 | Все три упали | PipelineError |
 | Parse/Transcribe/Save упал | Немедленный PipelineError |
 
-**Fallback chunks:**
-```python
-# Простое разбиение по 300 слов
-TranscriptChunk(
-    id="video-id_001",
-    index=1,
-    topic="Часть 1",  # Вместо семантической темы
-    text="...",
-    word_count=300,
-)
-```
-
-**Fallback longread:**
-```python
-Longread(
-    video_id="...",
-    introduction="Материал недоступен из-за технической ошибки",
-    conclusion="",
-    sections=[],  # Пустой список секций
-    classification={"section": "Обучение", ...},
-)
-```
-
-**Fallback summary:**
-```python
-Summary(
-    video_id="...",
-    essence="Конспект недоступен из-за технической ошибки",
-    key_concepts=[],
-    practical_tools=[],
-    quotes=[],
-    insight="",
-    actions=[],
-    section="Обучение",
-    tags=["ПШ", "SV"],
-    access_level=1,
-)
-```
+Fallback объекты создаются через `FallbackFactory`. См. docstrings в `backend/app/services/pipeline/fallback_factory.py`.
 
 ---
 
-## Сериализация промежуточных результатов
+## Сериализация результатов
 
 Все модели — Pydantic, поддерживают JSON сериализацию:
 
@@ -330,16 +316,9 @@ raw = RawTranscript.model_validate_json(raw_json)
 
 ---
 
-## Тестирование
+## Связанные документы
 
-```bash
-cd backend
-python -m app.services.pipeline
-```
-
-Тесты включают:
-- PipelineError создание
-- Расчёт прогресса
-- Fallback chunks/summary
-- Parse метод
-- Интеграционный тест (если доступны AI сервисы)
+- [Stage Abstraction](stages.md) — система этапов обработки
+- [ADR-002: Pipeline Decomposition](../adr/002-pipeline-decomposition.md)
+- [ADR-005: Result Caching](../adr/005-result-caching.md)
+- [ADR-006: Cloud Model Integration](../adr/006-cloud-model-integration.md)

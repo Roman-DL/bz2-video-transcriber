@@ -64,6 +64,7 @@
 
 | Компонент | Документ | Описание |
 |-----------|----------|----------|
+| Stage Abstraction | [stages.md](stages.md) | Базовые классы, StageContext, StageRegistry |
 | PipelineOrchestrator | [08-orchestrator.md](08-orchestrator.md) | Координация этапов, progress callback |
 | FastAPI | [09-api.md](09-api.md) | HTTP API, WebSocket, пошаговый режим |
 
@@ -85,3 +86,10 @@
 - [data-formats.md](../data-formats.md) — форматы файлов
 - [api-reference.md](../api-reference.md) — HTTP API сервисов
 - [error-handling.md](error-handling.md) — обработка ошибок
+
+### Architecture Decision Records
+
+- [ADR-002: Pipeline Decomposition](../adr/002-pipeline-decomposition.md) — декомпозиция на модули
+- [ADR-004: AI Client Abstraction](../adr/004-ai-client-abstraction.md) — OllamaClient, ClaudeClient
+- [ADR-005: Result Caching](../adr/005-result-caching.md) — версионирование результатов
+- [ADR-006: Cloud Model Integration](../adr/006-cloud-model-integration.md) — ProcessingStrategy

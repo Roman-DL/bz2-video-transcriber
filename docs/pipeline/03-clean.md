@@ -176,5 +176,5 @@ python -m backend.app.services.cleaner
 - **System prompt:** [config/prompts/cleaner_system.md](../../config/prompts/cleaner_system.md)
 - **User template:** [config/prompts/cleaner_user.md](../../config/prompts/cleaner_user.md)
 - **Глоссарий:** [config/glossary.yaml](../../config/glossary.yaml)
-- **AI клиент:** [backend/app/services/ai_client.py](../../backend/app/services/ai_client.py)
+- **AI клиенты:** [backend/app/services/ai_clients/](../../backend/app/services/ai_clients/)
 - **Исследование:** [docs/research/llm-transcript-cleaning-guide.md](../research/llm-transcript-cleaning-guide.md)

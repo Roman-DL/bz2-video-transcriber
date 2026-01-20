@@ -31,21 +31,19 @@ async def call_ollama_with_retry(prompt: str, **kwargs):
 
 ## Обработка ошибок парсинга JSON
 
+Для извлечения и парсинга JSON из ответов LLM используются утилиты из `app/utils/`:
+
 ```python
-def _extract_json(self, text: str) -> str:
-    """Извлекает JSON из ответа LLM."""
-    # Удаляет ```json ... ``` обёртку если есть
-    if "```json" in text:
-        start = text.find("```json") + 7
-        end = text.find("```", start)
-        text = text[start:end]
+from app.utils import extract_json, parse_json_safe
 
-    # Находит JSON массив или объект
-    start = text.find("[") if "[" in text else text.find("{")
-    end = text.rfind("]") + 1 if "]" in text else text.rfind("}") + 1
+# Извлечь JSON из ответа LLM (поддерживает ```json блоки)
+json_str = extract_json(response, json_type="array")  # "array", "object", "auto"
 
-    return text[start:end].strip()
+# Безопасный парсинг с default значением
+data = parse_json_safe(json_str, default=[])
 ```
+
+> **Подробнее:** См. docstrings в `backend/app/utils/json_utils.py`
 
 ## Валидация результатов
 
@@ -68,5 +66,7 @@ def validate_chunks(chunks: list[TranscriptChunk]) -> bool:
 
 ## Связанные документы
 
-- **API клиент:** [`backend/app/services/ai_client.py`](../../backend/app/services/ai_client.py)
+- **AI клиенты:** [`backend/app/services/ai_clients/`](../../backend/app/services/ai_clients/) — OllamaClient, ClaudeClient
+- **Утилиты:** [`backend/app/utils/`](../../backend/app/utils/) — extract_json, parse_json_safe
+- **StageError:** [`backend/app/services/stages/base.py`](../../backend/app/services/stages/base.py) — исключение с контекстом stage
 - **API:** [api-reference.md](../api-reference.md)
