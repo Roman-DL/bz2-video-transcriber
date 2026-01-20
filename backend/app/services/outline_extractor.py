@@ -14,10 +14,10 @@ Configuration:
 import asyncio
 import json
 import logging
-import re
 import time
 
 from app.config import Settings, load_prompt
+from app.utils.json_utils import extract_json
 from app.models.schemas import PartOutline, TextPart, TranscriptOutline
 from app.services.ai_client import AIClient
 
@@ -281,8 +281,8 @@ class OutlineExtractor:
         Raises:
             ValueError: If JSON parsing fails
         """
-        # Extract JSON from response
-        json_str = self._extract_json(response)
+        # Extract JSON from response using shared utils
+        json_str = extract_json(response, json_type="object")
 
         try:
             data = json.loads(json_str)
@@ -307,44 +307,6 @@ class OutlineExtractor:
             key_points=key_points,
             summary=summary,
         )
-
-    def _extract_json(self, text: str) -> str:
-        """
-        Extract JSON object from LLM response.
-
-        Handles markdown code blocks and finds JSON object.
-
-        Args:
-            text: Raw LLM response
-
-        Returns:
-            Clean JSON string
-        """
-        cleaned = text.strip()
-
-        # Try to extract from markdown code block
-        code_block_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", cleaned)
-        if code_block_match:
-            cleaned = code_block_match.group(1).strip()
-
-        # Find JSON object
-        if not cleaned.startswith("{"):
-            start_idx = cleaned.find("{")
-            if start_idx != -1:
-                # Find matching closing brace
-                brace_count = 0
-                end_idx = start_idx
-                for i, char in enumerate(cleaned[start_idx:], start_idx):
-                    if char == "{":
-                        brace_count += 1
-                    elif char == "}":
-                        brace_count -= 1
-                        if brace_count == 0:
-                            end_idx = i
-                            break
-                cleaned = cleaned[start_idx : end_idx + 1]
-
-        return cleaned.strip()
 
     def _create_fallback_outline(self, part: TextPart) -> PartOutline:
         """
@@ -409,26 +371,23 @@ if __name__ == "__main__":
             print(f"FAILED: {e}")
             return 1
 
-        # Test 2: JSON extraction
-        print("\nTest 2: JSON extraction...", end=" ")
+        # Test 2: JSON extraction using shared utils
+        print("\nTest 2: JSON extraction (shared utils)...", end=" ")
         try:
-            # Create extractor without ai_client for unit tests
-            extractor = OutlineExtractor(None, settings)  # type: ignore
-
             # Plain JSON
             plain = '{"topics": ["A"], "key_points": ["B"], "summary": "C"}'
-            extracted = extractor._extract_json(plain)
+            extracted = extract_json(plain, json_type="object")
             assert extracted == plain
 
             # Markdown wrapped
             markdown = '```json\n{"topics": ["A"], "key_points": ["B"], "summary": "C"}\n```'
-            extracted = extractor._extract_json(markdown)
+            extracted = extract_json(markdown, json_type="object")
             assert "topics" in extracted
             assert "```" not in extracted
 
             # With preamble
             with_text = 'Here is the result:\n{"topics": ["A"], "key_points": ["B"], "summary": "C"}\nDone.'
-            extracted = extractor._extract_json(with_text)
+            extracted = extract_json(with_text, json_type="object")
             assert extracted.startswith("{")
             assert extracted.endswith("}")
 

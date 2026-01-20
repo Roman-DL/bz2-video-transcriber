@@ -8,11 +8,11 @@ Each section is generated in parallel with outline as shared context.
 import asyncio
 import json
 import logging
-import re
 import time
 from typing import Any
 
 from app.config import Settings, get_settings, load_prompt, get_model_config
+from app.utils.json_utils import extract_json
 from app.models.schemas import (
     Longread,
     LongreadSection,
@@ -398,7 +398,7 @@ class LongreadGenerator:
         Returns:
             Parsed dict
         """
-        json_str = self._extract_json(response)
+        json_str = extract_json(response, json_type="object")
 
         try:
             return json.loads(json_str)
@@ -406,43 +406,6 @@ class LongreadGenerator:
             logger.error(f"Failed to parse JSON: {e}")
             logger.debug(f"Response was: {response[:500]}...")
             return {}
-
-    def _extract_json(self, text: str) -> str:
-        """
-        Extract JSON from LLM response.
-
-        Handles markdown code blocks and finds JSON object.
-
-        Args:
-            text: Raw LLM response
-
-        Returns:
-            Clean JSON string
-        """
-        cleaned = text.strip()
-
-        # Try to extract from markdown code block
-        code_block_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", cleaned)
-        if code_block_match:
-            cleaned = code_block_match.group(1).strip()
-
-        # Find JSON object
-        if not cleaned.startswith("{"):
-            start_idx = cleaned.find("{")
-            if start_idx != -1:
-                brace_count = 0
-                end_idx = start_idx
-                for i, char in enumerate(cleaned[start_idx:], start_idx):
-                    if char == "{":
-                        brace_count += 1
-                    elif char == "}":
-                        brace_count -= 1
-                        if brace_count == 0:
-                            end_idx = i
-                            break
-                cleaned = cleaned[start_idx : end_idx + 1]
-
-        return cleaned.strip()
 
 
 if __name__ == "__main__":
@@ -506,8 +469,8 @@ if __name__ == "__main__":
             print(f"FAILED: {e}")
             return 1
 
-        # Test 3: JSON extraction
-        print("\nTest 3: JSON extraction...", end=" ")
+        # Test 3: JSON extraction using shared utils
+        print("\nTest 3: JSON extraction (shared utils)...", end=" ")
         try:
             test_responses = [
                 '{"title": "Test", "content": "Content"}',
@@ -515,7 +478,7 @@ if __name__ == "__main__":
                 'Some text before {"title": "Test"} and after',
             ]
             for resp in test_responses:
-                result = generator._extract_json(resp)
+                result = extract_json(resp, json_type="object")
                 assert "{" in result and "}" in result
             print("OK")
         except Exception as e:

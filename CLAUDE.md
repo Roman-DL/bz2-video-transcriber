@@ -60,6 +60,7 @@ Video → Parse → Whisper → Clean → Chunk → Longread → Summary → Sav
 backend/app/services/           # Сервисы pipeline
 backend/app/services/pipeline/  # Pipeline package (v0.15+)
 backend/app/services/stages/    # Stage абстракция (v0.14+)
+backend/app/utils/              # Shared utilities (v0.16+)
 backend/app/api/                # FastAPI endpoints
 frontend/src/                   # React + Vite + Tailwind
 config/prompts/                 # LLM промпты
@@ -111,6 +112,28 @@ class TelegramSummaryStage(BaseStage):
 ```
 
 Подробнее: [docs/pipeline/stages.md](docs/pipeline/stages.md)
+
+## Shared Utils (v0.16+)
+
+Общие утилиты для LLM сервисов, извлечённые из дублированного кода:
+
+```
+backend/app/utils/
+├── __init__.py          # Экспорт публичных функций
+├── json_utils.py        # extract_json(), parse_json_safe()
+├── token_utils.py       # estimate_tokens(), calculate_num_predict()
+└── chunk_utils.py       # validate_cyrillic_ratio(), generate_chunk_id()
+```
+
+**Использование:**
+```python
+from app.utils import extract_json, calculate_num_predict
+
+json_str = extract_json(response, json_type="array")
+num_predict = calculate_num_predict(tokens, task="chunker")
+```
+
+Подробнее: [docs/adr/003-shared-utils.md](docs/adr/003-shared-utils.md)
 
 ## AI сервисы
 

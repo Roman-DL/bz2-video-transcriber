@@ -6,11 +6,11 @@ Creates structured summaries from cleaned transcripts using Ollama LLM.
 
 import json
 import logging
-import re
 import time
 from typing import Any
 
 from app.config import Settings, get_settings, load_prompt
+from app.utils.json_utils import extract_json
 from app.models.schemas import (
     CleanedTranscript,
     TranscriptOutline,
@@ -201,7 +201,7 @@ class VideoSummarizer:
             ValueError: If JSON parsing fails
         """
         # Extract JSON from response (handles markdown code blocks)
-        json_str = self._extract_json(response)
+        json_str = extract_json(response, json_type="object")
 
         # Parse JSON
         try:
@@ -257,46 +257,6 @@ class VideoSummarizer:
 
         return result
 
-    def _extract_json(self, text: str) -> str:
-        """
-        Extract JSON from LLM response.
-
-        Handles responses wrapped in markdown code blocks and
-        finds JSON object even if surrounded by other text.
-
-        Args:
-            text: Raw LLM response
-
-        Returns:
-            Clean JSON string
-        """
-        cleaned = text.strip()
-
-        # Try to extract from markdown code block first
-        code_block_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", cleaned)
-        if code_block_match:
-            cleaned = code_block_match.group(1).strip()
-
-        # If still not valid JSON object, try to find it in the text
-        if not cleaned.startswith("{"):
-            # Find the JSON object boundaries
-            start_idx = cleaned.find("{")
-            if start_idx != -1:
-                # Find matching closing brace
-                brace_count = 0
-                end_idx = start_idx
-                for i, char in enumerate(cleaned[start_idx:], start_idx):
-                    if char == "{":
-                        brace_count += 1
-                    elif char == "}":
-                        brace_count -= 1
-                        if brace_count == 0:
-                            end_idx = i
-                            break
-                cleaned = cleaned[start_idx : end_idx + 1]
-
-        return cleaned.strip()
-
 
 if __name__ == "__main__":
     """Run tests when executed directly."""
@@ -328,13 +288,11 @@ if __name__ == "__main__":
             print(f"FAILED: {e}")
             return 1
 
-        # Test 2: Extract JSON from plain response
-        print("\nTest 2: Extract JSON (plain)...", end=" ")
+        # Test 2: Extract JSON using shared utils
+        print("\nTest 2: Extract JSON (shared utils)...", end=" ")
         try:
-            summarizer = VideoSummarizer(None, settings)  # type: ignore
-
             plain_json = '{"summary": "Test summary", "section": "Обучение"}'
-            extracted = summarizer._extract_json(plain_json)
+            extracted = extract_json(plain_json, json_type="object")
             assert extracted == plain_json, f"Expected {plain_json}, got {extracted}"
             print("OK")
         except Exception as e:
@@ -345,7 +303,7 @@ if __name__ == "__main__":
         print("\nTest 3: Extract JSON (markdown)...", end=" ")
         try:
             markdown_json = '```json\n{"summary": "Test", "section": "Бизнес"}\n```'
-            extracted = summarizer._extract_json(markdown_json)
+            extracted = extract_json(markdown_json, json_type="object")
             assert "{" in extracted and "}" in extracted, "JSON markers missing"
             assert "```" not in extracted, "Markdown markers not removed"
             print("OK")
@@ -357,6 +315,8 @@ if __name__ == "__main__":
         # Test 4: Parse summary fields
         print("\nTest 4: Parse summary fields...", end=" ")
         try:
+            summarizer = VideoSummarizer(None, settings)  # type: ignore
+
             test_json = """{
                 "summary": "Это тестовое саммари видео.",
                 "key_points": ["Пункт 1", "Пункт 2", "Пункт 3"],

@@ -12,18 +12,10 @@ This provides global context awareness for long videos while
 maintaining stable performance on limited server resources.
 """
 
-import json
 import logging
-import re
 import time
 
 from app.config import Settings, get_settings, load_model_config, load_prompt
-
-# Default configuration (overridden by models.yaml)
-DEFAULT_LARGE_TEXT_THRESHOLD = 10000
-DEFAULT_MIN_CHUNK_WORDS = 100
-DEFAULT_TARGET_CHUNK_WORDS = 250
-
 from app.models.schemas import (
     CleanedTranscript,
     TextPart,
@@ -35,6 +27,14 @@ from app.models.schemas import (
 from app.services.ai_client import AIClient
 from app.services.outline_extractor import OutlineExtractor
 from app.services.text_splitter import TextSplitter
+from app.utils.chunk_utils import generate_chunk_id, validate_cyrillic_ratio
+from app.utils.json_utils import extract_json, parse_json_safe
+from app.utils.token_utils import calculate_num_predict_from_chars
+
+# Default configuration (overridden by models.yaml)
+DEFAULT_LARGE_TEXT_THRESHOLD = 10000
+DEFAULT_MIN_CHUNK_WORDS = 100
+DEFAULT_TARGET_CHUNK_WORDS = 250
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -73,12 +73,20 @@ class SemanticChunker:
 
         # Load model-specific chunking configuration
         chunker_config = load_model_config(settings.chunker_model, "chunker", settings)
-        self.large_text_threshold = chunker_config.get("large_text_threshold", DEFAULT_LARGE_TEXT_THRESHOLD)
-        self.min_chunk_words = chunker_config.get("min_chunk_words", DEFAULT_MIN_CHUNK_WORDS)
-        self.target_chunk_words = chunker_config.get("target_chunk_words", DEFAULT_TARGET_CHUNK_WORDS)
+        self.large_text_threshold = chunker_config.get(
+            "large_text_threshold", DEFAULT_LARGE_TEXT_THRESHOLD
+        )
+        self.min_chunk_words = chunker_config.get(
+            "min_chunk_words", DEFAULT_MIN_CHUNK_WORDS
+        )
+        self.target_chunk_words = chunker_config.get(
+            "target_chunk_words", DEFAULT_TARGET_CHUNK_WORDS
+        )
 
         # Load text_splitter config and create component
-        splitter_config = load_model_config(settings.chunker_model, "text_splitter", settings)
+        splitter_config = load_model_config(
+            settings.chunker_model, "text_splitter", settings
+        )
         self.text_splitter = TextSplitter(
             part_size=splitter_config.get("part_size", 6000),
             overlap_size=splitter_config.get("overlap_size", 1500),
@@ -90,6 +98,8 @@ class SemanticChunker:
         self,
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
+        text_parts: list[TextPart] | None = None,
+        outline: TranscriptOutline | None = None,
     ) -> TranscriptChunks:
         """
         Split cleaned transcript into semantic chunks.
@@ -99,9 +109,14 @@ class SemanticChunker:
         2. Extracts outline from each part
         3. Uses outline as context for better chunking
 
+        When text_parts and outline are provided (from pipeline),
+        skips splitting and outline extraction to avoid duplication.
+
         Args:
             cleaned_transcript: Cleaned transcript from cleaner service
             metadata: Video metadata (for chunk IDs)
+            text_parts: Pre-split text parts (optional, extracted if not provided)
+            outline: Pre-extracted outline (optional, extracted for large texts)
 
         Returns:
             TranscriptChunks with list of semantic chunks
@@ -110,15 +125,14 @@ class SemanticChunker:
         input_chars = len(text)
         word_count = len(text.split())
 
-        logger.info(f"Chunking transcript: {input_chars} chars, {word_count} words")
-
         start_time = time.time()
 
-        # Extract outline for large texts (Map-Reduce approach)
-        outline: TranscriptOutline | None = None
-        text_parts = self.text_splitter.split(text)
+        # Split text if not provided
+        if text_parts is None:
+            text_parts = self.text_splitter.split(text)
 
-        if input_chars > self.large_text_threshold:
+        # Extract outline for large texts if not provided
+        if outline is None and input_chars > self.large_text_threshold:
             logger.info(
                 f"Large text detected ({input_chars} chars), "
                 f"extracting outline from {len(text_parts)} parts"
@@ -128,69 +142,21 @@ class SemanticChunker:
                 f"Outline extracted: {outline.total_parts} parts, "
                 f"{len(outline.all_topics)} unique topics"
             )
+            logger.info(
+                f"Chunking transcript: {input_chars} chars, {word_count} words"
+            )
+        elif outline is not None and outline.total_parts > 0:
+            logger.info(
+                f"Chunking with pre-extracted outline: {input_chars} chars, "
+                f"{len(text_parts)} parts, {len(outline.all_topics)} topics"
+            )
+        else:
+            logger.info(
+                f"Chunking transcript: {input_chars} chars, {word_count} words"
+            )
 
         # Process each part and collect all chunks
-        all_chunks: list[TranscriptChunk] = []
-
-        for part in text_parts:
-            if len(text_parts) > 1:
-                logger.debug(
-                    f"Chunking part {part.index}/{len(text_parts)}: "
-                    f"{part.char_count} chars"
-                )
-
-            prompt = self._build_prompt(part.text, outline)
-            # Use chunker-specific model if configured
-            model = self.settings.chunker_model
-
-            # Диагностика: размер промпта для отладки переполнения контекста
-            logger.info(
-                f"Part {part.index}/{len(text_parts)}: "
-                f"prompt={len(prompt)} chars (~{len(prompt)//3} tokens), "
-                f"text={part.char_count} chars"
-            )
-
-            # Динамический расчёт num_predict на основе размера текста
-            # Chunker копирует весь текст в output, поэтому нужен большой num_predict
-            estimated_tokens = (part.char_count // 3) * 1.3
-            num_predict = max(4096, int(estimated_tokens) + 500)
-
-            response = await self.ai_client.generate(
-                prompt, model=model, num_predict=num_predict
-            )
-
-            # Проверка пустого ответа с диагностикой
-            if not response or not response.strip():
-                logger.error(
-                    f"Part {part.index}: Empty LLM response. "
-                    f"Prompt: {len(prompt)} chars (~{len(prompt)//3} tokens), "
-                    f"Model: {model}"
-                )
-                raise ValueError(
-                    f"LLM returned empty response for part {part.index}. "
-                    f"Prompt size: {len(prompt)} chars (~{len(prompt)//3} tokens). "
-                    f"May exceed model context window."
-                )
-
-            # Parse chunks from this part
-            part_chunks = self._parse_chunks(
-                response, metadata.video_id, index_offset=len(all_chunks)
-            )
-
-            # Fallback: если парсинг не удался, создаём простые чанки по словам
-            if not part_chunks:
-                logger.warning(f"Part {part.index}: using fallback chunking")
-                part_chunks = self._create_fallback_part_chunks(
-                    part.text, metadata.video_id, index_offset=len(all_chunks)
-                )
-
-            all_chunks.extend(part_chunks)
-
-            # Log chunk sizes for debugging
-            logger.info(
-                f"Part {part.index}/{len(text_parts)}: {len(part_chunks)} chunks, "
-                f"sizes: {[c.word_count for c in part_chunks]}"
-            )
+        all_chunks = await self._process_parts(text_parts, outline, metadata.video_id)
 
         # Log total before merge
         logger.info(
@@ -233,8 +199,8 @@ class SemanticChunker:
         """
         Split transcript into chunks using pre-extracted outline.
 
-        Used by pipeline when outline is already extracted to avoid
-        duplicate extraction. For step-by-step mode, use chunk() instead.
+        Deprecated: Use chunk() with text_parts and outline parameters instead.
+        Kept for backward compatibility with existing pipeline code.
 
         Args:
             cleaned_transcript: Cleaned transcript from cleaner service
@@ -245,22 +211,32 @@ class SemanticChunker:
         Returns:
             TranscriptChunks with list of semantic chunks
         """
-        text = cleaned_transcript.text
-        input_chars = len(text)
-        word_count = len(text.split())
+        return await self.chunk(
+            cleaned_transcript=cleaned_transcript,
+            metadata=metadata,
+            text_parts=text_parts,
+            outline=outline,
+        )
 
-        if outline is not None and outline.total_parts > 0:
-            logger.info(
-                f"Chunking with pre-extracted outline: {input_chars} chars, "
-                f"{len(text_parts)} parts, {len(outline.all_topics)} topics"
-            )
-        else:
-            logger.info(f"Chunking transcript: {input_chars} chars, {word_count} words")
+    async def _process_parts(
+        self,
+        text_parts: list[TextPart],
+        outline: TranscriptOutline | None,
+        video_id: str,
+    ) -> list[TranscriptChunk]:
+        """
+        Process text parts and collect chunks.
 
-        start_time = time.time()
+        Args:
+            text_parts: List of text parts to process
+            outline: Optional outline for context
+            video_id: Video ID for chunk IDs
 
-        # Process each part and collect all chunks
+        Returns:
+            List of all chunks from all parts
+        """
         all_chunks: list[TranscriptChunk] = []
+        model = self.settings.chunker_model
 
         for part in text_parts:
             if len(text_parts) > 1:
@@ -270,26 +246,25 @@ class SemanticChunker:
                 )
 
             prompt = self._build_prompt(part.text, outline)
-            # Use chunker-specific model if configured
-            model = self.settings.chunker_model
 
-            # Диагностика: размер промпта для отладки переполнения контекста
+            # Diagnostic: prompt size for context overflow debugging
             logger.info(
                 f"Part {part.index}/{len(text_parts)}: "
                 f"prompt={len(prompt)} chars (~{len(prompt)//3} tokens), "
                 f"text={part.char_count} chars"
             )
 
-            # Динамический расчёт num_predict на основе размера текста
-            # Chunker копирует весь текст в output, поэтому нужен большой num_predict
-            estimated_tokens = (part.char_count // 3) * 1.3
-            num_predict = max(4096, int(estimated_tokens) + 500)
+            # Dynamic num_predict based on text size
+            # Chunker copies entire text to output, needs large num_predict
+            num_predict = calculate_num_predict_from_chars(
+                part.char_count, task="chunker"
+            )
 
             response = await self.ai_client.generate(
                 prompt, model=model, num_predict=num_predict
             )
 
-            # Проверка пустого ответа с диагностикой
+            # Check for empty response with diagnostics
             if not response or not response.strip():
                 logger.error(
                     f"Part {part.index}: Empty LLM response. "
@@ -304,14 +279,14 @@ class SemanticChunker:
 
             # Parse chunks from this part
             part_chunks = self._parse_chunks(
-                response, metadata.video_id, index_offset=len(all_chunks)
+                response, video_id, index_offset=len(all_chunks)
             )
 
-            # Fallback: если парсинг не удался, создаём простые чанки по словам
+            # Fallback: create simple word-based chunks if parsing failed
             if not part_chunks:
                 logger.warning(f"Part {part.index}: using fallback chunking")
                 part_chunks = self._create_fallback_part_chunks(
-                    part.text, metadata.video_id, index_offset=len(all_chunks)
+                    part.text, video_id, index_offset=len(all_chunks)
                 )
 
             all_chunks.extend(part_chunks)
@@ -322,36 +297,7 @@ class SemanticChunker:
                 f"sizes: {[c.word_count for c in part_chunks]}"
             )
 
-        # Log total before merge
-        logger.info(
-            f"Total chunks before merge: {len(all_chunks)}, "
-            f"total words: {sum(c.word_count for c in all_chunks)}"
-        )
-
-        # Validate and merge small chunks
-        all_chunks = self._validate_and_merge_chunks(all_chunks, metadata.video_id)
-
-        elapsed = time.time() - start_time
-
-        result = TranscriptChunks(
-            chunks=all_chunks,
-            model_name=self.settings.chunker_model,
-        )
-
-        logger.info(
-            f"Chunking complete: {result.total_chunks} chunks, "
-            f"avg size {result.avg_chunk_size} words"
-        )
-
-        # Performance metrics for progress estimation
-        perf_logger.info(
-            f"PERF | chunk | "
-            f"input_chars={input_chars} | "
-            f"chunks={result.total_chunks} | "
-            f"time={elapsed:.1f}s"
-        )
-
-        return result
+        return all_chunks
 
     def _build_prompt(
         self, text: str, outline: TranscriptOutline | None = None
@@ -399,24 +345,28 @@ class SemanticChunker:
             return []
 
         # Extract JSON from response (handles markdown code blocks)
-        json_str = self._extract_json(response)
+        json_str = extract_json(response, json_type="array")
 
         # Check if extraction found anything - return empty list for fallback
         if not json_str or not json_str.strip():
-            logger.warning(f"Could not extract JSON from response, will use fallback: {response[:200]}...")
+            logger.warning(
+                f"Could not extract JSON from response, will use fallback: "
+                f"{response[:200]}..."
+            )
             return []
 
-        # Parse JSON
-        try:
-            data = json.loads(json_str)
-        except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse JSON: {e}, will use fallback chunking")
-            logger.debug(f"Response was: {response[:500]}...")
+        # Parse JSON with safe parser
+        data = parse_json_safe(json_str, default=None, log_errors=True)
+
+        if data is None:
+            logger.warning("Failed to parse JSON, will use fallback chunking")
             return []
 
         # Validate it's a list - return empty for fallback
         if not isinstance(data, list):
-            logger.warning(f"Expected JSON array, got {type(data).__name__}, will use fallback")
+            logger.warning(
+                f"Expected JSON array, got {type(data).__name__}, will use fallback"
+            )
             return []
 
         # Convert to TranscriptChunk objects
@@ -430,8 +380,7 @@ class SemanticChunker:
             text = item.get("text", "")
 
             # Validate: text should be Russian (from transcript, not generated)
-            cyrillic_count = len(re.findall(r"[а-яА-ЯёЁ]", text))
-            cyrillic_ratio = cyrillic_count / max(len(text), 1)
+            cyrillic_ratio = validate_cyrillic_ratio(text)
             if cyrillic_ratio < 0.5:
                 logger.error(
                     f"Chunk {actual_index} has non-Russian text "
@@ -439,7 +388,7 @@ class SemanticChunker:
                 )
 
             chunk = TranscriptChunk(
-                id=f"{video_id}_{actual_index:03d}",
+                id=generate_chunk_id(video_id, actual_index),
                 index=actual_index,
                 topic=topic,
                 text=text,
@@ -448,46 +397,6 @@ class SemanticChunker:
             chunks.append(chunk)
 
         return chunks
-
-    def _extract_json(self, text: str) -> str:
-        """
-        Extract JSON from LLM response.
-
-        Handles responses wrapped in markdown code blocks and
-        finds JSON array even if surrounded by other text.
-
-        Args:
-            text: Raw LLM response
-
-        Returns:
-            Clean JSON string
-        """
-        cleaned = text.strip()
-
-        # Try to extract from markdown code block first
-        code_block_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", cleaned)
-        if code_block_match:
-            cleaned = code_block_match.group(1).strip()
-
-        # If still not valid JSON array, try to find it in the text
-        if not cleaned.startswith("["):
-            # Find the JSON array boundaries
-            start_idx = cleaned.find("[")
-            if start_idx != -1:
-                # Find matching closing bracket
-                bracket_count = 0
-                end_idx = start_idx
-                for i, char in enumerate(cleaned[start_idx:], start_idx):
-                    if char == "[":
-                        bracket_count += 1
-                    elif char == "]":
-                        bracket_count -= 1
-                        if bracket_count == 0:
-                            end_idx = i
-                            break
-                cleaned = cleaned[start_idx : end_idx + 1]
-
-        return cleaned.strip()
 
     def _validate_and_merge_chunks(
         self, chunks: list[TranscriptChunk], video_id: str
@@ -510,10 +419,13 @@ class SemanticChunker:
             return chunks
 
         # Count small chunks for logging
-        small_count = sum(1 for c in chunks if c.word_count < self.min_chunk_words)
+        small_count = sum(
+            1 for c in chunks if c.word_count < self.min_chunk_words
+        )
         if small_count > 0:
             logger.warning(
-                f"Found {small_count}/{len(chunks)} chunks with < {self.min_chunk_words} words, merging"
+                f"Found {small_count}/{len(chunks)} chunks with "
+                f"< {self.min_chunk_words} words, merging"
             )
 
         merged: list[TranscriptChunk] = []
@@ -591,7 +503,7 @@ class SemanticChunker:
         for i, chunk in enumerate(merged):
             new_index = i + 1
             merged[i] = TranscriptChunk(
-                id=f"{video_id}_{new_index:03d}",
+                id=generate_chunk_id(video_id, new_index),
                 index=new_index,
                 topic=chunk.topic,
                 text=chunk.text,
@@ -636,7 +548,7 @@ class SemanticChunker:
 
             chunks.append(
                 TranscriptChunk(
-                    id=f"{video_id}_{actual_index:03d}",
+                    id=generate_chunk_id(video_id, actual_index),
                     index=actual_index,
                     topic=f"Часть {actual_index}",
                     text=chunk_text,
@@ -677,13 +589,11 @@ if __name__ == "__main__":
             print(f"FAILED: {e}")
             return 1
 
-        # Test 2: Extract JSON from plain response
-        print("\nTest 2: Extract JSON (plain)...", end=" ")
+        # Test 2: Extract JSON using shared utils
+        print("\nTest 2: Extract JSON (shared utils)...", end=" ")
         try:
-            chunker = SemanticChunker(None, settings)  # type: ignore
-
             plain_json = '[{"index": 1, "topic": "Test", "text": "Hello"}]'
-            extracted = chunker._extract_json(plain_json)
+            extracted = extract_json(plain_json, json_type="array")
             assert extracted == plain_json, f"Expected {plain_json}, got {extracted}"
             print("OK")
         except Exception as e:
@@ -693,8 +603,10 @@ if __name__ == "__main__":
         # Test 3: Extract JSON from markdown-wrapped response
         print("\nTest 3: Extract JSON (markdown)...", end=" ")
         try:
-            markdown_json = '```json\n[{"index": 1, "topic": "Test", "text": "Hello"}]\n```'
-            extracted = chunker._extract_json(markdown_json)
+            markdown_json = (
+                '```json\n[{"index": 1, "topic": "Test", "text": "Hello"}]\n```'
+            )
+            extracted = extract_json(markdown_json, json_type="array")
             assert "[" in extracted and "]" in extracted, "JSON markers missing"
             assert "```" not in extracted, "Markdown markers not removed"
             print("OK")
@@ -706,6 +618,8 @@ if __name__ == "__main__":
         # Test 4: Parse chunks
         print("\nTest 4: Parse chunks...", end=" ")
         try:
+            chunker = SemanticChunker(None, settings)  # type: ignore
+
             test_json = """[
                 {"index": 1, "topic": "Первая тема", "text": "Это текст первого чанка с несколькими словами."},
                 {"index": 2, "topic": "Вторая тема", "text": "А это текст второго чанка."}
@@ -720,8 +634,14 @@ if __name__ == "__main__":
             assert chunks[1].index == 2
 
             print("OK")
-            print(f"  Chunk 1: {chunks[0].id} - {chunks[0].topic} ({chunks[0].word_count} words)")
-            print(f"  Chunk 2: {chunks[1].id} - {chunks[1].topic} ({chunks[1].word_count} words)")
+            print(
+                f"  Chunk 1: {chunks[0].id} - {chunks[0].topic} "
+                f"({chunks[0].word_count} words)"
+            )
+            print(
+                f"  Chunk 2: {chunks[1].id} - {chunks[1].topic} "
+                f"({chunks[1].word_count} words)"
+            )
         except Exception as e:
             print(f"FAILED: {e}")
             return 1
@@ -786,7 +706,9 @@ if __name__ == "__main__":
                     print(f"  Total chunks: {result.total_chunks}")
                     print(f"  Average size: {result.avg_chunk_size} words")
                     for chunk in result.chunks:
-                        print(f"  - {chunk.id}: {chunk.topic} ({chunk.word_count} words)")
+                        print(
+                            f"  - {chunk.id}: {chunk.topic} ({chunk.word_count} words)"
+                        )
 
                 except Exception as e:
                     print(f"FAILED: {e}")
