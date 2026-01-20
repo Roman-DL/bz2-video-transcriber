@@ -45,22 +45,56 @@ Video → Parse → Whisper → Clean → Chunk → Longread → Summary → Sav
 | Архитектура | [docs/architecture.md](docs/architecture.md) |
 | **Конфигурация** | [docs/configuration.md](docs/configuration.md) |
 | Pipeline (этапы) | [docs/pipeline/](docs/pipeline/) |
+| **Stage абстракция** | [docs/pipeline/stages.md](docs/pipeline/stages.md) |
 | Форматы данных | [docs/data-formats.md](docs/data-formats.md) |
 | API сервисов | [docs/api-reference.md](docs/api-reference.md) |
 | Развёртывание | [docs/deployment.md](docs/deployment.md) |
 | Логирование | [docs/logging.md](docs/logging.md) |
 | Тестирование | [docs/testing.md](docs/testing.md) |
 | Тестирование моделей | [docs/model-testing.md](docs/model-testing.md) |
+| ADR (решения) | [docs/adr/](docs/adr/) |
 
 ## Структура проекта
 
 ```
-backend/app/services/   # Сервисы pipeline
-backend/app/api/        # FastAPI endpoints
-frontend/src/           # React + Vite + Tailwind
-config/prompts/         # LLM промпты
-config/glossary.yaml    # Терминология
+backend/app/services/         # Сервисы pipeline
+backend/app/services/stages/  # Stage абстракция (v0.14+)
+backend/app/api/              # FastAPI endpoints
+frontend/src/                 # React + Vite + Tailwind
+config/prompts/               # LLM промпты
+config/glossary.yaml          # Терминология
+docs/adr/                     # Architecture Decision Records
 ```
+
+## Stage Abstraction (v0.14+)
+
+Система абстракций для этапов обработки. Позволяет добавлять новые шаги без изменения оркестратора.
+
+```
+backend/app/services/stages/
+├── base.py              # BaseStage, StageContext, StageRegistry
+├── parse_stage.py       # Парсинг имени файла
+├── transcribe_stage.py  # Транскрипция через Whisper
+├── clean_stage.py       # Очистка транскрипта
+├── chunk_stage.py       # Семантическое чанкирование
+├── longread_stage.py    # Генерация лонгрида
+├── summarize_stage.py   # Генерация конспекта
+└── save_stage.py        # Сохранение результатов
+```
+
+**Добавление нового этапа:**
+```python
+class TelegramSummaryStage(BaseStage):
+    name = "telegram_summary"
+    depends_on = ["longread"]
+    optional = True
+
+    async def execute(self, context: StageContext) -> TelegramSummary:
+        longread = context.get_result("longread")
+        # ...
+```
+
+Подробнее: [docs/pipeline/stages.md](docs/pipeline/stages.md)
 
 ## AI сервисы
 

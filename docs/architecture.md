@@ -162,7 +162,16 @@ bz2-video-transcriber/
 │   │   │   ├── longread_generator.py  # Генерация лонгрида
 │   │   │   ├── summary_generator.py   # Генерация конспекта
 │   │   │   ├── saver.py               # Сохранение в архив
-│   │   │   └── pipeline.py            # Оркестрация
+│   │   │   ├── pipeline.py            # Оркестрация (legacy)
+│   │   │   └── stages/                # Stage абстракция (v0.14+)
+│   │   │       ├── base.py            # BaseStage, StageContext, Registry
+│   │   │       ├── parse_stage.py
+│   │   │       ├── transcribe_stage.py
+│   │   │       ├── clean_stage.py
+│   │   │       ├── chunk_stage.py
+│   │   │       ├── longread_stage.py
+│   │   │       ├── summarize_stage.py
+│   │   │       └── save_stage.py
 │   │   └── models/
 │   │       └── schemas.py       # Pydantic модели
 │   └── requirements.txt
@@ -257,6 +266,52 @@ bz2-video-transcriber/
 ### Инфраструктура
 - [[Конфигурация сервера]] — спецификация железа
 - [[Справочник сервисов]] — порты и адреса
+
+---
+
+## Stage Abstraction (v0.14+)
+
+Система абстракций для этапов обработки, позволяющая добавлять новые шаги без изменения оркестратора.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        StageRegistry                             │
+│                    (управление этапами)                          │
+└────────────┬───────────────────────────────────────────────────┘
+             │
+    ┌────────┼────────┬────────┬────────┬────────┬────────┐
+    ▼        ▼        ▼        ▼        ▼        ▼        ▼
+  Parse  Transcribe  Clean   Chunk  Longread Summarize  Save
+  Stage    Stage    Stage   Stage   Stage    Stage    Stage
+    │        │        │        │        │        │        │
+    └────────┴────────┴────────┴────────┴────────┴────────┘
+                              │
+                     ┌────────┴────────┐
+                     ▼                 ▼
+               StageContext       BaseStage
+          (передача данных)   (абстрактный класс)
+```
+
+**Основные классы:**
+- `BaseStage` — абстрактный базовый класс для этапов
+- `StageContext` — immutable контекст для передачи данных между этапами
+- `StageRegistry` — реестр для управления этапами и построения pipeline
+
+**Добавление нового этапа:**
+```python
+class TelegramSummaryStage(BaseStage):
+    name = "telegram_summary"
+    depends_on = ["longread"]
+    optional = True
+
+    async def execute(self, context: StageContext) -> TelegramSummary:
+        longread = context.get_result("longread")
+        # ...
+```
+
+**Документация:**
+- [pipeline/stages.md](pipeline/stages.md) — детальное описание
+- [adr/001-stage-abstraction.md](adr/001-stage-abstraction.md) — обоснование решения
 
 ---
 
