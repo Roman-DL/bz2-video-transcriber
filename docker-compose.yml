@@ -27,6 +27,10 @@ services:
       - LLM_TIMEOUT=300
       # Cloud AI (optional)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Proxy for external APIs (required for blocked services like Claude)
+      - HTTP_PROXY=http://192.168.1.152:7890
+      - HTTPS_PROXY=http://192.168.1.152:7890
+      - NO_PROXY=localhost,127.0.0.1,192.168.1.0/24,100.64.0.0/10
       # Logging
       - LOG_LEVEL=INFO
       - LOG_FORMAT=structured

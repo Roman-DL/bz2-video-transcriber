@@ -44,6 +44,13 @@ sshpass -p "$DEPLOY_PASSWORD" rsync -avz --delete \
     --exclude '*.pyc' \
     "$PROJECT_DIR/" "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
 
+# Create .env on server with API keys (not deployment secrets)
+if [ -n "$ANTHROPIC_API_KEY" ]; then
+    echo "Updating .env on server..."
+    sshpass -p "$DEPLOY_PASSWORD" ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
+        "echo '$DEPLOY_PASSWORD' | sudo -S bash -c 'echo ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY > ${DEPLOY_PATH}/.env'"
+fi
+
 # Rebuild and restart containers (--no-cache to ensure code changes are picked up)
 echo "Rebuilding containers..."
 sshpass -p "$DEPLOY_PASSWORD" ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
