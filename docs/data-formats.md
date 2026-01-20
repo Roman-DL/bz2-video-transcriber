@@ -74,7 +74,8 @@ event_types:
                 ├── summary.md
                 ├── transcript_raw.txt
                 ├── transcript_cleaned.txt
-                └── pipeline_results.json
+                ├── pipeline_results.json
+                └── .cache/                   # Версионированный кэш (v0.18+)
 ```
 
 ### Пример

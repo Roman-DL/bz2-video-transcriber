@@ -459,7 +459,137 @@ def call_ollama(prompt: str, model: str = "qwen2.5:14b") -> str:
 
 ---
 
+## Cache API (v0.18+)
+
+API для управления версионированным кэшем промежуточных результатов.
+
+### GET /api/cache/{video_id}
+
+Получить информацию о кэше для видео.
+
+**Параметры:**
+- `video_id` (path) — идентификатор видео (например, `2025-01-09_ПШ-SV_topic`)
+
+**Response:**
+```json
+{
+  "video_id": "2025-01-09_ПШ-SV_topic",
+  "has_cache": true,
+  "stages": [
+    {
+      "stage": "cleaning",
+      "total_versions": 2,
+      "current_version": 2,
+      "versions": [
+        {
+          "version": 1,
+          "model_name": "gemma2:9b",
+          "created_at": "2025-01-20T10:30:00Z",
+          "is_current": false
+        },
+        {
+          "version": 2,
+          "model_name": "qwen2.5:14b",
+          "created_at": "2025-01-20T14:15:00Z",
+          "is_current": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+### POST /api/cache/rerun
+
+Перезапустить этап обработки с опциональным override модели.
+
+**Request:**
+```json
+{
+  "video_id": "2025-01-09_ПШ-SV_topic",
+  "stage": "cleaning",
+  "model": "qwen2.5:14b"
+}
+```
+
+**stage** — одно из: `transcription`, `cleaning`, `chunking`, `longread`, `summary`
+
+**Response (SSE):**
+```json
+{"type": "progress", "status": "cleaning", "progress": 45.5, "message": "..."}
+{"type": "result", "data": {"video_id": "...", "stage": "cleaning", "new_version": 2, "model_name": "qwen2.5:14b"}}
+```
+
+### POST /api/cache/version
+
+Установить конкретную версию как текущую.
+
+**Query параметры:**
+- `video_id` — идентификатор видео
+- `stage` — название этапа
+- `version` — номер версии
+
+**curl пример:**
+```bash
+curl -X POST "http://100.64.0.1:8801/api/cache/version?video_id=2025-01-09_ПШ-SV_topic&stage=cleaning&version=1"
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "stage": "cleaning",
+  "version": 1
+}
+```
+
+### GET /api/cache/{video_id}/{stage}
+
+Получить кэшированный результат для этапа.
+
+**Query параметры:**
+- `version` (optional) — номер версии (по умолчанию текущая)
+
+**curl пример:**
+```bash
+# Текущая версия
+curl "http://100.64.0.1:8801/api/cache/2025-01-09_ПШ-SV_topic/cleaning"
+
+# Конкретная версия
+curl "http://100.64.0.1:8801/api/cache/2025-01-09_ПШ-SV_topic/cleaning?version=1"
+```
+
+**Response:**
+Зависит от этапа. Для `cleaning`:
+```json
+{
+  "text": "Очищенный транскрипт...",
+  "original_length": 15000,
+  "cleaned_length": 14500,
+  "corrections_made": ["Коррекция 1", "Коррекция 2"],
+  "model_name": "gemma2:9b"
+}
+```
+
+### Структура кэша
+
+Кэш хранится в директории `.cache/` внутри архива видео:
+
+```
+archive/2025/01.09 ПШ/Video Title/
+├── pipeline_results.json    # Текущие результаты
+└── .cache/
+    ├── manifest.json        # Версии и метаданные
+    ├── transcription/v1.json
+    ├── cleaning/v1.json
+    ├── cleaning/v2.json     # Re-run
+    └── ...
+```
+
+---
+
 ## Связанные документы
 
 - [architecture.md](architecture.md) — схема системы
 - [pipeline.md](pipeline.md) — этапы обработки
+- [adr/005-result-caching.md](adr/005-result-caching.md) — решение по кэшированию

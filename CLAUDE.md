@@ -62,6 +62,7 @@ backend/app/services/ai_clients/  # AI клиенты (v0.17+)
 backend/app/services/pipeline/    # Pipeline package (v0.15+)
 backend/app/services/stages/      # Stage абстракция (v0.14+)
 backend/app/utils/                # Shared utilities (v0.16+)
+backend/app/models/               # Pydantic models (schemas.py, cache.py)
 backend/app/api/                  # FastAPI endpoints
 frontend/src/                     # React + Vite + Tailwind
 config/prompts/                   # LLM промпты
@@ -79,10 +80,61 @@ backend/app/services/pipeline/
 ├── orchestrator.py          # Координация этапов
 ├── progress_manager.py      # STAGE_WEIGHTS, расчёт прогресса
 ├── fallback_factory.py      # Fallback при ошибках
-└── config_resolver.py       # Override моделей для step-by-step
+├── config_resolver.py       # Override моделей для step-by-step
+└── stage_cache.py           # Версионирование результатов (v0.18+)
 ```
 
 Подробнее: [docs/adr/002-pipeline-decomposition.md](docs/adr/002-pipeline-decomposition.md)
+
+## Stage Result Cache (v0.18+)
+
+Версионированное кэширование промежуточных результатов pipeline:
+
+```
+backend/app/models/cache.py           # CacheManifest, CacheEntry, API models
+backend/app/services/pipeline/stage_cache.py  # StageResultCache
+backend/app/api/cache_routes.py       # Cache API endpoints
+```
+
+**Структура кэша:**
+```
+archive/2025/01.09 ПШ/Video Title/
+├── pipeline_results.json    # Текущие результаты
+└── .cache/
+    ├── manifest.json        # Версии и метаданные
+    ├── cleaning/v1.json     # Версия 1
+    ├── cleaning/v2.json     # Re-run с другой моделью
+    └── ...
+```
+
+**Использование:**
+```python
+from app.services.pipeline import StageResultCache
+from app.models.cache import CacheStageName
+
+cache = StageResultCache(settings)
+
+# Сохранить результат
+entry = await cache.save(
+    archive_path=Path("/data/archive/2025/..."),
+    stage=CacheStageName.CLEANING,
+    result=cleaned_transcript,
+    model_name="gemma2:9b",
+)
+
+# Загрузить текущую версию
+result = await cache.load(archive_path, CacheStageName.CLEANING)
+
+# Загрузить конкретную версию
+result = await cache.load(archive_path, CacheStageName.CLEANING, version=1)
+```
+
+**API endpoints:**
+- `GET /api/cache/{video_id}` — информация о кэше
+- `POST /api/cache/rerun` — перезапуск этапа
+- `POST /api/cache/version` — установка текущей версии
+
+Подробнее: [docs/adr/005-result-caching.md](docs/adr/005-result-caching.md)
 
 ## Stage Abstraction (v0.14+)
 
