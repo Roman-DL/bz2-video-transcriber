@@ -6,7 +6,7 @@
 
 Определены в `backend/app/config.py`, передаются через `docker-compose.yml`.
 
-### AI сервисы
+### AI сервисы — локальные (Ollama)
 
 | Переменная | По умолчанию | Описание |
 |------------|--------------|----------|
@@ -15,10 +15,26 @@
 | `SUMMARIZER_MODEL` | `qwen2.5:14b` | Модель для суммаризации |
 | `CLEANER_MODEL` | `gemma2:9b` | Модель для очистки транскрипта |
 | `CHUNKER_MODEL` | `gemma2:9b` | Модель для семантического чанкирования |
+| `LONGREAD_MODEL` | `qwen2.5:14b` | Модель для генерации лонгрида |
 | `WHISPER_MODEL` | `large-v3-turbo` | Имя модели Whisper (для отображения в UI) |
 | `WHISPER_LANGUAGE` | `ru` | Язык транскрипции |
 | `WHISPER_INCLUDE_TIMESTAMPS` | `false` | Включать таймкоды `[HH:MM:SS]` в транскрипт |
 | `LLM_TIMEOUT` | `300` | Таймаут LLM запросов (секунды) |
+
+### AI сервисы — облачные (Claude API)
+
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `ANTHROPIC_API_KEY` | — | API ключ Anthropic (обязателен для Claude) |
+
+**Получение ключа:** [console.anthropic.com](https://console.anthropic.com/)
+
+**Формат:** `sk-ant-api03-...`
+
+**Использование:** Модели с префиксом `claude` автоматически используют Claude API:
+- `claude-sonnet-4-20250514` — Claude Sonnet (рекомендуется)
+
+**Стоимость:** Claude Sonnet — ~$3/1M input, $15/1M output tokens
 
 ### Пути
 
@@ -152,8 +168,22 @@ models:
     provider: claude
     context_profile: large
     context_tokens: 200000
-    # Реализация в Phase 5
 ```
+
+**Claude модели (v0.19+):**
+
+С версии 0.19 поддерживаются облачные модели Claude API:
+
+```yaml
+  claude-sonnet:
+    provider: claude           # Использует ClaudeClient
+    context_profile: large     # 200K context — без чанкирования
+    context_tokens: 200000
+```
+
+Для использования Claude:
+1. Установить `ANTHROPIC_API_KEY` в docker-compose.yml
+2. Указать модель `claude-sonnet-4-20250514` в настройках
 
 **Переопределение параметров:** Модель может override параметры профиля:
 
@@ -189,7 +219,9 @@ models:
     context_tokens: 32000       # Указываем точный размер
 ```
 
-Дополнительно см. [ADR-004: Абстракция AI клиентов](adr/004-ai-client-abstraction.md)
+Дополнительно см.:
+- [ADR-004: Абстракция AI клиентов](adr/004-ai-client-abstraction.md)
+- [ADR-006: Интеграция облачных моделей](adr/006-cloud-model-integration.md)
 
 ### glossary.yaml
 
@@ -244,6 +276,7 @@ stages:
 |--------|------------|
 | Сменить модель суммаризации | `docker-compose.yml` → `SUMMARIZER_MODEL` |
 | Настроить формат транскрипта | `docker-compose.yml` → `WHISPER_INCLUDE_TIMESTAMPS` |
+| Включить Claude API | `docker-compose.yml` → `ANTHROPIC_API_KEY` |
 | Изменить параметры chunking | `config/models.yaml` |
 | Добавить термин в глоссарий | `config/glossary.yaml` |
 | Изменить промпт LLM | `config/prompts/*.md` |

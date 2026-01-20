@@ -1,59 +1,59 @@
 """
-Claude API client implementation (stub).
+Claude API client implementation.
 
-This is a placeholder for future Claude API integration.
-Implementation will be completed in Phase 5 of the refactoring plan.
+Provides async client for Anthropic's Claude API with retry logic.
+Implements BaseAIClient protocol for text generation and chat completions.
 """
 
 import logging
+import os
 
+from anthropic import AsyncAnthropic, APIConnectionError, APIStatusError, APITimeoutError
+
+from app.config import Settings
 from app.services.ai_clients.base import (
     AIClientConfig,
-    AIClientError,
+    AIClientConnectionError,
+    AIClientResponseError,
+    AIClientTimeoutError,
     BaseAIClientImpl,
 )
 
 logger = logging.getLogger(__name__)
 
-
-class ClaudeClientNotImplementedError(AIClientError):
-    """Raised when Claude client methods are called before implementation."""
-
-    def __init__(self, method: str):
-        super().__init__(
-            f"ClaudeClient.{method}() not implemented. "
-            "Claude API integration is planned for Phase 5.",
-            provider="claude",
-        )
+# Default Claude model
+DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514"
 
 
 class ClaudeClient(BaseAIClientImpl):
     """
-    Claude API client (stub implementation).
+    Async client for Anthropic's Claude API.
 
-    This client will provide integration with Anthropic's Claude API,
-    enabling use of large context models (200K+ tokens) for processing
-    long documents without chunking.
+    Implements BaseAIClient protocol for LLM operations.
+    Designed for large context processing (200K+ tokens) without chunking.
 
-    Planned features:
+    Features:
     - claude-sonnet model support
     - Large context processing
-    - Streaming responses
-    - Tool use / function calling
+    - Automatic retry on transient errors
+    - Cost-aware logging
 
-    Example (future usage):
-        config = AIClientConfig(
-            base_url="https://api.anthropic.com",
-            api_key=os.getenv("ANTHROPIC_API_KEY"),
-        )
+    Example:
+        async with ClaudeClient.from_settings(settings) as client:
+            response = await client.generate("Analyze this document...")
+
+        # Or with explicit config
+        config = AIClientConfig(api_key=os.getenv("ANTHROPIC_API_KEY"))
         async with ClaudeClient(config) as client:
-            response = await client.generate(long_document)
+            response = await client.chat([
+                {"role": "user", "content": "Hello!"}
+            ])
     """
 
     def __init__(
         self,
         config: AIClientConfig,
-        default_model: str = "claude-sonnet-4-20250514",
+        default_model: str = DEFAULT_CLAUDE_MODEL,
     ):
         """
         Initialize Claude client.
@@ -69,15 +69,53 @@ class ClaudeClient(BaseAIClientImpl):
         self.default_model = default_model
 
         if not config.api_key:
-            logger.warning(
-                "ClaudeClient initialized without API key. "
-                "Set ANTHROPIC_API_KEY environment variable for production use."
+            raise ValueError(
+                "ClaudeClient requires API key. "
+                "Set ANTHROPIC_API_KEY environment variable."
             )
+
+        self.client = AsyncAnthropic(
+            api_key=config.api_key,
+            timeout=config.timeout,
+            max_retries=config.max_retries,
+        )
+
+        logger.info(f"ClaudeClient initialized, model: {default_model}")
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> "ClaudeClient":
+        """
+        Create ClaudeClient from application settings.
+
+        Args:
+            settings: Application settings
+
+        Returns:
+            Configured ClaudeClient instance
+
+        Raises:
+            ValueError: If ANTHROPIC_API_KEY not set
+        """
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "ANTHROPIC_API_KEY environment variable not set. "
+                "Claude API requires authentication."
+            )
+
+        config = AIClientConfig(
+            base_url="https://api.anthropic.com",
+            api_key=api_key,
+            timeout=settings.llm_timeout,
+            max_retries=3,
+        )
+
+        return cls(config=config)
 
     async def close(self) -> None:
         """Close the client and release resources."""
-        # No resources to release in stub implementation
-        pass
+        await self.client.close()
+        logger.debug("ClaudeClient closed")
 
     async def generate(
         self,
@@ -86,17 +124,28 @@ class ClaudeClient(BaseAIClientImpl):
         num_predict: int | None = None,
     ) -> str:
         """
-        Generate text using Claude API (not implemented).
+        Generate text using Claude API.
+
+        Internally uses the messages API with a single user message.
 
         Args:
             prompt: Text prompt for generation
             model: Model name (default: claude-sonnet)
-            num_predict: Max tokens to generate
+            num_predict: Max tokens to generate (default: 4096)
+
+        Returns:
+            Generated text response
 
         Raises:
-            ClaudeClientNotImplementedError: Always (stub implementation)
+            AIClientError: If generation fails
         """
-        raise ClaudeClientNotImplementedError("generate")
+        messages = [{"role": "user", "content": prompt}]
+        return await self.chat(
+            messages=messages,
+            model=model,
+            temperature=0.7,
+            num_predict=num_predict,
+        )
 
     async def chat(
         self,
@@ -106,65 +155,193 @@ class ClaudeClient(BaseAIClientImpl):
         num_predict: int | None = None,
     ) -> str:
         """
-        Chat completion using Claude API (not implemented).
+        Chat completion using Claude Messages API.
+
+        Converts Ollama-style messages to Claude format:
+        - "system" messages become system parameter
+        - "user" and "assistant" messages are passed as-is
 
         Args:
-            messages: List of chat messages
+            messages: List of chat messages [{"role": "user", "content": "..."}]
             model: Model name (default: claude-sonnet)
-            temperature: Sampling temperature
-            num_predict: Max tokens to generate
+            temperature: Sampling temperature (default: 0.7)
+            num_predict: Max tokens to generate (default: 4096)
+
+        Returns:
+            Assistant's response content
 
         Raises:
-            ClaudeClientNotImplementedError: Always (stub implementation)
+            AIClientError: If chat completion fails
         """
-        raise ClaudeClientNotImplementedError("chat")
+        if model is None:
+            model = self.default_model
+
+        if num_predict is None:
+            num_predict = 4096
+
+        # Extract system message if present
+        system_content = None
+        chat_messages = []
+
+        for msg in messages:
+            if msg["role"] == "system":
+                system_content = msg["content"]
+            else:
+                chat_messages.append({
+                    "role": msg["role"],
+                    "content": msg["content"],
+                })
+
+        logger.debug(
+            f"Claude chat: model={model}, messages={len(chat_messages)}, "
+            f"system={'yes' if system_content else 'no'}, max_tokens={num_predict}"
+        )
+
+        try:
+            # Build request kwargs
+            kwargs = {
+                "model": model,
+                "max_tokens": num_predict,
+                "temperature": temperature,
+                "messages": chat_messages,
+            }
+
+            if system_content:
+                kwargs["system"] = system_content
+
+            response = await self.client.messages.create(**kwargs)
+
+            # Extract text from response
+            content = response.content[0].text
+
+            # Log usage for cost monitoring
+            input_tokens = response.usage.input_tokens
+            output_tokens = response.usage.output_tokens
+            logger.info(
+                f"Claude response: {len(content)} chars, "
+                f"tokens: {input_tokens} in / {output_tokens} out"
+            )
+
+            return content
+
+        except APITimeoutError as e:
+            logger.error(f"Claude timeout: {e}")
+            raise AIClientTimeoutError(
+                f"Claude request timeout",
+                provider="claude",
+                model=model,
+                original_error=e,
+            ) from e
+
+        except APIConnectionError as e:
+            logger.error(f"Claude connection error: {e}")
+            raise AIClientConnectionError(
+                f"Cannot connect to Claude API: {e}",
+                provider="claude",
+                original_error=e,
+            ) from e
+
+        except APIStatusError as e:
+            logger.error(f"Claude API error: {e.status_code} - {e.message}")
+            raise AIClientResponseError(
+                f"Claude API error: {e.message}",
+                provider="claude",
+                model=model,
+                status_code=e.status_code,
+                response_body=str(e.body) if e.body else None,
+                original_error=e,
+            ) from e
 
     async def check_api_key(self) -> bool:
         """
-        Verify Claude API key validity (not implemented).
+        Verify Claude API key validity.
+
+        Makes a minimal API call to check authentication.
 
         Returns:
             True if API key is valid
 
         Raises:
-            ClaudeClientNotImplementedError: Always (stub implementation)
+            AIClientResponseError: If API key is invalid
         """
-        raise ClaudeClientNotImplementedError("check_api_key")
+        try:
+            # Minimal request to verify auth
+            await self.client.messages.create(
+                model=self.default_model,
+                max_tokens=1,
+                messages=[{"role": "user", "content": "test"}],
+            )
+            return True
+        except APIStatusError as e:
+            if e.status_code == 401:
+                raise AIClientResponseError(
+                    "Invalid Claude API key",
+                    provider="claude",
+                    status_code=401,
+                    original_error=e,
+                ) from e
+            raise
 
 
 if __name__ == "__main__":
     """Run tests when executed directly."""
     import asyncio
+    import sys
 
     async def run_tests():
-        """Test stub implementation."""
-        print("\nTesting ClaudeClient stub...\n")
+        """Test Claude client implementation."""
+        print("\nTesting ClaudeClient...\n")
+
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            print("ANTHROPIC_API_KEY not set, skipping tests")
+            return 0
 
         config = AIClientConfig(
             base_url="https://api.anthropic.com",
-            api_key="test-key",
+            api_key=api_key,
+            timeout=60.0,
         )
 
         async with ClaudeClient(config) as client:
-            # Test 1: generate should raise NotImplementedError
-            print("Test 1: generate() raises NotImplementedError...", end=" ")
+            # Test 1: API key validation
+            print("Test 1: Checking API key...", end=" ")
             try:
-                await client.generate("Test prompt")
-                print("FAILED (no exception raised)")
-            except ClaudeClientNotImplementedError as e:
-                print("OK")
-                print(f"  Error: {e}")
+                valid = await client.check_api_key()
+                print("OK" if valid else "FAILED")
+            except Exception as e:
+                print(f"FAILED: {e}")
+                return 1
 
-            # Test 2: chat should raise NotImplementedError
-            print("\nTest 2: chat() raises NotImplementedError...", end=" ")
+            # Test 2: Generate
+            print("\nTest 2: Generate text...", end=" ")
             try:
-                await client.chat([{"role": "user", "content": "Test"}])
-                print("FAILED (no exception raised)")
-            except ClaudeClientNotImplementedError as e:
+                response = await client.generate(
+                    "Say 'Hello' in Russian. Reply with just the word.",
+                    num_predict=10,
+                )
                 print("OK")
-                print(f"  Error: {e}")
+                print(f"  Response: {response.strip()}")
+            except Exception as e:
+                print(f"FAILED: {e}")
+                return 1
+
+            # Test 3: Chat with system message
+            print("\nTest 3: Chat with system message...", end=" ")
+            try:
+                messages = [
+                    {"role": "system", "content": "You are a helpful assistant. Be brief."},
+                    {"role": "user", "content": "What is 2+2?"},
+                ]
+                response = await client.chat(messages, num_predict=20)
+                print("OK")
+                print(f"  Response: {response.strip()[:100]}")
+            except Exception as e:
+                print(f"FAILED: {e}")
+                return 1
 
         print("\n" + "=" * 40)
-        print("All stub tests passed!")
+        print("All tests passed!")
+        return 0
 
-    asyncio.run(run_tests())
+    sys.exit(asyncio.run(run_tests()))

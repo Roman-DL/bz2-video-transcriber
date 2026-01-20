@@ -81,7 +81,8 @@ backend/app/services/pipeline/
 ├── progress_manager.py      # STAGE_WEIGHTS, расчёт прогресса
 ├── fallback_factory.py      # Fallback при ошибках
 ├── config_resolver.py       # Override моделей для step-by-step
-└── stage_cache.py           # Версионирование результатов (v0.18+)
+├── stage_cache.py           # Версионирование результатов (v0.18+)
+└── processing_strategy.py   # Выбор local/cloud провайдера (v0.19+)
 ```
 
 Подробнее: [docs/adr/002-pipeline-decomposition.md](docs/adr/002-pipeline-decomposition.md)
@@ -194,19 +195,40 @@ num_predict = calculate_num_predict(tokens, task="chunker")
 
 ```
 backend/app/services/ai_clients/
-├── __init__.py          # Экспорт OllamaClient, BaseAIClient
+├── __init__.py          # Экспорт OllamaClient, ClaudeClient, BaseAIClient
 ├── base.py              # BaseAIClient (Protocol), AIClientConfig, исключения
 ├── ollama_client.py     # OllamaClient — Ollama + Whisper
-└── claude_client.py     # ClaudeClient — заглушка (Phase 5)
+└── claude_client.py     # ClaudeClient — Anthropic Claude API (v0.19+)
 ```
 
 **Использование:**
 ```python
-from app.services.ai_clients import OllamaClient
+from app.services.ai_clients import OllamaClient, ClaudeClient
 
+# Локальная модель (Ollama)
 async with OllamaClient.from_settings(settings) as client:
     response = await client.generate("Hello!")
     transcript = await client.transcribe(video_path)
+
+# Облачная модель (Claude) — требует ANTHROPIC_API_KEY
+async with ClaudeClient.from_settings(settings) as client:
+    response = await client.generate("Analyze this document...")
+```
+
+**ProcessingStrategy (v0.19+):**
+```python
+from app.services.pipeline import ProcessingStrategy
+
+strategy = ProcessingStrategy(settings)
+
+# Автоматический выбор по имени модели
+async with strategy.create_client("claude-sonnet") as client:
+    response = await client.generate("...")
+
+# С fallback на локальную модель
+client, model = await strategy.get_client_with_fallback(
+    "claude-sonnet", "qwen2.5:14b"
+)
 ```
 
 **Context Profiles** (в `config/models.yaml`):
@@ -214,7 +236,9 @@ async with OllamaClient.from_settings(settings) as client:
 - `medium` — для qwen2.5:14b (16K-64K tokens)
 - `large` — для Claude (> 100K tokens)
 
-Подробнее: [docs/adr/004-ai-client-abstraction.md](docs/adr/004-ai-client-abstraction.md)
+Подробнее:
+- [docs/adr/004-ai-client-abstraction.md](docs/adr/004-ai-client-abstraction.md)
+- [docs/adr/006-cloud-model-integration.md](docs/adr/006-cloud-model-integration.md)
 
 ## AI сервисы
 
@@ -243,6 +267,7 @@ async with OllamaClient.from_settings(settings) as client:
 | `LONGREAD_MODEL` | docker-compose.yml | Модель для генерации лонгрида |
 | `SUMMARY_MODEL` | docker-compose.yml | Модель для генерации конспекта |
 | `WHISPER_INCLUDE_TIMESTAMPS` | docker-compose.yml | `true` — таймкоды в транскрипте и файле |
+| `ANTHROPIC_API_KEY` | docker-compose.yml | API ключ для Claude (v0.19+) |
 
 ### Конфигурационные файлы
 
