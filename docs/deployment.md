@@ -244,6 +244,12 @@ sudo docker compose up -d --build
 | `LLM_TIMEOUT` | `300` | Таймаут запросов к Ollama (сек) |
 | `WHISPER_LANGUAGE` | `ru` | Язык транскрипции |
 | `ANTHROPIC_API_KEY` | — | API ключ для Claude (опционально) |
+| `HTTP_PROXY` | `http://192.168.1.152:7890` | Прокси для Claude API |
+| `HTTPS_PROXY` | `http://192.168.1.152:7890` | Прокси для Claude API |
+| `NO_PROXY` | `localhost,...` | Исключения (локальные сервисы) |
+
+**Примечание:** Прокси необходим для доступа к Claude API с российского IP.
+Подробнее: [Прокси для Docker-приложений](Прокси%20для%20Docker-приложений.md)
 
 ### Пути
 

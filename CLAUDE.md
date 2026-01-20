@@ -52,6 +52,7 @@ Video → Parse → Whisper → Clean → Chunk → Longread → Summary → Sav
 | Логирование | [docs/logging.md](docs/logging.md) |
 | Тестирование | [docs/testing.md](docs/testing.md) |
 | Тестирование моделей | [docs/model-testing.md](docs/model-testing.md) |
+| **Прокси для Claude** | [docs/Прокси для Docker-приложений.md](docs/Прокси%20для%20Docker-приложений.md) |
 | ADR (решения) | [docs/adr/](docs/adr/) |
 
 ## Структура проекта
@@ -222,12 +223,12 @@ from app.services.pipeline import ProcessingStrategy
 strategy = ProcessingStrategy(settings)
 
 # Автоматический выбор по имени модели
-async with strategy.create_client("claude-sonnet") as client:
+async with strategy.create_client("claude-sonnet-4-5") as client:
     response = await client.generate("...")
 
 # С fallback на локальную модель
 client, model = await strategy.get_client_with_fallback(
-    "claude-sonnet", "qwen2.5:14b"
+    "claude-sonnet-4-5", "qwen2.5:14b"
 )
 ```
 
@@ -268,6 +269,7 @@ client, model = await strategy.get_client_with_fallback(
 | `SUMMARY_MODEL` | docker-compose.yml | Модель для генерации конспекта |
 | `WHISPER_INCLUDE_TIMESTAMPS` | docker-compose.yml | `true` — таймкоды в транскрипте и файле |
 | `ANTHROPIC_API_KEY` | docker-compose.yml | API ключ для Claude (v0.19+) |
+| `HTTP_PROXY` / `HTTPS_PROXY` | docker-compose.yml | Прокси для Claude API (v0.20+) |
 
 ### Конфигурационные файлы
 

@@ -63,7 +63,7 @@ class ProcessingStrategy:
         await strategy.check_availability()
 
         # Get client for specific model
-        async with strategy.get_client("claude-sonnet-4-20250514") as client:
+        async with strategy.get_client("claude-sonnet-4-5") as client:
             response = await client.generate("...")
 
         # Get client with fallback
@@ -93,7 +93,7 @@ class ProcessingStrategy:
         Determine provider type for a model.
 
         Args:
-            model: Model name (e.g., "claude-sonnet-4-20250514", "gemma2:9b")
+            model: Model name (e.g., "claude-sonnet-4-5", "gemma2:9b")
 
         Returns:
             ProviderType.CLOUD for Claude models, ProviderType.LOCAL otherwise
@@ -276,7 +276,7 @@ if __name__ == "__main__":
         print("Test 1: Provider type detection...", end=" ")
         assert strategy.get_provider_type("gemma2:9b") == ProviderType.LOCAL
         assert strategy.get_provider_type("qwen2.5:14b") == ProviderType.LOCAL
-        assert strategy.get_provider_type("claude-sonnet-4-20250514") == ProviderType.CLOUD
+        assert strategy.get_provider_type("claude-sonnet-4-5") == ProviderType.CLOUD
         assert strategy.get_provider_type("claude-3-opus") == ProviderType.CLOUD
         assert strategy.get_provider_type("Claude-Sonnet") == ProviderType.CLOUD  # Case insensitive
         print("OK")
@@ -303,7 +303,7 @@ if __name__ == "__main__":
         # Test cloud client creation (may fail without API key)
         print("  Creating Claude client for claude-sonnet...", end=" ")
         try:
-            async with strategy.create_client("claude-sonnet-4-20250514") as client:
+            async with strategy.create_client("claude-sonnet-4-5") as client:
                 print("OK (client created)")
         except ValueError as e:
             print(f"SKIPPED (no API key)")
