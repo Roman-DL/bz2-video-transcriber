@@ -57,14 +57,30 @@ Video → Parse → Whisper → Clean → Chunk → Longread → Summary → Sav
 ## Структура проекта
 
 ```
-backend/app/services/         # Сервисы pipeline
-backend/app/services/stages/  # Stage абстракция (v0.14+)
-backend/app/api/              # FastAPI endpoints
-frontend/src/                 # React + Vite + Tailwind
-config/prompts/               # LLM промпты
-config/glossary.yaml          # Терминология
-docs/adr/                     # Architecture Decision Records
+backend/app/services/           # Сервисы pipeline
+backend/app/services/pipeline/  # Pipeline package (v0.15+)
+backend/app/services/stages/    # Stage абстракция (v0.14+)
+backend/app/api/                # FastAPI endpoints
+frontend/src/                   # React + Vite + Tailwind
+config/prompts/                 # LLM промпты
+config/glossary.yaml            # Терминология
+docs/adr/                       # Architecture Decision Records
 ```
+
+## Pipeline Package (v0.15+)
+
+Декомпозированный pipeline с чёткими обязанностями:
+
+```
+backend/app/services/pipeline/
+├── __init__.py              # Экспорт PipelineOrchestrator
+├── orchestrator.py          # Координация этапов
+├── progress_manager.py      # STAGE_WEIGHTS, расчёт прогресса
+├── fallback_factory.py      # Fallback при ошибках
+└── config_resolver.py       # Override моделей для step-by-step
+```
+
+Подробнее: [docs/adr/002-pipeline-decomposition.md](docs/adr/002-pipeline-decomposition.md)
 
 ## Stage Abstraction (v0.14+)
 

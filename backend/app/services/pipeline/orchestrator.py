@@ -10,20 +10,17 @@ import logging
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Awaitable, Callable
 
 from app.config import Settings, get_settings
 from app.services.progress_estimator import ProgressEstimator
 from app.models.schemas import (
     CleanedTranscript,
     Longread,
-    LongreadSection,
     ProcessingResult,
     ProcessingStatus,
     RawTranscript,
     Summary,
     TextPart,
-    TranscriptChunk,
     TranscriptChunks,
     TranscriptOutline,
     VideoMetadata,
@@ -40,6 +37,10 @@ from app.services.parser import FilenameParseError, parse_filename
 from app.services.saver import FileSaver
 from app.services.summarizer import VideoSummarizer
 from app.services.transcriber import WhisperTranscriber
+
+from .config_resolver import ConfigResolver
+from .fallback_factory import FallbackFactory
+from .progress_manager import ProgressCallback, ProgressManager
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +77,6 @@ def get_video_duration(video_path: Path) -> float | None:
         logger.warning(f"ffprobe failed for {video_path.name}: {e}")
 
     return None
-
-
-# Type alias for progress callback
-# Signature: (status, progress_percent, message) -> None
-ProgressCallback = Callable[[ProcessingStatus, float, str], Awaitable[None]]
 
 
 class PipelineError(Exception):
@@ -127,18 +123,6 @@ class PipelineOrchestrator:
         files = await orchestrator.save(metadata, raw, chunks, summary)
     """
 
-    # Progress weights for each stage (must sum to 100)
-    # Based on actual times: transcribe=87s, clean=7.5s, chunk+longread+summary=25s, save<1s
-    STAGE_WEIGHTS = {
-        ProcessingStatus.PARSING: 2,       # 0-2%: instant
-        ProcessingStatus.TRANSCRIBING: 45, # 2-47%: dominant stage
-        ProcessingStatus.CLEANING: 10,     # 47-57%
-        ProcessingStatus.CHUNKING: 12,     # 57-69%
-        ProcessingStatus.LONGREAD: 18,     # 69-87%: map-reduce sections
-        ProcessingStatus.SUMMARIZING: 10,  # 87-97%: from longread
-        ProcessingStatus.SAVING: 3,        # 97-100%: instant
-    }
-
     def __init__(self, settings: Settings | None = None):
         """
         Initialize pipeline orchestrator.
@@ -148,52 +132,9 @@ class PipelineOrchestrator:
         """
         self.settings = settings or get_settings()
         self.estimator = ProgressEstimator(self.settings)
-
-    def _get_settings_with_model(
-        self, model: str | None, stage: str
-    ) -> Settings:
-        """
-        Get settings with optional model override.
-
-        Args:
-            model: Optional model override (e.g., "qwen2.5:14b")
-            stage: Stage name ("cleaner", "chunker", "summarizer")
-
-        Returns:
-            Settings instance (original or copy with override)
-        """
-        if not model:
-            return self.settings
-
-        # Create a copy with overridden model
-        settings_dict = {
-            "ollama_url": self.settings.ollama_url,
-            "whisper_url": self.settings.whisper_url,
-            "summarizer_model": self.settings.summarizer_model,
-            "cleaner_model": self.settings.cleaner_model,
-            "chunker_model": self.settings.chunker_model,
-            "whisper_model": self.settings.whisper_model,
-            "whisper_language": self.settings.whisper_language,
-            "whisper_include_timestamps": self.settings.whisper_include_timestamps,
-            "llm_timeout": self.settings.llm_timeout,
-            "data_root": self.settings.data_root,
-            "inbox_dir": self.settings.inbox_dir,
-            "archive_dir": self.settings.archive_dir,
-            "temp_dir": self.settings.temp_dir,
-            "config_dir": self.settings.config_dir,
-            "log_level": self.settings.log_level,
-            "log_format": self.settings.log_format,
-        }
-
-        # Override the specific model
-        if stage == "cleaner":
-            settings_dict["cleaner_model"] = model
-        elif stage == "chunker":
-            settings_dict["chunker_model"] = model
-        elif stage == "summarizer":
-            settings_dict["summarizer_model"] = model
-
-        return Settings(**settings_dict)
+        self.progress_manager = ProgressManager()
+        self.fallback_factory = FallbackFactory(self.settings)
+        self.config_resolver = ConfigResolver(self.settings)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Full Pipeline
@@ -232,7 +173,7 @@ class PipelineOrchestrator:
         started_at = datetime.now()
 
         # Stage 1: Parse filename
-        await self._update_progress(
+        await self.progress_manager.update_progress(
             progress_callback,
             ProcessingStatus.PARSING,
             0,
@@ -254,7 +195,7 @@ class PipelineOrchestrator:
                 f"(from file size {video_path.stat().st_size / 1024 / 1024:.1f}MB)"
             )
 
-        await self._update_progress(
+        await self.progress_manager.update_progress(
             progress_callback,
             ProcessingStatus.PARSING,
             100,
@@ -375,7 +316,7 @@ class PipelineOrchestrator:
         Returns:
             CleanedTranscript with cleaned text
         """
-        settings = self._get_settings_with_model(model, "cleaner")
+        settings = self.config_resolver.with_model(model, "cleaner")
         async with AIClient(settings) as ai_client:
             cleaner = TranscriptCleaner(ai_client, settings)
             return await cleaner.clean(raw_transcript, metadata)
@@ -397,7 +338,7 @@ class PipelineOrchestrator:
         Returns:
             TranscriptChunks with semantic chunks
         """
-        settings = self._get_settings_with_model(model, "chunker")
+        settings = self.config_resolver.with_model(model, "chunker")
         async with AIClient(settings) as ai_client:
             chunker = SemanticChunker(ai_client, settings)
             return await chunker.chunk(cleaned_transcript, metadata)
@@ -421,14 +362,14 @@ class PipelineOrchestrator:
         Returns:
             Longread document with sections
         """
-        settings = self._get_settings_with_model(model, "summarizer")
+        settings = self.config_resolver.with_model(model, "longread")
         async with AIClient(settings) as ai_client:
             generator = LongreadGenerator(ai_client, settings)
             try:
                 return await generator.generate(chunks, metadata, outline)
             except Exception as e:
                 logger.warning(f"Longread generation failed: {e}, using fallback")
-                return self._create_fallback_longread(metadata, chunks)
+                return self.fallback_factory.create_longread(metadata, chunks)
 
     async def summarize_from_longread(
         self,
@@ -447,14 +388,14 @@ class PipelineOrchestrator:
         Returns:
             Summary with essence, concepts, tools, quotes
         """
-        settings = self._get_settings_with_model(model, "summarizer")
+        settings = self.config_resolver.with_model(model, "summarizer")
         async with AIClient(settings) as ai_client:
             generator = SummaryGenerator(ai_client, settings)
             try:
                 return await generator.generate(longread, metadata)
             except Exception as e:
                 logger.warning(f"Summary generation failed: {e}, using fallback")
-                return self._create_fallback_summary_from_longread(longread, metadata)
+                return self.fallback_factory.create_summary_from_longread(longread, metadata)
 
     async def summarize(
         self,
@@ -478,7 +419,7 @@ class PipelineOrchestrator:
         Returns:
             VideoSummary with structured content
         """
-        settings = self._get_settings_with_model(model, "summarizer")
+        settings = self.config_resolver.with_model(model, "summarizer")
         async with AIClient(settings) as ai_client:
             # Extract outline for large texts (step-by-step mode)
             _, outline = await self._extract_outline(cleaned_transcript, ai_client)
@@ -541,7 +482,7 @@ class PipelineOrchestrator:
                 stage=ProcessingStatus.TRANSCRIBING,
                 estimated_seconds=estimate.estimated_seconds,
                 message=f"Transcribing: {video_path.name}",
-                callback=lambda s, p, m: self._update_progress(callback, s, p, m),
+                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
             )
 
         try:
@@ -558,7 +499,7 @@ class PipelineOrchestrator:
             await self.estimator.stop_ticker(
                 ticker,
                 ProcessingStatus.TRANSCRIBING,
-                lambda s, p, m: self._update_progress(callback, s, p, m),
+                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
                 f"Transcribed: {len(transcript.segments)} segments, {transcript.duration_seconds:.0f}s",
             )
 
@@ -582,7 +523,7 @@ class PipelineOrchestrator:
                 stage=ProcessingStatus.CLEANING,
                 estimated_seconds=estimate.estimated_seconds,
                 message="Cleaning transcript with glossary and LLM",
-                callback=lambda s, p, m: self._update_progress(callback, s, p, m),
+                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
             )
 
         try:
@@ -599,7 +540,7 @@ class PipelineOrchestrator:
             await self.estimator.stop_ticker(
                 ticker,
                 ProcessingStatus.CLEANING,
-                lambda s, p, m: self._update_progress(callback, s, p, m),
+                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
                 f"Cleaned: {result.original_length} -> {result.cleaned_length} chars",
             )
 
@@ -690,7 +631,7 @@ class PipelineOrchestrator:
                 stage=ProcessingStatus.CHUNKING,
                 estimated_seconds=chunk_estimate.estimated_seconds,
                 message="Chunking transcript",
-                callback=lambda s, p, m: self._update_progress(callback, s, p, m),
+                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
             )
 
         try:
@@ -701,13 +642,13 @@ class PipelineOrchestrator:
             if ticker:
                 ticker.cancel()
             logger.warning(f"Chunking failed: {e}, using fallback")
-            chunks = self._create_fallback_chunks(cleaned_transcript, metadata)
+            chunks = self.fallback_factory.create_chunks(cleaned_transcript, metadata)
 
         if callback and ticker:
             await self.estimator.stop_ticker(
                 ticker,
                 ProcessingStatus.CHUNKING,
-                lambda s, p, m: self._update_progress(callback, s, p, m),
+                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
                 f"Chunked: {chunks.total_chunks} chunks",
             )
 
@@ -718,7 +659,7 @@ class PipelineOrchestrator:
                 stage=ProcessingStatus.LONGREAD,
                 estimated_seconds=longread_estimate,
                 message="Generating longread",
-                callback=lambda s, p, m: self._update_progress(callback, s, p, m),
+                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
             )
 
         try:
@@ -727,13 +668,13 @@ class PipelineOrchestrator:
             if ticker:
                 ticker.cancel()
             logger.error(f"Longread generation failed: {e}")
-            longread = self._create_fallback_longread(metadata, chunks)
+            longread = self.fallback_factory.create_longread(metadata, chunks)
 
         if callback and ticker:
             await self.estimator.stop_ticker(
                 ticker,
                 ProcessingStatus.LONGREAD,
-                lambda s, p, m: self._update_progress(callback, s, p, m),
+                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
                 f"Longread: {longread.total_sections} sections, {longread.total_word_count} words",
             )
 
@@ -744,7 +685,7 @@ class PipelineOrchestrator:
                 stage=ProcessingStatus.SUMMARIZING,
                 estimated_seconds=summary_estimate,
                 message="Generating summary from longread",
-                callback=lambda s, p, m: self._update_progress(callback, s, p, m),
+                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
             )
 
         try:
@@ -753,13 +694,13 @@ class PipelineOrchestrator:
             if ticker:
                 ticker.cancel()
             logger.error(f"Summary generation failed: {e}")
-            summary = self._create_fallback_summary_from_longread(longread, metadata)
+            summary = self.fallback_factory.create_summary_from_longread(longread, metadata)
 
         if callback and ticker:
             await self.estimator.stop_ticker(
                 ticker,
                 ProcessingStatus.SUMMARIZING,
-                lambda s, p, m: self._update_progress(callback, s, p, m),
+                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
                 f"Summary: {len(summary.key_concepts)} concepts, {len(summary.quotes)} quotes",
             )
 
@@ -787,7 +728,7 @@ class PipelineOrchestrator:
                 stage=ProcessingStatus.SAVING,
                 estimated_seconds=estimated,
                 message=f"Saving to: {metadata.archive_path}",
-                callback=lambda s, p, m: self._update_progress(callback, s, p, m),
+                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
             )
 
         try:
@@ -805,15 +746,21 @@ class PipelineOrchestrator:
             await self.estimator.stop_ticker(
                 ticker,
                 ProcessingStatus.SAVING,
-                lambda s, p, m: self._update_progress(callback, s, p, m),
+                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
                 f"Saved {len(files)} files",
             )
 
         return files
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # Internal: Progress Calculation
+    # Legacy compatibility (deprecated)
     # ═══════════════════════════════════════════════════════════════════════════
+
+    # These methods are kept for backward compatibility but delegate to new classes
+
+    def _get_settings_with_model(self, model: str | None, stage: str) -> Settings:
+        """Deprecated: Use config_resolver.with_model() instead."""
+        return self.config_resolver.with_model(model, stage)  # type: ignore
 
     async def _update_progress(
         self,
@@ -822,376 +769,47 @@ class PipelineOrchestrator:
         stage_progress: float,
         message: str,
     ) -> None:
-        """
-        Update progress via callback.
-
-        Args:
-            callback: Progress callback (may be None)
-            status: Current processing status
-            stage_progress: Progress within current stage (0-100)
-            message: Human-readable status message
-        """
-        if callback is None:
-            return
-
-        overall_progress = self._calculate_overall_progress(status, stage_progress)
-
-        try:
-            await callback(status, overall_progress, message)
-        except Exception as e:
-            # Never fail due to callback error
-            logger.warning(f"Progress callback error: {e}")
+        """Deprecated: Use progress_manager.update_progress() instead."""
+        await self.progress_manager.update_progress(callback, status, stage_progress, message)
 
     def _calculate_overall_progress(
         self,
         current_stage: ProcessingStatus,
         stage_progress: float = 100,
     ) -> float:
-        """
-        Calculate overall progress percentage.
-
-        Args:
-            current_stage: Current processing stage
-            stage_progress: Progress within current stage (0-100)
-
-        Returns:
-            Overall progress (0-100)
-        """
-        # Define stage order for progress calculation
-        stage_order = [
-            ProcessingStatus.PARSING,
-            ProcessingStatus.TRANSCRIBING,
-            ProcessingStatus.CLEANING,
-            ProcessingStatus.CHUNKING,  # Parallel with SUMMARIZING
-            ProcessingStatus.SAVING,
-        ]
-
-        # Calculate base progress from completed stages
-        base_progress = 0.0
-        for stage in stage_order:
-            if stage == current_stage:
-                break
-
-            weight = self.STAGE_WEIGHTS.get(stage, 0)
-            # SUMMARIZING shares progress with CHUNKING
-            if stage == ProcessingStatus.CHUNKING:
-                weight += self.STAGE_WEIGHTS.get(ProcessingStatus.SUMMARIZING, 0)
-            base_progress += weight
-
-        # Add current stage progress
-        current_weight = self.STAGE_WEIGHTS.get(current_stage, 0)
-        if current_stage in (ProcessingStatus.CHUNKING, ProcessingStatus.SUMMARIZING):
-            # Parallel stages share combined weight
-            current_weight = (
-                self.STAGE_WEIGHTS.get(ProcessingStatus.CHUNKING, 0)
-                + self.STAGE_WEIGHTS.get(ProcessingStatus.SUMMARIZING, 0)
-            )
-
-        stage_contribution = (stage_progress / 100) * current_weight
-
-        return min(base_progress + stage_contribution, 100)
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # Internal: Fallback Methods
-    # ═══════════════════════════════════════════════════════════════════════════
+        """Deprecated: Use progress_manager.calculate_overall_progress() instead."""
+        return self.progress_manager.calculate_overall_progress(current_stage, stage_progress)
 
     def _create_fallback_chunks(
         self,
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
     ) -> TranscriptChunks:
-        """
-        Create fallback chunks when semantic chunking fails.
-
-        Simply splits text into fixed-size chunks (~300 words).
-        """
-        text = cleaned_transcript.text
-        words = text.split()
-        chunk_size = 300
-        chunks: list[TranscriptChunk] = []
-
-        for i, start in enumerate(range(0, len(words), chunk_size)):
-            chunk_words = words[start : start + chunk_size]
-            chunk_text = " ".join(chunk_words)
-
-            chunks.append(
-                TranscriptChunk(
-                    id=f"{metadata.video_id}_{i + 1:03d}",
-                    index=i + 1,
-                    topic=f"Часть {i + 1}",
-                    text=chunk_text,
-                    word_count=len(chunk_words),
-                )
-            )
-
-        return TranscriptChunks(
-            chunks=chunks,
-            model_name=self.settings.chunker_model,
-        )
+        """Deprecated: Use fallback_factory.create_chunks() instead."""
+        return self.fallback_factory.create_chunks(cleaned_transcript, metadata)
 
     def _create_fallback_summary(self, metadata: VideoMetadata) -> VideoSummary:
-        """
-        Create minimal fallback summary when summarization fails.
-        """
-        return VideoSummary(
-            summary=f"Видео '{metadata.title}' от {metadata.speaker}",
-            key_points=["Саммари недоступно из-за технической ошибки"],
-            recommendations=[],
-            target_audience="Требует ручной обработки",
-            questions_answered=[],
-            section="Обучение",  # Default section
-            subsection="",
-            tags=[metadata.event_type, metadata.stream],
-            access_level=1,
-            model_name=self.settings.summarizer_model,
-        )
+        """Deprecated: Use fallback_factory.create_summary() instead."""
+        return self.fallback_factory.create_summary(metadata)
 
     def _create_fallback_longread(
         self,
         metadata: VideoMetadata,
         chunks: TranscriptChunks,
     ) -> Longread:
-        """
-        Create fallback longread when generation fails.
-
-        Uses chunks directly as sections.
-        """
-        sections = [
-            LongreadSection(
-                index=chunk.index,
-                title=chunk.topic,
-                content=chunk.text,
-                source_chunks=[chunk.index],
-                word_count=chunk.word_count,
-            )
-            for chunk in chunks.chunks
-        ]
-
-        return Longread(
-            video_id=metadata.video_id,
-            title=metadata.title,
-            speaker=metadata.speaker,
-            date=metadata.date,
-            event_type=metadata.event_type,
-            stream=metadata.stream,
-            introduction="",
-            sections=sections,
-            conclusion="",
-            section="Обучение",
-            subsection="",
-            tags=[metadata.event_type, metadata.stream] if metadata.stream else [metadata.event_type],
-            access_level=1,
-            model_name=self.settings.summarizer_model,
-        )
+        """Deprecated: Use fallback_factory.create_longread() instead."""
+        return self.fallback_factory.create_longread(metadata, chunks)
 
     def _create_fallback_summary_from_longread(
         self,
         longread: Longread,
         metadata: VideoMetadata,
     ) -> Summary:
-        """
-        Create fallback summary from longread when summary generation fails.
-        """
-        return Summary(
-            video_id=metadata.video_id,
-            title=metadata.title,
-            speaker=metadata.speaker,
-            date=metadata.date,
-            essence=longread.introduction or f"Тема: {metadata.title}",
-            key_concepts=[s.title for s in longread.sections[:5]],
-            practical_tools=[],
-            quotes=[],
-            insight="Конспект недоступен из-за технической ошибки",
-            actions=[],
-            section=longread.section,
-            subsection=longread.subsection,
-            tags=longread.tags,
-            access_level=longread.access_level,
-            model_name=self.settings.summarizer_model,
-        )
+        """Deprecated: Use fallback_factory.create_summary_from_longread() instead."""
+        return self.fallback_factory.create_summary_from_longread(longread, metadata)
 
-
-if __name__ == "__main__":
-    """Run tests when executed directly."""
-    import sys
-    from datetime import date
-
-    # Configure logging for tests
-    logging.basicConfig(level=logging.INFO)
-
-    async def run_tests():
-        """Run all pipeline tests."""
-        print("\nRunning pipeline tests...\n")
-
-        settings = get_settings()
-
-        # Test 1: PipelineError
-        print("Test 1: PipelineError...", end=" ")
-        try:
-            error = PipelineError(
-                ProcessingStatus.PARSING, "Test error", ValueError("cause")
-            )
-            assert error.stage == ProcessingStatus.PARSING
-            assert "Test error" in str(error)
-            assert error.cause is not None
-            print("OK")
-        except Exception as e:
-            print(f"FAILED: {e}")
-            return 1
-
-        # Test 2: Progress calculation
-        print("Test 2: Progress calculation...", end=" ")
-        try:
-            orchestrator = PipelineOrchestrator(settings)
-
-            # PARSING at 0%
-            progress = orchestrator._calculate_overall_progress(
-                ProcessingStatus.PARSING, 0
-            )
-            assert progress == 0, f"Expected 0, got {progress}"
-
-            # PARSING at 100%
-            progress = orchestrator._calculate_overall_progress(
-                ProcessingStatus.PARSING, 100
-            )
-            assert progress == 2, f"Expected 2, got {progress}"
-
-            # TRANSCRIBING at 50%
-            progress = orchestrator._calculate_overall_progress(
-                ProcessingStatus.TRANSCRIBING, 50
-            )
-            # Base (PARSING=2) + 50% of TRANSCRIBING (45*0.5=22.5)
-            expected = 2 + 22.5
-            assert abs(progress - expected) < 0.1, f"Expected {expected}, got {progress}"
-
-            # SAVING at 0%
-            progress = orchestrator._calculate_overall_progress(
-                ProcessingStatus.SAVING, 0
-            )
-            # All previous stages completed
-            expected = 2 + 45 + 15 + 13 + 13  # 88
-            assert progress == expected, f"Expected {expected}, got {progress}"
-
-            print("OK")
-        except Exception as e:
-            print(f"FAILED: {e}")
-            return 1
-
-        # Test 3: Fallback chunks
-        print("Test 3: Fallback chunks...", end=" ")
-        try:
-            orchestrator = PipelineOrchestrator(settings)
-
-            mock_cleaned = CleanedTranscript(
-                text=" ".join(["word"] * 650),  # 650 words -> 3 chunks
-                original_length=1000,
-                cleaned_length=650 * 5,
-                corrections_made=[],
-            )
-
-            mock_metadata = VideoMetadata(
-                date=date(2025, 1, 9),
-                event_type="ПШ",
-                stream="SV",
-                title="Test Video",
-                speaker="Test Speaker",
-                original_filename="test.mp4",
-                video_id="test-video-id",
-                source_path=Path("/test/test.mp4"),
-                archive_path=Path("/archive/test"),
-            )
-
-            chunks = orchestrator._create_fallback_chunks(mock_cleaned, mock_metadata)
-
-            assert chunks.total_chunks == 3, f"Expected 3 chunks, got {chunks.total_chunks}"
-            assert chunks.chunks[0].id == "test-video-id_001"
-            assert chunks.chunks[0].topic == "Часть 1"
-            assert chunks.chunks[0].word_count == 300
-            assert chunks.chunks[2].word_count == 50  # Remaining words
-
-            print("OK")
-            print(f"  Chunks: {chunks.total_chunks}, sizes: {[c.word_count for c in chunks.chunks]}")
-        except Exception as e:
-            print(f"FAILED: {e}")
-            return 1
-
-        # Test 4: Fallback summary
-        print("Test 4: Fallback summary...", end=" ")
-        try:
-            summary = orchestrator._create_fallback_summary(mock_metadata)
-
-            assert "Test Video" in summary.summary
-            assert summary.section == "Обучение"
-            assert "ПШ" in summary.tags
-            assert summary.access_level == 1
-
-            print("OK")
-            print(f"  Summary: {summary.summary}")
-        except Exception as e:
-            print(f"FAILED: {e}")
-            return 1
-
-        # Test 5: Parse method
-        print("Test 5: Parse method...", end=" ")
-        try:
-            orchestrator = PipelineOrchestrator(settings)
-
-            # This will fail if inbox_dir doesn't exist, but tests parse logic
-            try:
-                # Create a mock path that matches the pattern
-                mock_path = Path("2025.01.09 ПШ.SV Test Video (Test Speaker).mp4")
-                metadata = orchestrator.parse(mock_path)
-                assert metadata.event_type == "ПШ"
-                assert metadata.stream == "SV"
-                print("OK")
-            except FilenameParseError:
-                print("SKIPPED (parse test requires valid filename)")
-
-        except Exception as e:
-            print(f"FAILED: {e}")
-            return 1
-
-        # Test 6: Full pipeline (requires services)
-        print("\nTest 6: Full pipeline integration...", end=" ")
-        async with AIClient(settings) as client:
-            status = await client.check_services()
-
-            if not status["whisper"] or not status["ollama"]:
-                print("SKIPPED (AI services unavailable)")
-                print(f"  Whisper: {status['whisper']}, Ollama: {status['ollama']}")
-            else:
-                # Check if there's a test video
-                test_videos = list(settings.inbox_dir.glob("*.mp4"))
-                if not test_videos:
-                    print("SKIPPED (no test video in inbox)")
-                else:
-                    try:
-                        orchestrator = PipelineOrchestrator(settings)
-
-                        async def progress_handler(
-                            status: ProcessingStatus,
-                            progress: float,
-                            message: str,
-                        ):
-                            print(f"  [{status.value}] {progress:.0f}% - {message}")
-
-                        result = await orchestrator.process(
-                            test_videos[0], progress_callback=progress_handler
-                        )
-
-                        print("OK")
-                        print(f"  Video ID: {result.video_id}")
-                        print(f"  Chunks: {result.chunks_count}")
-                        print(f"  Files: {result.files_created}")
-                    except Exception as e:
-                        print(f"FAILED: {e}")
-                        import traceback
-
-                        traceback.print_exc()
-                        return 1
-
-        print("\n" + "=" * 40)
-        print("All tests passed!")
-        return 0
-
-    sys.exit(asyncio.run(run_tests()))
+    # Expose STAGE_WEIGHTS for backward compatibility
+    @property
+    def STAGE_WEIGHTS(self) -> dict:
+        """Deprecated: Use progress_manager.STAGE_WEIGHTS instead."""
+        return self.progress_manager.STAGE_WEIGHTS

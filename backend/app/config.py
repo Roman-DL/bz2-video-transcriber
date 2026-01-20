@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     # AI Services
     ollama_url: str = "http://192.168.1.152:11434"
     whisper_url: str = "http://192.168.1.152:9000"
-    summarizer_model: str = "qwen2.5:14b"  # Model for summarization
+    summarizer_model: str = "qwen2.5:14b"  # Model for summarization (конспект)
+    longread_model: str = "qwen2.5:14b"  # Model for longread generation
     cleaner_model: str = "gemma2:9b"  # Stable model for transcript cleaning
     chunker_model: str = "gemma2:9b"  # Better chunk distribution than qwen
     whisper_model: str = "large-v3-turbo"  # Display name for Whisper model

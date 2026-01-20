@@ -162,7 +162,12 @@ bz2-video-transcriber/
 │   │   │   ├── longread_generator.py  # Генерация лонгрида
 │   │   │   ├── summary_generator.py   # Генерация конспекта
 │   │   │   ├── saver.py               # Сохранение в архив
-│   │   │   ├── pipeline.py            # Оркестрация (legacy)
+│   │   │   ├── pipeline/              # Pipeline package (v0.15+)
+│   │   │   │   ├── __init__.py        # Экспорт PipelineOrchestrator
+│   │   │   │   ├── orchestrator.py    # Координация этапов
+│   │   │   │   ├── progress_manager.py # Расчёт прогресса
+│   │   │   │   ├── fallback_factory.py # Fallback объекты
+│   │   │   │   └── config_resolver.py # Override моделей
 │   │   │   └── stages/                # Stage абстракция (v0.14+)
 │   │   │       ├── base.py            # BaseStage, StageContext, Registry
 │   │   │       ├── parse_stage.py
@@ -269,14 +274,47 @@ bz2-video-transcriber/
 
 ---
 
+## Pipeline Decomposition (v0.15+)
+
+Модуль `pipeline` декомпозирован на независимые компоненты с чёткими обязанностями:
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                      PipelineOrchestrator                      │
+│                    (координация этапов)                        │
+└────────────┬───────────────────────────────────────────────────┘
+             │
+    ┌────────┼────────┬─────────────┬─────────────┐
+    ▼        ▼        ▼             ▼             ▼
+Progress  Fallback  Config      Stage         Services
+Manager   Factory   Resolver    Registry      (AI client)
+```
+
+| Компонент | Файл | Ответственность |
+|-----------|------|-----------------|
+| **PipelineOrchestrator** | `orchestrator.py` | Координация этапов, основной API |
+| **ProgressManager** | `progress_manager.py` | STAGE_WEIGHTS, расчёт прогресса |
+| **FallbackFactory** | `fallback_factory.py` | Создание fallback объектов |
+| **ConfigResolver** | `config_resolver.py` | Override моделей для step-by-step |
+
+**Принципы:**
+- Single Responsibility: каждый модуль — одна обязанность
+- Open/Closed: новые fallback добавляются без изменения orchestrator
+- Dependency Injection: ProgressManager и FallbackFactory — композиция
+
+**Документация:**
+- [adr/002-pipeline-decomposition.md](adr/002-pipeline-decomposition.md) — обоснование решения
+
+---
+
 ## Stage Abstraction (v0.14+)
 
 Система абстракций для этапов обработки, позволяющая добавлять новые шаги без изменения оркестратора.
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        StageRegistry                             │
-│                    (управление этапами)                          │
+┌────────────────────────────────────────────────────────────────┐
+│                        StageRegistry                           │
+│                    (управление этапами)                        │
 └────────────┬───────────────────────────────────────────────────┘
              │
     ┌────────┼────────┬────────┬────────┬────────┬────────┐
