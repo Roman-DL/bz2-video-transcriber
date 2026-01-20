@@ -1,9 +1,8 @@
 """
-AI client for Ollama and Whisper APIs.
+Ollama AI client implementation.
 
-Provides async HTTP client with retry logic for:
-- Ollama: text generation and chat completions
-- Whisper: audio/video transcription
+Provides async HTTP client for Ollama and Whisper APIs with retry logic.
+Implements BaseAIClient protocol for text generation and chat completions.
 """
 
 import asyncio
@@ -19,7 +18,14 @@ from tenacity import (
     wait_exponential,
 )
 
-from app.config import Settings, get_settings
+from app.config import Settings
+from app.services.ai_clients.base import (
+    AIClientConfig,
+    AIClientConnectionError,
+    AIClientResponseError,
+    AIClientTimeoutError,
+    BaseAIClientImpl,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,35 +37,69 @@ RETRY_DECORATOR = retry(
 )
 
 
-class AIClient:
+class OllamaClient(BaseAIClientImpl):
     """
     Async HTTP client for Ollama and Whisper AI services.
 
+    Implements BaseAIClient protocol for LLM operations and provides
+    additional Whisper transcription functionality.
+
     Example:
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             status = await client.check_services()
             response = await client.generate("Hello!")
+            transcript = await client.transcribe(video_path)
     """
 
-    def __init__(self, settings: Settings):
+    def __init__(
+        self,
+        config: AIClientConfig,
+        whisper_url: str | None = None,
+        default_model: str = "gemma2:9b",
+        default_language: str = "ru",
+        llm_timeout: float = 300.0,
+    ):
         """
-        Initialize AI client.
+        Initialize Ollama client.
 
         Args:
-            settings: Application settings with AI service URLs
+            config: AI client configuration with Ollama URL
+            whisper_url: URL for Whisper API (optional)
+            default_model: Default model for generation
+            default_language: Default language for transcription
+            llm_timeout: Timeout for LLM requests in seconds
         """
-        self.settings = settings
+        super().__init__(config)
+        self.whisper_url = whisper_url
+        self.default_model = default_model
+        self.default_language = default_language
+        self.llm_timeout = llm_timeout
+
         # No global timeout - each request sets its own timeout explicitly
-        # This avoids conflicts between short LLM timeouts and long Whisper timeouts
         self.http_client = httpx.AsyncClient(timeout=None)
 
-    async def __aenter__(self) -> "AIClient":
-        """Context manager entry."""
-        return self
+    @classmethod
+    def from_settings(cls, settings: Settings) -> "OllamaClient":
+        """
+        Create OllamaClient from application settings.
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Context manager exit."""
-        await self.close()
+        Args:
+            settings: Application settings
+
+        Returns:
+            Configured OllamaClient instance
+        """
+        config = AIClientConfig(
+            base_url=settings.ollama_url,
+            timeout=settings.llm_timeout,
+        )
+        return cls(
+            config=config,
+            whisper_url=settings.whisper_url,
+            default_model=settings.summarizer_model,
+            default_language=settings.whisper_language,
+            llm_timeout=settings.llm_timeout,
+        )
 
     async def close(self) -> None:
         """Close the HTTP client."""
@@ -84,7 +124,7 @@ class AIClient:
         # Check Ollama
         try:
             response = await self.http_client.get(
-                f"{self.settings.ollama_url}/api/version",
+                f"{self.config.base_url}/api/version",
                 timeout=5.0,
             )
             if response.status_code == 200:
@@ -96,16 +136,17 @@ class AIClient:
             logger.debug(f"Ollama not available: {e}")
 
         # Check Whisper
-        try:
-            response = await self.http_client.get(
-                f"{self.settings.whisper_url}/health",
-                timeout=5.0,
-            )
-            if response.status_code == 200 and response.text == "OK":
-                whisper_available = True
-                logger.debug("Whisper available")
-        except Exception as e:
-            logger.debug(f"Whisper not available: {e}")
+        if self.whisper_url:
+            try:
+                response = await self.http_client.get(
+                    f"{self.whisper_url}/health",
+                    timeout=5.0,
+                )
+                if response.status_code == 200 and response.text == "OK":
+                    whisper_available = True
+                    logger.debug("Whisper available")
+            except Exception as e:
+                logger.debug(f"Whisper not available: {e}")
 
         return {
             "ollama": ollama_available,
@@ -165,11 +206,17 @@ class AIClient:
             Dict with transcription result including segments
 
         Raises:
-            httpx.HTTPStatusError: If API returns error status
             FileNotFoundError: If file doesn't exist
+            AIClientError: If transcription fails
         """
+        if not self.whisper_url:
+            raise AIClientConnectionError(
+                "Whisper URL not configured",
+                provider="whisper",
+            )
+
         if language is None:
-            language = self.settings.whisper_language
+            language = self.default_language
 
         file_path = Path(file_path)
         if not file_path.exists():
@@ -177,18 +224,17 @@ class AIClient:
 
         file_size_mb = file_path.stat().st_size / 1024 / 1024
         logger.info(f"Transcribing: {file_path.name} ({file_size_mb:.1f} MB)")
-        logger.debug(f"Whisper URL: {self.settings.whisper_url}, language: {language}")
+        logger.debug(f"Whisper URL: {self.whisper_url}, language: {language}")
 
         start_time = time.time()
 
         try:
             # Run synchronous file upload in thread pool to not block event loop
-            # This allows progress ticker to update during long transcriptions
             response = await asyncio.to_thread(
                 self._sync_transcribe,
                 file_path,
                 language,
-                self.settings.whisper_url,
+                self.whisper_url,
             )
 
             elapsed = time.time() - start_time
@@ -208,7 +254,11 @@ class AIClient:
         except httpx.TimeoutException as e:
             elapsed = time.time() - start_time
             logger.error(f"Transcription timeout after {elapsed:.1f}s: {e}")
-            raise
+            raise AIClientTimeoutError(
+                f"Transcription timeout after {elapsed:.1f}s",
+                provider="whisper",
+                original_error=e,
+            ) from e
 
         except httpx.HTTPStatusError as e:
             elapsed = time.time() - start_time
@@ -216,12 +266,22 @@ class AIClient:
                 f"Transcription HTTP error after {elapsed:.1f}s: "
                 f"{e.response.status_code} - {e.response.text[:200]}"
             )
-            raise
+            raise AIClientResponseError(
+                f"Transcription failed: HTTP {e.response.status_code}",
+                provider="whisper",
+                status_code=e.response.status_code,
+                response_body=e.response.text[:500],
+                original_error=e,
+            ) from e
 
         except Exception as e:
             elapsed = time.time() - start_time
             logger.error(f"Transcription failed after {elapsed:.1f}s: {type(e).__name__}: {e}")
-            raise
+            raise AIClientConnectionError(
+                f"Transcription failed: {e}",
+                provider="whisper",
+                original_error=e,
+            ) from e
 
     @RETRY_DECORATOR
     async def generate(
@@ -242,10 +302,10 @@ class AIClient:
             Generated text response
 
         Raises:
-            httpx.HTTPStatusError: If API returns error status
+            AIClientError: If generation fails
         """
         if model is None:
-            model = self.settings.summarizer_model
+            model = self.default_model
 
         logger.debug(f"Generating with {model}, prompt length: {len(prompt)}")
 
@@ -258,27 +318,56 @@ class AIClient:
         if num_predict is not None:
             request_body["options"] = {"num_predict": num_predict}
 
-        response = await self.http_client.post(
-            f"{self.settings.ollama_url}/api/generate",
-            json=request_body,
-            timeout=self.settings.llm_timeout,  # 5 min for LLM generation
-        )
-
-        response.raise_for_status()
-        result = response.json()
-
-        response_text = result.get("response", "")
-
-        # Диагностика пустых ответов
-        if not response_text.strip():
-            logger.error(
-                f"Empty response from LLM! Model: {model}, "
-                f"prompt_length: {len(prompt)} chars"
+        try:
+            response = await self.http_client.post(
+                f"{self.config.base_url}/api/generate",
+                json=request_body,
+                timeout=self.llm_timeout,
             )
 
-        logger.debug(f"Generated {len(response_text)} chars")
+            response.raise_for_status()
+            result = response.json()
 
-        return response_text
+            response_text = result.get("response", "")
+
+            # Diagnostics for empty responses
+            if not response_text.strip():
+                logger.error(
+                    f"Empty response from LLM! Model: {model}, "
+                    f"prompt_length: {len(prompt)} chars"
+                )
+
+            logger.debug(f"Generated {len(response_text)} chars")
+
+            return response_text
+
+        except httpx.TimeoutException as e:
+            logger.error(f"Generation timeout with {model}: {e}")
+            raise AIClientTimeoutError(
+                f"Generation timeout",
+                provider="ollama",
+                model=model,
+                original_error=e,
+            ) from e
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Generation HTTP error: {e.response.status_code}")
+            raise AIClientResponseError(
+                f"Generation failed: HTTP {e.response.status_code}",
+                provider="ollama",
+                model=model,
+                status_code=e.response.status_code,
+                response_body=e.response.text[:500],
+                original_error=e,
+            ) from e
+
+        except httpx.ConnectError as e:
+            logger.error(f"Cannot connect to Ollama: {e}")
+            raise AIClientConnectionError(
+                f"Cannot connect to Ollama at {self.config.base_url}",
+                provider="ollama",
+                original_error=e,
+            ) from e
 
     @RETRY_DECORATOR
     async def chat(
@@ -301,10 +390,10 @@ class AIClient:
             Assistant's response content
 
         Raises:
-            httpx.HTTPStatusError: If API returns error status
+            AIClientError: If chat completion fails
         """
         if model is None:
-            model = self.settings.summarizer_model
+            model = self.default_model
 
         logger.debug(f"Chat with {model}, {len(messages)} messages")
 
@@ -317,32 +406,62 @@ class AIClient:
         if num_predict is not None:
             request_body["max_tokens"] = num_predict
 
-        response = await self.http_client.post(
-            f"{self.settings.ollama_url}/v1/chat/completions",
-            json=request_body,
-            timeout=self.settings.llm_timeout,  # 5 min for LLM generation
-        )
+        try:
+            response = await self.http_client.post(
+                f"{self.config.base_url}/v1/chat/completions",
+                json=request_body,
+                timeout=self.llm_timeout,
+            )
 
-        response.raise_for_status()
-        result = response.json()
+            response.raise_for_status()
+            result = response.json()
 
-        content = result["choices"][0]["message"]["content"]
-        logger.debug(f"Chat response: {len(content)} chars")
+            content = result["choices"][0]["message"]["content"]
+            logger.debug(f"Chat response: {len(content)} chars")
 
-        return content
+            return content
+
+        except httpx.TimeoutException as e:
+            logger.error(f"Chat timeout with {model}: {e}")
+            raise AIClientTimeoutError(
+                f"Chat timeout",
+                provider="ollama",
+                model=model,
+                original_error=e,
+            ) from e
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Chat HTTP error: {e.response.status_code}")
+            raise AIClientResponseError(
+                f"Chat failed: HTTP {e.response.status_code}",
+                provider="ollama",
+                model=model,
+                status_code=e.response.status_code,
+                response_body=e.response.text[:500],
+                original_error=e,
+            ) from e
+
+        except httpx.ConnectError as e:
+            logger.error(f"Cannot connect to Ollama: {e}")
+            raise AIClientConnectionError(
+                f"Cannot connect to Ollama at {self.config.base_url}",
+                provider="ollama",
+                original_error=e,
+            ) from e
 
 
 if __name__ == "__main__":
     """Run tests when executed directly."""
-    import asyncio
     import sys
+
+    from app.config import get_settings
 
     # Configure logging for tests
     logging.basicConfig(level=logging.INFO)
 
     async def run_tests():
-        """Run all AI client tests."""
-        print("\nRunning AI client tests...\n")
+        """Run all Ollama client tests."""
+        print("\nRunning Ollama client tests...\n")
 
         settings = get_settings()
         print(f"Ollama URL: {settings.ollama_url}")
@@ -350,14 +469,14 @@ if __name__ == "__main__":
         print(f"Summarizer Model: {settings.summarizer_model}")
         print()
 
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             # Test 1: Check services
             print("Test 1: Checking services...", end=" ")
             try:
                 status = await client.check_services()
                 print("OK")
                 print(f"  Ollama: {'available' if status['ollama'] else 'unavailable'}")
-                if status['ollama_version']:
+                if status["ollama_version"]:
                     print(f"  Ollama version: {status['ollama_version']}")
                 print(f"  Whisper: {'available' if status['whisper'] else 'unavailable'}")
             except Exception as e:
@@ -366,9 +485,11 @@ if __name__ == "__main__":
 
             # Test 2: Generate (only if Ollama available)
             print("\nTest 2: Generate text...", end=" ")
-            if status['ollama']:
+            if status["ollama"]:
                 try:
-                    response = await client.generate("Say 'Hello' in Russian. Reply with just the word.")
+                    response = await client.generate(
+                        "Say 'Hello' in Russian. Reply with just the word."
+                    )
                     print("OK")
                     print(f"  Response: {response.strip()}")
                 except Exception as e:
@@ -379,10 +500,13 @@ if __name__ == "__main__":
 
             # Test 3: Chat (only if Ollama available)
             print("\nTest 3: Chat completion...", end=" ")
-            if status['ollama']:
+            if status["ollama"]:
                 try:
                     messages = [
-                        {"role": "system", "content": "You are a helpful assistant. Reply briefly."},
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant. Reply briefly.",
+                        },
                         {"role": "user", "content": "What is 2+2?"},
                     ]
                     response = await client.chat(messages)

@@ -17,7 +17,7 @@ from app.models.schemas import (
     Summary,
     VideoMetadata,
 )
-from app.services.ai_client import AIClient
+from app.services.ai_clients import OllamaClient
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -41,13 +41,13 @@ class SummaryGenerator:
     quickly recall key points.
 
     Example:
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             generator = SummaryGenerator(client, settings)
             summary = await generator.generate(longread, metadata)
             markdown = summary.to_markdown()
     """
 
-    def __init__(self, ai_client: AIClient, settings: Settings):
+    def __init__(self, ai_client: OllamaClient, settings: Settings):
         """
         Initialize summary generator.
 
@@ -323,7 +323,7 @@ if __name__ == "__main__":
 
         # Test 4: Full generation (requires Ollama)
         print("\nTest 4: Full generation...", end=" ")
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             status = await client.check_services()
 
             if not status["ollama"]:

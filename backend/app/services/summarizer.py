@@ -17,7 +17,7 @@ from app.models.schemas import (
     VideoMetadata,
     VideoSummary,
 )
-from app.services.ai_client import AIClient
+from app.services.ai_clients import OllamaClient
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -45,7 +45,7 @@ class VideoSummarizer:
     Supports dynamic prompt selection for iterative format tuning.
 
     Example:
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             summarizer = VideoSummarizer(client, settings)
 
             # With outline (large texts):
@@ -60,7 +60,7 @@ class VideoSummarizer:
 
     def __init__(
         self,
-        ai_client: AIClient,
+        ai_client: OllamaClient,
         settings: Settings,
         prompt_name: str = "summarizer",
     ):
@@ -369,7 +369,7 @@ if __name__ == "__main__":
 
         # Test 6: Full summarization with LLM (if available)
         print("\nTest 6: Full summarization with LLM...", end=" ")
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             status = await client.check_services()
 
             if not status["ollama"]:

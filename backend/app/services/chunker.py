@@ -24,7 +24,7 @@ from app.models.schemas import (
     TranscriptOutline,
     VideoMetadata,
 )
-from app.services.ai_client import AIClient
+from app.services.ai_clients import OllamaClient
 from app.services.outline_extractor import OutlineExtractor
 from app.services.text_splitter import TextSplitter
 from app.utils.chunk_utils import generate_chunk_id, validate_cyrillic_ratio
@@ -53,13 +53,13 @@ class SemanticChunker:
     3. Uses outline as context for chunking
 
     Example:
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             chunker = SemanticChunker(client, settings)
             chunks = await chunker.chunk(cleaned_transcript, metadata)
             print(f"Created {chunks.total_chunks} chunks")
     """
 
-    def __init__(self, ai_client: AIClient, settings: Settings):
+    def __init__(self, ai_client: OllamaClient, settings: Settings):
         """
         Initialize chunker.
 
@@ -648,7 +648,7 @@ if __name__ == "__main__":
 
         # Test 5: Full chunking with LLM (if available)
         print("\nTest 5: Full chunking with LLM...", end=" ")
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             status = await client.check_services()
 
             if not status["ollama"]:

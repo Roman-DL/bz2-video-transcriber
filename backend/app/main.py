@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import models_routes, routes, step_routes
 from app.config import get_settings
 from app.logging_config import setup_logging
-from app.services.ai_client import AIClient
+from app.services.ai_clients import OllamaClient
 
 # Configure logging before anything else
 settings = get_settings()
@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Archive directory: {settings.archive_dir}")
 
     # Check AI services
-    async with AIClient(settings) as client:
+    async with OllamaClient.from_settings(settings) as client:
         status = await client.check_services()
         logger.info(f"AI Services - Whisper: {status['whisper']}, Ollama: {status['ollama']}")
 
@@ -85,7 +85,7 @@ async def services_health() -> dict:
         Status of Whisper and Ollama services
     """
     settings = get_settings()
-    async with AIClient(settings) as client:
+    async with OllamaClient.from_settings(settings) as client:
         status = await client.check_services()
         return {
             "whisper": status["whisper"],

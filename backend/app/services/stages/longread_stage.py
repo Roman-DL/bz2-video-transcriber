@@ -15,7 +15,7 @@ from app.models.schemas import (
     TranscriptOutline,
     VideoMetadata,
 )
-from app.services.ai_client import AIClient
+from app.services.ai_clients import OllamaClient
 from app.services.longread_generator import LongreadGenerator
 from app.services.stages.base import BaseStage, StageContext, StageError
 
@@ -45,7 +45,7 @@ class LongreadStage(BaseStage):
     depends_on = ["parse", "chunk"]
     status = ProcessingStatus.LONGREAD
 
-    def __init__(self, ai_client: AIClient, settings: Settings):
+    def __init__(self, ai_client: OllamaClient, settings: Settings):
         """Initialize longread stage.
 
         Args:

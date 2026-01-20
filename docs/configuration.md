@@ -49,7 +49,11 @@
 
 ### models.yaml
 
-Параметры обработки для каждой модели и список доступных Whisper моделей.
+Конфигурация моделей и параметров обработки. Включает:
+- Список Whisper моделей
+- Context Profiles (параметры по размеру контекста)
+- Провайдеры AI (Ollama, Claude)
+- Конфигурации отдельных моделей
 
 #### Секция whisper_models
 
@@ -69,42 +73,123 @@ whisper_models:
 1. Загрузить модель на whisper сервер (первый запрос с этой моделью)
 2. Добавить запись в `whisper_models`
 
-#### Секция models
+#### Секция context_profiles (v0.17+)
 
-Параметры обработки для каждой LLM модели:
+Context Profiles — параметры обработки, сгруппированные по размеру контекстного окна.
+Это избавляет от дублирования параметров для каждой модели.
 
 ```yaml
-models:
-  gemma2:
-    context_tokens: 8192      # Размер контекстного окна модели
+context_profiles:
+  # Малый контекст (< 16K tokens) — локальные модели
+  small:
+    context_tokens: 8192
     cleaner:
-      chunk_size: 3000        # Размер чанка для очистки
-      chunk_overlap: 200      # Перекрытие между чанками
+      chunk_size: 3000          # Небольшие чанки
+      chunk_overlap: 200
       small_text_threshold: 3500
     chunker:
       large_text_threshold: 10000
       min_chunk_words: 100
       target_chunk_words: 250
-    text_splitter:
-      part_size: 6000
-      overlap_size: 1500
-      min_part_size: 2000
-
-  qwen2:
-    context_tokens: 32768     # Большее окно → большие чанки
-    cleaner:
-      chunk_size: 12000
     # ...
 
-defaults:
-  # Fallback значения если модель не найдена
+  # Средний контекст (16K - 64K tokens) — продвинутые локальные модели
+  medium:
+    context_tokens: 32768
+    cleaner:
+      chunk_size: 8000          # Большие чанки
+    # ...
+
+  # Большой контекст (> 100K tokens) — облачные модели
+  large:
+    context_tokens: 200000
+    cleaner:
+      chunk_size: 100000        # Минимум чанков
+      small_text_threshold: 150000  # Почти весь текст обрабатывается целиком
+    # ...
+```
+
+| Профиль | Контекст | Модели |
+|---------|----------|--------|
+| `small` | < 16K tokens | gemma2:9b |
+| `medium` | 16K - 64K tokens | qwen2.5:14b, llama3.2:8b |
+| `large` | > 100K tokens | Claude Sonnet, Claude Opus |
+
+#### Секция providers (v0.17+)
+
+Конфигурация AI провайдеров:
+
+```yaml
+providers:
+  ollama:
+    type: "local"              # Локальный сервер
+    default_profile: small     # Профиль по умолчанию
+    base_url_env: "OLLAMA_URL" # Переменная окружения с URL
+
+  claude:
+    type: "cloud"              # Облачный API
+    default_profile: large
+    api_key_env: "ANTHROPIC_API_KEY"  # Переменная с API ключом
+```
+
+#### Секция models
+
+Конфигурация отдельных моделей. Каждая модель ссылается на `context_profile`:
+
+```yaml
+models:
+  gemma2:
+    provider: ollama
+    context_profile: small     # Параметры из профиля 'small'
+    context_tokens: 8192
+
+  qwen2.5:
+    provider: ollama
+    context_profile: medium
+    context_tokens: 32768
+
+  claude-sonnet:
+    provider: claude
+    context_profile: large
+    context_tokens: 200000
+    # Реализация в Phase 5
+```
+
+**Переопределение параметров:** Модель может override параметры профиля:
+
+```yaml
+models:
+  qwen3:
+    provider: ollama
+    context_profile: medium     # Базовые параметры из 'medium'
+    context_tokens: 40960       # Но контекст больше
+    # Override отдельных параметров
+    cleaner:
+      chunk_size: 10000         # Переопределяем только chunk_size
 ```
 
 | Параметр | Описание |
 |----------|----------|
-| `context_tokens` | Размер контекстного окна модели (отображается в UI) |
-| `cleaner.chunk_size` | Размер чанка текста для очистки |
-| `chunker.large_text_threshold` | Порог для Map-Reduce режима |
+| `provider` | Провайдер AI (ollama, claude) |
+| `context_profile` | Ссылка на профиль параметров |
+| `context_tokens` | Размер контекстного окна модели |
+| `cleaner.*` | Override параметров очистки |
+| `chunker.*` | Override параметров чанкирования |
+
+#### Добавление новой модели
+
+1. Выбрать подходящий `context_profile`
+2. Добавить запись в `models`:
+
+```yaml
+models:
+  my-new-model:
+    provider: ollama
+    context_profile: medium     # Выбираем профиль по размеру контекста
+    context_tokens: 32000       # Указываем точный размер
+```
+
+Дополнительно см. [ADR-004: Абстракция AI клиентов](adr/004-ai-client-abstraction.md)
 
 ### glossary.yaml
 

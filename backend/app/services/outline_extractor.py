@@ -19,7 +19,7 @@ import time
 from app.config import Settings, load_prompt
 from app.utils.json_utils import extract_json
 from app.models.schemas import PartOutline, TextPart, TranscriptOutline
-from app.services.ai_client import AIClient
+from app.services.ai_clients import OllamaClient
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -38,7 +38,7 @@ class OutlineExtractor:
     2. REDUCE: Combine outlines with topic deduplication
 
     Example:
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             extractor = OutlineExtractor(client, settings)
             parts = text_splitter.split(text)
             outline = await extractor.extract(parts)
@@ -47,7 +47,7 @@ class OutlineExtractor:
 
     def __init__(
         self,
-        ai_client: AIClient,
+        ai_client: OllamaClient,
         settings: Settings,
         max_parallel: int = MAX_PARALLEL_LLM_REQUESTS,
     ):
@@ -481,7 +481,7 @@ if __name__ == "__main__":
         # Test 6: Full extraction with LLM (if available)
         print("\nTest 6: Full extraction with LLM...", end=" ")
 
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             status = await client.check_services()
 
             if not status["ollama"]:

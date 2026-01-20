@@ -26,7 +26,7 @@ from app.models.schemas import (
     VideoMetadata,
     VideoSummary,
 )
-from app.services.ai_client import AIClient
+from app.services.ai_clients import OllamaClient
 from app.services.chunker import DEFAULT_LARGE_TEXT_THRESHOLD, SemanticChunker
 from app.services.cleaner import TranscriptCleaner
 from app.services.longread_generator import LongreadGenerator
@@ -203,7 +203,7 @@ class PipelineOrchestrator:
         )
 
         # Stages 2-6: Require AI client
-        async with AIClient(self.settings) as ai_client:
+        async with OllamaClient(self.settings) as ai_client:
             # Initialize services
             transcriber = WhisperTranscriber(ai_client, self.settings)
             cleaner = TranscriptCleaner(ai_client, self.settings)
@@ -295,7 +295,7 @@ class PipelineOrchestrator:
         """
         video_path = Path(video_path)
 
-        async with AIClient(self.settings) as ai_client:
+        async with OllamaClient(self.settings) as ai_client:
             transcriber = WhisperTranscriber(ai_client, self.settings)
             return await transcriber.transcribe(video_path)
 
@@ -317,7 +317,7 @@ class PipelineOrchestrator:
             CleanedTranscript with cleaned text
         """
         settings = self.config_resolver.with_model(model, "cleaner")
-        async with AIClient(settings) as ai_client:
+        async with OllamaClient.from_settings(settings) as ai_client:
             cleaner = TranscriptCleaner(ai_client, settings)
             return await cleaner.clean(raw_transcript, metadata)
 
@@ -339,7 +339,7 @@ class PipelineOrchestrator:
             TranscriptChunks with semantic chunks
         """
         settings = self.config_resolver.with_model(model, "chunker")
-        async with AIClient(settings) as ai_client:
+        async with OllamaClient.from_settings(settings) as ai_client:
             chunker = SemanticChunker(ai_client, settings)
             return await chunker.chunk(cleaned_transcript, metadata)
 
@@ -363,7 +363,7 @@ class PipelineOrchestrator:
             Longread document with sections
         """
         settings = self.config_resolver.with_model(model, "longread")
-        async with AIClient(settings) as ai_client:
+        async with OllamaClient.from_settings(settings) as ai_client:
             generator = LongreadGenerator(ai_client, settings)
             try:
                 return await generator.generate(chunks, metadata, outline)
@@ -389,7 +389,7 @@ class PipelineOrchestrator:
             Summary with essence, concepts, tools, quotes
         """
         settings = self.config_resolver.with_model(model, "summarizer")
-        async with AIClient(settings) as ai_client:
+        async with OllamaClient.from_settings(settings) as ai_client:
             generator = SummaryGenerator(ai_client, settings)
             try:
                 return await generator.generate(longread, metadata)
@@ -420,7 +420,7 @@ class PipelineOrchestrator:
             VideoSummary with structured content
         """
         settings = self.config_resolver.with_model(model, "summarizer")
-        async with AIClient(settings) as ai_client:
+        async with OllamaClient.from_settings(settings) as ai_client:
             # Extract outline for large texts (step-by-step mode)
             _, outline = await self._extract_outline(cleaned_transcript, ai_client)
 
@@ -549,7 +549,7 @@ class PipelineOrchestrator:
     async def _extract_outline(
         self,
         cleaned_transcript: CleanedTranscript,
-        ai_client: AIClient,
+        ai_client: OllamaClient,
         callback: ProgressCallback | None = None,
     ) -> tuple[list[TextPart], TranscriptOutline | None]:
         """
@@ -607,7 +607,7 @@ class PipelineOrchestrator:
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
         callback: ProgressCallback | None,
-        ai_client: AIClient,
+        ai_client: OllamaClient,
     ) -> tuple[TranscriptChunks, Longread, Summary]:
         """
         Execute outline extraction, chunking, longread generation, and summarization.

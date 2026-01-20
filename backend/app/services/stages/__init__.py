@@ -98,7 +98,7 @@ def create_default_stages(
         Registry with all stages registered
 
     Example:
-        async with AIClient(settings) as ai_client:
+        async with OllamaClient(settings) as ai_client:
             registry = create_default_stages(ai_client, settings)
             stages = registry.build_pipeline(["parse", "transcribe", ...])
     """

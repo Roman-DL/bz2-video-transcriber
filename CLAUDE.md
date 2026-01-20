@@ -57,15 +57,16 @@ Video → Parse → Whisper → Clean → Chunk → Longread → Summary → Sav
 ## Структура проекта
 
 ```
-backend/app/services/           # Сервисы pipeline
-backend/app/services/pipeline/  # Pipeline package (v0.15+)
-backend/app/services/stages/    # Stage абстракция (v0.14+)
-backend/app/utils/              # Shared utilities (v0.16+)
-backend/app/api/                # FastAPI endpoints
-frontend/src/                   # React + Vite + Tailwind
-config/prompts/                 # LLM промпты
-config/glossary.yaml            # Терминология
-docs/adr/                       # Architecture Decision Records
+backend/app/services/             # Сервисы pipeline
+backend/app/services/ai_clients/  # AI клиенты (v0.17+)
+backend/app/services/pipeline/    # Pipeline package (v0.15+)
+backend/app/services/stages/      # Stage абстракция (v0.14+)
+backend/app/utils/                # Shared utilities (v0.16+)
+backend/app/api/                  # FastAPI endpoints
+frontend/src/                     # React + Vite + Tailwind
+config/prompts/                   # LLM промпты
+config/glossary.yaml              # Терминология
+docs/adr/                         # Architecture Decision Records
 ```
 
 ## Pipeline Package (v0.15+)
@@ -134,6 +135,34 @@ num_predict = calculate_num_predict(tokens, task="chunker")
 ```
 
 Подробнее: [docs/adr/003-shared-utils.md](docs/adr/003-shared-utils.md)
+
+## AI Clients (v0.17+)
+
+Абстракция для AI провайдеров, позволяющая переключаться между Ollama и Claude API:
+
+```
+backend/app/services/ai_clients/
+├── __init__.py          # Экспорт OllamaClient, BaseAIClient
+├── base.py              # BaseAIClient (Protocol), AIClientConfig, исключения
+├── ollama_client.py     # OllamaClient — Ollama + Whisper
+└── claude_client.py     # ClaudeClient — заглушка (Phase 5)
+```
+
+**Использование:**
+```python
+from app.services.ai_clients import OllamaClient
+
+async with OllamaClient.from_settings(settings) as client:
+    response = await client.generate("Hello!")
+    transcript = await client.transcribe(video_path)
+```
+
+**Context Profiles** (в `config/models.yaml`):
+- `small` — для gemma2:9b (< 16K tokens)
+- `medium` — для qwen2.5:14b (16K-64K tokens)
+- `large` — для Claude (> 100K tokens)
+
+Подробнее: [docs/adr/004-ai-client-abstraction.md](docs/adr/004-ai-client-abstraction.md)
 
 ## AI сервисы
 

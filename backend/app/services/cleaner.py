@@ -10,7 +10,7 @@ import time
 
 from app.config import Settings, get_settings, load_glossary, load_model_config, load_prompt
 from app.models.schemas import CleanedTranscript, RawTranscript, VideoMetadata
-from app.services.ai_client import AIClient
+from app.services.ai_clients import OllamaClient
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -30,13 +30,13 @@ class TranscriptCleaner:
     2. LLM: Remove filler words, fix speech errors, clean formatting
 
     Example:
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             cleaner = TranscriptCleaner(client, settings)
             cleaned = await cleaner.clean(raw_transcript, metadata)
             print(cleaned.text)
     """
 
-    def __init__(self, ai_client: AIClient, settings: Settings):
+    def __init__(self, ai_client: OllamaClient, settings: Settings):
         """
         Initialize cleaner.
 
@@ -505,7 +505,7 @@ if __name__ == "__main__":
 
         # Test 5: Full clean with LLM (if available)
         print("\nTest 5: Full clean with LLM...", end=" ")
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             status = await client.check_services()
 
             if not status["ollama"]:

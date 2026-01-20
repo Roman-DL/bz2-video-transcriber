@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.config import Settings
 from app.models.schemas import ProcessingStatus, RawTranscript
-from app.services.ai_client import AIClient
+from app.services.ai_clients import OllamaClient
 from app.services.stages.base import BaseStage, StageContext, StageError
 from app.services.transcriber import WhisperTranscriber
 
@@ -33,7 +33,7 @@ class TranscribeStage(BaseStage):
     depends_on = ["parse"]
     status = ProcessingStatus.TRANSCRIBING
 
-    def __init__(self, ai_client: AIClient, settings: Settings):
+    def __init__(self, ai_client: OllamaClient, settings: Settings):
         """Initialize transcribe stage.
 
         Args:

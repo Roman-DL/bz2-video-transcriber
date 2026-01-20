@@ -20,7 +20,7 @@ from app.models.schemas import (
     TranscriptOutline,
     VideoMetadata,
 )
-from app.services.ai_client import AIClient
+from app.services.ai_clients import OllamaClient
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -51,13 +51,13 @@ class LongreadGenerator:
     the overall structure while processing only its assigned chunks.
 
     Example:
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             generator = LongreadGenerator(client, settings)
             longread = await generator.generate(chunks, metadata, outline)
             markdown = longread.to_markdown()
     """
 
-    def __init__(self, ai_client: AIClient, settings: Settings):
+    def __init__(self, ai_client: OllamaClient, settings: Settings):
         """
         Initialize longread generator.
 
@@ -487,7 +487,7 @@ if __name__ == "__main__":
 
         # Test 4: Full generation (requires Ollama)
         print("\nTest 4: Full generation...", end=" ")
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             status = await client.check_services()
 
             if not status["ollama"]:

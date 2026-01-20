@@ -11,7 +11,7 @@ from pathlib import Path
 
 from app.config import Settings, get_settings
 from app.models.schemas import RawTranscript, TranscriptSegment
-from app.services.ai_client import AIClient
+from app.services.ai_clients import OllamaClient
 from app.services.audio_extractor import AudioExtractor
 
 logger = logging.getLogger(__name__)
@@ -23,13 +23,13 @@ class WhisperTranscriber:
     Video/audio transcription service using Whisper API.
 
     Example:
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             transcriber = WhisperTranscriber(client, settings)
             transcript = await transcriber.transcribe(Path("video.mp4"))
             print(transcript.full_text)
     """
 
-    def __init__(self, ai_client: AIClient, settings: Settings):
+    def __init__(self, ai_client: OllamaClient, settings: Settings):
         """
         Initialize transcriber.
 
@@ -204,7 +204,7 @@ if __name__ == "__main__":
 
         # Test 3: Real transcription (optional)
         print("\nTest 3: Real transcription...", end=" ")
-        async with AIClient(settings) as client:
+        async with OllamaClient.from_settings(settings) as client:
             status = await client.check_services()
 
             if not status["whisper"]:
