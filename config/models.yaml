@@ -3,10 +3,17 @@
 
 # Claude models available for selection in UI
 # Only shown when ANTHROPIC_API_KEY is set
+# Using aliases for auto-updates to latest versions
 claude_models:
-  - id: "claude-sonnet-4-20250514"
-    name: "Claude Sonnet 4"
-    description: "Облачная модель (200K контекст)"
+  - id: "claude-sonnet-4-5"
+    name: "Claude Sonnet 4.5"
+    description: "Быстрая и умная ($3/$15 за 1M токенов)"
+  - id: "claude-haiku-4-5"
+    name: "Claude Haiku 4.5"
+    description: "Самая быстрая ($1/$5 за 1M токенов)"
+  - id: "claude-opus-4-5"
+    name: "Claude Opus 4.5"
+    description: "Максимальный интеллект ($5/$25 за 1M токенов)"
 
 # Available Whisper models for transcription
 # Only models listed here will be shown in the UI
@@ -155,13 +162,23 @@ models:
     summary:
       max_input_chars: 40000
 
-  # Claude Sonnet - cloud model (Phase 5)
-  claude-sonnet:
+  # Claude Sonnet 4.5 - recommended for most tasks
+  claude-sonnet-4-5:
     provider: claude
     context_profile: large
     context_tokens: 200000
-    # Future: specific optimizations for Claude
-    # Not implemented: see ClaudeClient stub
+
+  # Claude Haiku 4.5 - fastest, cheapest
+  claude-haiku-4-5:
+    provider: claude
+    context_profile: large
+    context_tokens: 200000
+
+  # Claude Opus 4.5 - maximum intelligence
+  claude-opus-4-5:
+    provider: claude
+    context_profile: large
+    context_tokens: 200000
 
 
 # =============================================================================

@@ -424,9 +424,19 @@ Claude модели показываются только если `ANTHROPIC_AP
   ],
   "claude_models": [
     {
-      "id": "claude-sonnet-4-20250514",
-      "name": "Claude Sonnet 4",
-      "description": "Облачная модель (200K контекст)"
+      "id": "claude-sonnet-4-5",
+      "name": "Claude Sonnet 4.5",
+      "description": "Быстрая и умная ($3/$15 за 1M токенов)"
+    },
+    {
+      "id": "claude-haiku-4-5",
+      "name": "Claude Haiku 4.5",
+      "description": "Самая быстрая ($1/$5 за 1M токенов)"
+    },
+    {
+      "id": "claude-opus-4-5",
+      "name": "Claude Opus 4.5",
+      "description": "Максимальный интеллект ($5/$25 за 1M токенов)"
     }
   ],
   "providers": {

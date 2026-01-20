@@ -173,13 +173,13 @@ from app.services.pipeline import ProcessingStrategy
 
 strategy = ProcessingStrategy(settings)
 
-# По имени модели
-async with strategy.create_client("claude-sonnet-4-20250514") as client:
+# По имени модели (алиас)
+async with strategy.create_client("claude-sonnet-4-5") as client:
     response = await client.generate("...")
 
 # С fallback
 client, model = await strategy.get_client_with_fallback(
-    "claude-sonnet", "qwen2.5:14b"
+    "claude-sonnet-4-5", "qwen2.5:14b"
 )
 ```
 
