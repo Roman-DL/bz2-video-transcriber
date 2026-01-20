@@ -232,6 +232,8 @@ sudo docker compose up -d --build
 
 ## Переменные окружения
 
+### AI сервисы
+
 | Переменная | По умолчанию | Описание |
 |------------|--------------|----------|
 | `OLLAMA_URL` | `http://192.168.1.152:11434` | URL Ollama API |
@@ -241,6 +243,12 @@ sudo docker compose up -d --build
 | `CHUNKER_MODEL` | `gemma2:9b` | Модель для чанкирования |
 | `LLM_TIMEOUT` | `300` | Таймаут запросов к Ollama (сек) |
 | `WHISPER_LANGUAGE` | `ru` | Язык транскрипции |
+| `ANTHROPIC_API_KEY` | — | API ключ для Claude (опционально) |
+
+### Пути
+
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
 | `DATA_ROOT` | `/data` | Корень данных |
 | `INBOX_DIR` | `/data/inbox` | Папка входящих видео |
 | `ARCHIVE_DIR` | `/data/archive` | Папка обработанных |

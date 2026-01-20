@@ -26,7 +26,7 @@ from app.models.schemas import (
     VideoMetadata,
     VideoSummary,
 )
-from app.services.ai_clients import OllamaClient
+from app.services.ai_clients import BaseAIClient, OllamaClient
 from app.services.chunker import DEFAULT_LARGE_TEXT_THRESHOLD, SemanticChunker
 from app.services.cleaner import TranscriptCleaner
 from app.services.longread_generator import LongreadGenerator
@@ -40,6 +40,7 @@ from app.services.transcriber import WhisperTranscriber
 
 from .config_resolver import ConfigResolver
 from .fallback_factory import FallbackFactory
+from .processing_strategy import ProcessingStrategy
 from .progress_manager import ProgressCallback, ProgressManager
 
 logger = logging.getLogger(__name__)
@@ -135,6 +136,7 @@ class PipelineOrchestrator:
         self.progress_manager = ProgressManager()
         self.fallback_factory = FallbackFactory(self.settings)
         self.config_resolver = ConfigResolver(self.settings)
+        self.processing_strategy = ProcessingStrategy(self.settings)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Full Pipeline
@@ -317,7 +319,8 @@ class PipelineOrchestrator:
             CleanedTranscript with cleaned text
         """
         settings = self.config_resolver.with_model(model, "cleaner")
-        async with OllamaClient.from_settings(settings) as ai_client:
+        actual_model = model or settings.cleaner_model
+        async with self.processing_strategy.create_client(actual_model) as ai_client:
             cleaner = TranscriptCleaner(ai_client, settings)
             return await cleaner.clean(raw_transcript, metadata)
 
@@ -339,7 +342,8 @@ class PipelineOrchestrator:
             TranscriptChunks with semantic chunks
         """
         settings = self.config_resolver.with_model(model, "chunker")
-        async with OllamaClient.from_settings(settings) as ai_client:
+        actual_model = model or settings.chunker_model
+        async with self.processing_strategy.create_client(actual_model) as ai_client:
             chunker = SemanticChunker(ai_client, settings)
             return await chunker.chunk(cleaned_transcript, metadata)
 
@@ -363,7 +367,8 @@ class PipelineOrchestrator:
             Longread document with sections
         """
         settings = self.config_resolver.with_model(model, "longread")
-        async with OllamaClient.from_settings(settings) as ai_client:
+        actual_model = model or settings.summarizer_model
+        async with self.processing_strategy.create_client(actual_model) as ai_client:
             generator = LongreadGenerator(ai_client, settings)
             try:
                 return await generator.generate(chunks, metadata, outline)
@@ -389,7 +394,8 @@ class PipelineOrchestrator:
             Summary with essence, concepts, tools, quotes
         """
         settings = self.config_resolver.with_model(model, "summarizer")
-        async with OllamaClient.from_settings(settings) as ai_client:
+        actual_model = model or settings.summarizer_model
+        async with self.processing_strategy.create_client(actual_model) as ai_client:
             generator = SummaryGenerator(ai_client, settings)
             try:
                 return await generator.generate(longread, metadata)
@@ -420,7 +426,8 @@ class PipelineOrchestrator:
             VideoSummary with structured content
         """
         settings = self.config_resolver.with_model(model, "summarizer")
-        async with OllamaClient.from_settings(settings) as ai_client:
+        actual_model = model or settings.summarizer_model
+        async with self.processing_strategy.create_client(actual_model) as ai_client:
             # Extract outline for large texts (step-by-step mode)
             _, outline = await self._extract_outline(cleaned_transcript, ai_client)
 
@@ -549,7 +556,7 @@ class PipelineOrchestrator:
     async def _extract_outline(
         self,
         cleaned_transcript: CleanedTranscript,
-        ai_client: OllamaClient,
+        ai_client: BaseAIClient,
         callback: ProgressCallback | None = None,
     ) -> tuple[list[TextPart], TranscriptOutline | None]:
         """

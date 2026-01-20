@@ -403,7 +403,8 @@ def call_ollama(prompt: str, model: str = "qwen2.5:14b") -> str:
 
 #### GET /api/models/available
 
-Список доступных моделей. Ollama модели получаются динамически, Whisper модели — из `config/models.yaml`.
+Список доступных моделей. Ollama модели получаются динамически, Whisper и Claude модели — из `config/models.yaml`.
+Claude модели показываются только если `ANTHROPIC_API_KEY` установлен и валиден.
 
 **Response:**
 ```json
@@ -420,9 +421,28 @@ def call_ollama(prompt: str, model: str = "qwen2.5:14b") -> str:
       "name": "large-v3-turbo",
       "description": "Быстрее, хорошее качество"
     }
-  ]
+  ],
+  "claude_models": [
+    {
+      "id": "claude-sonnet-4-20250514",
+      "name": "Claude Sonnet 4",
+      "description": "Облачная модель (200K контекст)"
+    }
+  ],
+  "providers": {
+    "local": {
+      "available": true,
+      "name": "Ollama"
+    },
+    "cloud": {
+      "available": true,
+      "name": "Claude API"
+    }
+  }
 }
 ```
+
+**Примечание:** `claude_models` и `providers.cloud.available` присутствуют только если `ANTHROPIC_API_KEY` настроен.
 
 #### GET /api/models/default
 

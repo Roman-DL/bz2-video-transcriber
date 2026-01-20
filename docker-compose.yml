@@ -25,6 +25,8 @@ services:
       # Settings
       - WHISPER_LANGUAGE=ru
       - LLM_TIMEOUT=300
+      # Cloud AI (optional)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       # Logging
       - LOG_LEVEL=INFO
       - LOG_FORMAT=structured

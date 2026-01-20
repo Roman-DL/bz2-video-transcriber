@@ -6,7 +6,7 @@ Applies terminology corrections and improves transcript readability.
 
 from app.config import Settings
 from app.models.schemas import CleanedTranscript, ProcessingStatus, RawTranscript, VideoMetadata
-from app.services.ai_clients import OllamaClient
+from app.services.ai_clients import BaseAIClient
 from app.services.cleaner import TranscriptCleaner
 from app.services.stages.base import BaseStage, StageContext, StageError
 
@@ -31,7 +31,7 @@ class CleanStage(BaseStage):
     depends_on = ["parse", "transcribe"]
     status = ProcessingStatus.CLEANING
 
-    def __init__(self, ai_client: OllamaClient, settings: Settings):
+    def __init__(self, ai_client: BaseAIClient, settings: Settings):
         """Initialize clean stage.
 
         Args:

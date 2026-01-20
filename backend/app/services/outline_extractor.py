@@ -19,7 +19,7 @@ import time
 from app.config import Settings, load_prompt
 from app.utils.json_utils import extract_json
 from app.models.schemas import PartOutline, TextPart, TranscriptOutline
-from app.services.ai_clients import OllamaClient
+from app.services.ai_clients import BaseAIClient, OllamaClient
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -47,7 +47,7 @@ class OutlineExtractor:
 
     def __init__(
         self,
-        ai_client: OllamaClient,
+        ai_client: BaseAIClient,
         settings: Settings,
         max_parallel: int = MAX_PARALLEL_LLM_REQUESTS,
     ):

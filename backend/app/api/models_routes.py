@@ -10,6 +10,8 @@ import httpx
 from fastapi import APIRouter
 
 from app.config import get_settings, load_models_config
+from app.services.pipeline import ProcessingStrategy
+from app.services.pipeline.processing_strategy import ProviderType
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/models", tags=["models"])
@@ -18,36 +20,63 @@ router = APIRouter(prefix="/api/models", tags=["models"])
 @router.get("/available")
 async def get_available_models() -> dict:
     """
-    Get list of available models from Ollama and config.
+    Get list of available models from Ollama, Claude API, and config.
 
     Whisper models are loaded from config/models.yaml (whisper_models section)
     to show only installed models with human-readable names.
 
+    Claude models are shown only when ANTHROPIC_API_KEY is set and valid.
+
     Returns:
-        Dict with ollama_models and whisper_models lists
+        Dict with ollama_models, whisper_models, claude_models, and providers
     """
     settings = get_settings()
     ollama_models: list[str] = []
 
-    # Get Ollama models
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(f"{settings.ollama_url}/api/tags")
-            if response.status_code == 200:
-                data = response.json()
-                ollama_models = [model["name"] for model in data.get("models", [])]
-                logger.debug(f"Found {len(ollama_models)} Ollama models")
-    except Exception as e:
-        logger.warning(f"Failed to get Ollama models: {e}")
+    # Check provider availability
+    strategy = ProcessingStrategy(settings)
+    availability = await strategy.check_availability()
+
+    local_available = availability[ProviderType.LOCAL].available
+    cloud_available = availability[ProviderType.CLOUD].available
+
+    # Get Ollama models (only if local provider is available)
+    if local_available:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(f"{settings.ollama_url}/api/tags")
+                if response.status_code == 200:
+                    data = response.json()
+                    ollama_models = [model["name"] for model in data.get("models", [])]
+                    logger.debug(f"Found {len(ollama_models)} Ollama models")
+        except Exception as e:
+            logger.warning(f"Failed to get Ollama models: {e}")
 
     # Get Whisper models from config (only installed models)
     config = load_models_config()
     whisper_models = config.get("whisper_models", [])
     logger.debug(f"Loaded {len(whisper_models)} Whisper models from config")
 
+    # Get Claude models from config (only if cloud provider is available)
+    claude_models = []
+    if cloud_available:
+        claude_models = config.get("claude_models", [])
+        logger.debug(f"Loaded {len(claude_models)} Claude models from config")
+
     return {
         "ollama_models": sorted(ollama_models),
         "whisper_models": whisper_models,
+        "claude_models": claude_models,
+        "providers": {
+            "local": {
+                "available": local_available,
+                "name": "Ollama",
+            },
+            "cloud": {
+                "available": cloud_available,
+                "name": "Claude API",
+            },
+        },
     }
 
 

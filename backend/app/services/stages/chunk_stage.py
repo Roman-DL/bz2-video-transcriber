@@ -17,7 +17,7 @@ from app.models.schemas import (
     TranscriptOutline,
     VideoMetadata,
 )
-from app.services.ai_clients import OllamaClient
+from app.services.ai_clients import BaseAIClient
 from app.services.chunker import DEFAULT_LARGE_TEXT_THRESHOLD, SemanticChunker
 from app.services.outline_extractor import OutlineExtractor
 from app.services.stages.base import BaseStage, StageContext, StageError
@@ -52,7 +52,7 @@ class ChunkStage(BaseStage):
     depends_on = ["parse", "clean"]
     status = ProcessingStatus.CHUNKING
 
-    def __init__(self, ai_client: OllamaClient, settings: Settings):
+    def __init__(self, ai_client: BaseAIClient, settings: Settings):
         """Initialize chunk stage.
 
         Args:

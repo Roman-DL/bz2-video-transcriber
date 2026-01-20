@@ -13,7 +13,7 @@ from app.models.schemas import (
     Summary,
     VideoMetadata,
 )
-from app.services.ai_clients import OllamaClient
+from app.services.ai_clients import BaseAIClient
 from app.services.stages.base import BaseStage, StageContext, StageError
 from app.services.summary_generator import SummaryGenerator
 
@@ -43,7 +43,7 @@ class SummarizeStage(BaseStage):
     depends_on = ["parse", "longread"]
     status = ProcessingStatus.SUMMARIZING
 
-    def __init__(self, ai_client: OllamaClient, settings: Settings):
+    def __init__(self, ai_client: BaseAIClient, settings: Settings):
         """Initialize summarize stage.
 
         Args:

@@ -1,6 +1,13 @@
 # Model-specific configurations for pipeline stages
 # Each model family can have different parameters based on its context window size
 
+# Claude models available for selection in UI
+# Only shown when ANTHROPIC_API_KEY is set
+claude_models:
+  - id: "claude-sonnet-4-20250514"
+    name: "Claude Sonnet 4"
+    description: "Облачная модель (200K контекст)"
+
 # Available Whisper models for transcription
 # Only models listed here will be shown in the UI
 whisper_models:

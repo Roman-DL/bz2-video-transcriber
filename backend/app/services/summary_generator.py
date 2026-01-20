@@ -17,7 +17,7 @@ from app.models.schemas import (
     Summary,
     VideoMetadata,
 )
-from app.services.ai_clients import OllamaClient
+from app.services.ai_clients import BaseAIClient, OllamaClient
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -47,7 +47,7 @@ class SummaryGenerator:
             markdown = summary.to_markdown()
     """
 
-    def __init__(self, ai_client: OllamaClient, settings: Settings):
+    def __init__(self, ai_client: BaseAIClient, settings: Settings):
         """
         Initialize summary generator.
 

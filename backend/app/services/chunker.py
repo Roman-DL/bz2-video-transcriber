@@ -24,7 +24,7 @@ from app.models.schemas import (
     TranscriptOutline,
     VideoMetadata,
 )
-from app.services.ai_clients import OllamaClient
+from app.services.ai_clients import BaseAIClient, OllamaClient
 from app.services.outline_extractor import OutlineExtractor
 from app.services.text_splitter import TextSplitter
 from app.utils.chunk_utils import generate_chunk_id, validate_cyrillic_ratio
@@ -59,7 +59,7 @@ class SemanticChunker:
             print(f"Created {chunks.total_chunks} chunks")
     """
 
-    def __init__(self, ai_client: OllamaClient, settings: Settings):
+    def __init__(self, ai_client: BaseAIClient, settings: Settings):
         """
         Initialize chunker.
 

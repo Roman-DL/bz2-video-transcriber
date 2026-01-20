@@ -262,9 +262,27 @@ export interface WhisperModelConfig {
   description: string;
 }
 
+export interface ClaudeModelConfig {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export type ProviderType = 'local' | 'cloud';
+
+export interface ProviderStatus {
+  available: boolean;
+  name: string;
+}
+
 export interface AvailableModelsResponse {
   ollama_models: string[];
   whisper_models: WhisperModelConfig[];
+  claude_models?: ClaudeModelConfig[];
+  providers?: {
+    local: ProviderStatus;
+    cloud: ProviderStatus;
+  };
 }
 
 export interface DefaultModelsResponse {
