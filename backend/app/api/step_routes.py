@@ -36,7 +36,8 @@ from app.models.schemas import (
     TranscriptChunks,
     VideoMetadata,
 )
-from app.services.pipeline import PipelineOrchestrator, get_video_duration
+from app.services.pipeline import PipelineOrchestrator
+from app.utils import get_media_duration
 from app.services.progress_estimator import ProgressEstimator
 
 logger = logging.getLogger(__name__)
@@ -226,7 +227,7 @@ async def step_parse(request: StepParseRequest) -> VideoMetadata:
     try:
         metadata = orchestrator.parse(video_path)
         # Add video duration for UI display
-        metadata.duration_seconds = get_video_duration(video_path)
+        metadata.duration_seconds = get_media_duration(video_path)
         if metadata.duration_seconds is None:
             # Fallback: estimate from file size (~5MB per minute)
             metadata.duration_seconds = video_path.stat().st_size / 83333
@@ -269,7 +270,7 @@ async def step_transcribe(request: StepParseRequest) -> StreamingResponse:
     estimator = ProgressEstimator(settings)
 
     # Get video duration for time estimation
-    duration = get_video_duration(video_path)
+    duration = get_media_duration(video_path)
     if duration is None:
         # Fallback: estimate from file size (~5MB per minute)
         duration = video_path.stat().st_size / 83333

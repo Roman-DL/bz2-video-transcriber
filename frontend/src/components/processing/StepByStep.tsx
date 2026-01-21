@@ -517,23 +517,6 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
             </CollapsibleCard>
           )}
 
-          {data.chunks && (
-            <CollapsibleCard
-              title="Семантические чанки"
-              icon={Layers}
-              stats={
-                <>
-                  <span>{data.chunks.total_chunks} чанков</span>
-                  <span>~{data.chunks.avg_chunk_size} слов/чанк</span>
-                </>
-              }
-              expanded={expandedBlocks.has('chunks')}
-              onToggle={() => toggleBlock('chunks')}
-            >
-              <ChunksView chunks={data.chunks} />
-            </CollapsibleCard>
-          )}
-
           {data.longread && (
             <CollapsibleCard
               title="Лонгрид"
@@ -582,6 +565,23 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
               onToggle={() => toggleBlock('story')}
             >
               <StoryView story={data.story} />
+            </CollapsibleCard>
+          )}
+
+          {data.chunks && (
+            <CollapsibleCard
+              title="Семантические чанки"
+              icon={Layers}
+              stats={
+                <>
+                  <span>{data.chunks.total_chunks} чанков</span>
+                  <span>~{data.chunks.avg_chunk_size} слов/чанк</span>
+                </>
+              }
+              expanded={expandedBlocks.has('chunks')}
+              onToggle={() => toggleBlock('chunks')}
+            >
+              <ChunksView chunks={data.chunks} />
             </CollapsibleCard>
           )}
         </div>

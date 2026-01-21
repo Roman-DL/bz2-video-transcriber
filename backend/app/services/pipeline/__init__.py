@@ -32,7 +32,6 @@ Example:
 from .orchestrator import (
     PipelineOrchestrator,
     PipelineError,
-    get_video_duration,
 )
 from .progress_manager import ProgressManager, ProgressCallback
 from .fallback_factory import FallbackFactory
@@ -44,7 +43,6 @@ __all__ = [
     # Main orchestrator
     "PipelineOrchestrator",
     "PipelineError",
-    "get_video_duration",
     # Supporting classes
     "ProgressManager",
     "ProgressCallback",
