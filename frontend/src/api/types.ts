@@ -197,6 +197,7 @@ export interface StepCleanRequest {
   raw_transcript: RawTranscript;
   metadata: VideoMetadata;
   model?: string;
+  prompt_overrides?: PromptOverrides;
 }
 
 export interface StepChunkRequest {
@@ -208,18 +209,21 @@ export interface StepLongreadRequest {
   cleaned_transcript: CleanedTranscript;
   metadata: VideoMetadata;
   model?: string;
+  prompt_overrides?: PromptOverrides;
 }
 
 export interface StepSummarizeRequest {
   cleaned_transcript: CleanedTranscript;
   metadata: VideoMetadata;
   model?: string;
+  prompt_overrides?: PromptOverrides;
 }
 
 export interface StepStoryRequest {
   cleaned_transcript: CleanedTranscript;
   metadata: VideoMetadata;
   model?: string;
+  prompt_overrides?: PromptOverrides;
 }
 
 export interface StepSaveRequest {
@@ -383,4 +387,29 @@ export interface ModelSettings {
   clean?: string;
   longread?: string;
   summarize?: string;
+}
+
+// Prompt variants types (v0.33+)
+export interface PromptVariantInfo {
+  name: string;
+  source: 'external' | 'builtin';
+  filename: string;
+}
+
+export interface ComponentPrompts {
+  component: string;
+  default: string;
+  variants: PromptVariantInfo[];
+}
+
+export interface StagePromptsResponse {
+  stage: string;
+  components: ComponentPrompts[];
+}
+
+export interface PromptOverrides {
+  system?: string;
+  user?: string;
+  instructions?: string;
+  template?: string;
 }
