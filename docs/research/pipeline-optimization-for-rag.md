@@ -626,23 +626,37 @@ def load_prompt(name: str, model: str = None, variant: str = None):
 >
 > Промпты остаются внутри образа (`config/prompts/`), меняются через деплой.
 
-### Фаза 1: Модели данных и структура архива
+### Фаза 1: Модели данных и структура архива ✅ (v0.21)
 
 > Цель: поддержка двух типов контента и мероприятий
 
-1. **Добавить `content_type`** — enum `educational | leadership` в Pydantic-модели
-2. **Добавить `event_type`** — определение по "ПШ" в имени файла (regular → `ПШ/`, offsite → `Выездные/`)
-3. **Обновить ParseStage** — автоопределение content_type по паттернам; ошибка при нераспознанном
-4. **Обновить SaveStage** — структура архива по event_type и content_type
+1. ✅ **Добавить `ContentType`** — enum `educational | leadership` в schemas.py
+2. ✅ **Добавить `EventCategory`** — enum `regular | offsite` с определением по "ПШ" в имени файла
+3. ✅ **Обновить ParseStage** — автоопределение content_type по паттернам; ошибка при нераспознанном
+4. ✅ **Обновить SaveStage** — структура архива по event_category и content_type
 
-### Фаза 2: Очистка с глоссарием
+**Реализовано:**
+- [schemas.py:28-46](../../backend/app/models/schemas.py#L28-L46) — `ContentType`, `EventCategory` enums
+- [schemas.py:49-78](../../backend/app/models/schemas.py#L49-L78) — `VideoMetadata` с `content_type`, `event_category`, `event_name`, computed `is_offsite`
+- [parser.py:44-82](../../backend/app/services/parser.py#L44-L82) — Regex паттерны для regular/offsite событий
+- [parser.py:221-244](../../backend/app/services/parser.py#L221-L244) — `detect_content_type_from_filename()` для определения типа
+- [parser.py:302-423](../../backend/app/services/parser.py#L302-L423) — `_parse_regular_event()` и `_parse_offsite_event()` — раздельная обработка с архивными путями
+
+### Фаза 2: Очистка с глоссарием ✅ (v0.22)
 
 > Цель: глоссарий как контекст LLM вместо regex-замен
 
-5. **Обновить CleanStage** — передавать glossary.yaml как контекст в промпт
-6. **Убрать regex-замены** — удалить apply_glossary() и статистику замен (LLM не даёт точного подсчёта)
-7. **Обновить промпт очистки** — инструкции по работе с глоссарием
-8. **Тестирование** — проверить качество распознавания терминов
+5. ✅ **Обновить CleanStage** — передавать glossary.yaml как контекст в промпт
+6. ✅ **Убрать regex-замены** — удалить apply_glossary() и статистику замен (LLM не даёт точного подсчёта)
+7. ✅ **Обновить промпт очистки** — инструкции по работе с глоссарием
+8. ✅ **Тестирование** — встроенные тесты в cleaner.py проверяют распознавание терминов
+
+**Реализовано:**
+- [cleaner.py:61-72](../../backend/app/services/cleaner.py#L61-L72) — `_load_glossary_text()` загружает glossary.yaml как текст
+- [cleaner.py:116-118](../../backend/app/services/cleaner.py#L116-L118) — глоссарий передаётся в user_template через `{glossary}`
+- [cleaner_system.md](../../config/prompts/cleaner_system.md) — инструкции "Как работать с глоссарием" (распознавание по звучанию, смыслу)
+- [cleaner_user.md](../../config/prompts/cleaner_user.md) — шаблон с `<glossary>{glossary}</glossary>` для LLM контекста
+- [glossary.yaml](../../config/glossary.yaml) — 79 терминов с `canonical`, `description`, `variations`, `context`
 
 ### Фаза 3: Генерация лонгрида и истории ✅ (v0.23)
 
