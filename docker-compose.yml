@@ -10,6 +10,8 @@ services:
       - /mnt/main/work/bz2/video:/data:rw
       # Configuration - prompts, glossary
       - ./config:/app/config:ro
+      # External prompts (v0.30+) - overrides built-in prompts
+      - /mnt/main/work/bz2/video/prompts:/data/prompts:ro
     environment:
       # AI services
       - OLLAMA_URL=http://192.168.1.152:11434
@@ -22,6 +24,7 @@ services:
       - ARCHIVE_DIR=/data/archive
       - TEMP_DIR=/data/temp
       - CONFIG_DIR=/app/config
+      - PROMPTS_DIR=/data/prompts
       # Settings
       - WHISPER_LANGUAGE=ru
       - LLM_TIMEOUT=300

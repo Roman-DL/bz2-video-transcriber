@@ -48,6 +48,7 @@
 | `ARCHIVE_DIR` | `/data/archive` | Папка архива |
 | `TEMP_DIR` | `/data/temp` | Временные файлы |
 | `CONFIG_DIR` | `/app/config` | Конфигурационные файлы |
+| `PROMPTS_DIR` | — | Внешние промпты (v0.30+, опционально) |
 
 ### Логирование
 
@@ -261,17 +262,83 @@ stages:
     min_seconds: 30
 ```
 
-### prompts/
+### prompts/ (v0.30+)
 
-Промпты для LLM. Поддерживается fallback:
-1. `{name}_{model_family}.md` — специфичный для модели
-2. `{name}.md` — общий
+Промпты организованы в иерархическую структуру по этапам pipeline:
 
-Примеры:
-- `cleaner_system.md` — системный промпт для очистки
-- `cleaner_system_gemma2.md` — версия для gemma2
-- `chunker.md` — промпт для чанкирования
-- `summarizer_system.md` — промпт для суммаризации
+```
+config/prompts/
+├── cleaning/
+│   ├── system.md
+│   ├── system_gemma2.md      # model-specific
+│   ├── user.md
+│   └── user_gemma2.md
+├── longread/
+│   ├── system.md
+│   ├── instructions.md
+│   ├── template.md
+│   ├── section.md
+│   └── combine.md
+├── summary/
+│   ├── system.md
+│   ├── instructions.md
+│   └── template.md
+├── story/
+│   ├── system.md
+│   ├── instructions.md
+│   └── template.md
+└── outline/
+    └── map.md
+```
+
+**Приоритет загрузки** (первый найденный):
+1. `prompts_dir/{stage}/{component}_{model_family}.md` (внешняя, model-specific)
+2. `prompts_dir/{stage}/{component}.md` (внешняя, generic)
+3. `config_dir/prompts/{stage}/{component}_{model_family}.md` (встроенная, model-specific)
+4. `config_dir/prompts/{stage}/{component}.md` (встроенная, generic)
+
+## Внешние промпты (v0.30+)
+
+Промпты можно менять без пересборки Docker-образа через внешнюю папку.
+
+### Настройка
+
+```yaml
+# docker-compose.yml
+volumes:
+  - /mnt/main/work/bz2/video/prompts:/data/prompts:ro
+environment:
+  - PROMPTS_DIR=/data/prompts
+```
+
+### Workflow эксперимента
+
+1. **Начальное состояние:** внешняя папка пустая → используются встроенные промпты
+2. **Хотите изменить промпт:**
+   - Скопируйте нужный файл во внешнюю папку (сохраняя структуру)
+   - Редактируйте через SMB
+3. **Система автоматически использует** версию из внешней папки
+4. **При деплое:** встроенные обновляются, внешние остаются
+
+### Пример: изменить промпт очистки
+
+```bash
+# На сервере
+mkdir -p /mnt/main/work/bz2/video/prompts/cleaning
+cp /путь/к/образу/config/prompts/cleaning/system.md /mnt/main/work/bz2/video/prompts/cleaning/
+
+# Редактировать через SMB или vim
+vim /mnt/main/work/bz2/video/prompts/cleaning/system.md
+```
+
+### Откат к встроенному
+
+Просто удалите файл из внешней папки:
+```bash
+rm /mnt/main/work/bz2/video/prompts/cleaning/system.md
+```
+
+Подробнее: [ADR-008: Внешние промпты](adr/008-external-prompts.md)
 
 ## Где что менять
 

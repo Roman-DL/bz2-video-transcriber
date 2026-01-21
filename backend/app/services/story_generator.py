@@ -72,15 +72,15 @@ class StoryGenerator:
         self.ai_client = ai_client
         self.settings = settings
 
-        # Load prompt architecture
+        # Load prompt architecture (v0.30+: hierarchical structure)
         self.system_prompt = load_prompt(
-            "story_system", settings.summarizer_model, settings
+            "story", "system", settings.summarizer_model, settings
         )
         self.instructions = load_prompt(
-            "story_instructions", settings.summarizer_model, settings
+            "story", "instructions", settings.summarizer_model, settings
         )
         self.template = load_prompt(
-            "story_template", settings.summarizer_model, settings
+            "story", "template", settings.summarizer_model, settings
         )
 
         logger.debug("StoryGenerator initialized")
@@ -278,12 +278,12 @@ if __name__ == "__main__":
 
         settings = get_settings()
 
-        # Test 1: Load prompts
-        print("Test 1: Load prompts...", end=" ")
+        # Test 1: Load prompts (v0.30+ hierarchical structure)
+        print("Test 1: Load prompts (v0.30+ hierarchical)...", end=" ")
         try:
-            system_prompt = load_prompt("story_system", settings.summarizer_model, settings)
-            instructions = load_prompt("story_instructions", settings.summarizer_model, settings)
-            template = load_prompt("story_template", settings.summarizer_model, settings)
+            system_prompt = load_prompt("story", "system", settings.summarizer_model, settings)
+            instructions = load_prompt("story", "instructions", settings.summarizer_model, settings)
+            template = load_prompt("story", "template", settings.summarizer_model, settings)
             assert "Story Generator" in system_prompt
             assert "8 блоков" in instructions
             assert "blocks" in template

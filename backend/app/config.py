@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     archive_dir: Path = Path("/data/archive")
     temp_dir: Path = Path("/data/temp")
     config_dir: Path = Path("/app/config")
+    prompts_dir: Path | None = None  # External prompts directory (overrides built-in)
 
     # Logging
     log_level: str = "INFO"
@@ -50,40 +51,75 @@ def get_settings() -> Settings:
     return Settings()
 
 
-def load_prompt(name: str, model: str | None = None, settings: Settings | None = None) -> str:
+def load_prompt(
+    stage: str,
+    component: str,
+    model: str | None = None,
+    settings: Settings | None = None,
+) -> str:
     """
-    Load a prompt template with model-specific fallback.
+    Load a prompt template with external folder priority and model-specific fallback.
 
-    Lookup order:
-    1. prompts/{name}_{model_family}.md (e.g., cleaner_system_gemma2.md)
-    2. prompts/{name}.md (e.g., cleaner_system.md)
+    v0.30+: Hierarchical structure with external prompts support.
+
+    Lookup order (first found wins):
+    1. prompts_dir/{stage}/{component}_{model_family}.md (external, model-specific)
+    2. prompts_dir/{stage}/{component}.md (external, generic)
+    3. config_dir/prompts/{stage}/{component}_{model_family}.md (built-in, model-specific)
+    4. config_dir/prompts/{stage}/{component}.md (built-in, generic)
 
     Model family is extracted from model name:
     - "gemma2:9b" -> "gemma2"
     - "qwen2.5:14b" -> "qwen2"
-    - "qwen3:14b" -> "qwen3"
+    - "claude-sonnet-4-5" -> "claude-sonnet"
 
     Args:
-        name: Prompt name (without .md extension)
-        model: Model name for model-specific prompts
+        stage: Pipeline stage ("cleaning", "longread", "summary", "story", "outline")
+        component: Prompt component ("system", "instructions", "template", "user", "map")
+        model: Model name for model-specific prompts (optional)
         settings: Optional settings instance
 
     Returns:
         Prompt template content
+
+    Raises:
+        FileNotFoundError: If no matching prompt file is found
     """
     if settings is None:
         settings = get_settings()
 
-    # Try model-specific prompt first
+    # Extract model family for model-specific prompts
+    model_family = None
     if model:
         model_family = model.split(":")[0].rstrip("0123456789.")
-        specific_path = settings.config_dir / "prompts" / f"{name}_{model_family}.md"
-        if specific_path.exists():
-            return specific_path.read_text(encoding="utf-8")
 
-    # Fallback to generic prompt
-    generic_path = settings.config_dir / "prompts" / f"{name}.md"
-    return generic_path.read_text(encoding="utf-8")
+    # Build list of paths to check (in priority order)
+    paths_to_check: list[Path] = []
+
+    # External prompts directory (highest priority)
+    if settings.prompts_dir and settings.prompts_dir.exists():
+        if model_family:
+            paths_to_check.append(
+                settings.prompts_dir / stage / f"{component}_{model_family}.md"
+            )
+        paths_to_check.append(settings.prompts_dir / stage / f"{component}.md")
+
+    # Built-in prompts directory (fallback)
+    builtin_prompts_dir = settings.config_dir / "prompts"
+    if model_family:
+        paths_to_check.append(builtin_prompts_dir / stage / f"{component}_{model_family}.md")
+    paths_to_check.append(builtin_prompts_dir / stage / f"{component}.md")
+
+    # Return first existing file
+    for path in paths_to_check:
+        if path.exists():
+            return path.read_text(encoding="utf-8")
+
+    # No prompt found
+    raise FileNotFoundError(
+        f"Prompt not found: stage={stage}, component={component}, model={model}. "
+        f"Checked paths: {[str(p) for p in paths_to_check]}"
+    )
 
 
 def load_glossary(settings: Settings | None = None) -> dict:
@@ -102,6 +138,36 @@ def load_glossary(settings: Settings | None = None) -> dict:
     glossary_path = settings.config_dir / "glossary.yaml"
     with open(glossary_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+def load_glossary_text(settings: Settings | None = None) -> str:
+    """
+    Load glossary.yaml as raw text with external folder priority.
+
+    v0.30+: Supports external prompts directory.
+
+    Lookup order:
+    1. prompts_dir/glossary.yaml (external)
+    2. config_dir/glossary.yaml (built-in)
+
+    Args:
+        settings: Optional settings instance
+
+    Returns:
+        Glossary content as YAML text
+    """
+    if settings is None:
+        settings = get_settings()
+
+    # Try external prompts directory first
+    if settings.prompts_dir and settings.prompts_dir.exists():
+        external_path = settings.prompts_dir / "glossary.yaml"
+        if external_path.exists():
+            return external_path.read_text(encoding="utf-8")
+
+    # Fallback to built-in config directory
+    builtin_path = settings.config_dir / "glossary.yaml"
+    return builtin_path.read_text(encoding="utf-8")
 
 
 def load_events_config(settings: Settings | None = None) -> dict:

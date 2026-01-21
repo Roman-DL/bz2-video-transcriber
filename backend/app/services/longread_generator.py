@@ -86,15 +86,15 @@ class LongreadGenerator:
         self.ai_client = ai_client
         self.settings = settings
 
-        # Load new prompt architecture
+        # Load new prompt architecture (v0.30+: hierarchical structure)
         self.system_prompt = load_prompt(
-            "longread_system", settings.summarizer_model, settings
+            "longread", "system", settings.summarizer_model, settings
         )
         self.instructions = load_prompt(
-            "longread_instructions", settings.summarizer_model, settings
+            "longread", "instructions", settings.summarizer_model, settings
         )
         self.template = load_prompt(
-            "longread_template", settings.summarizer_model, settings
+            "longread", "template", settings.summarizer_model, settings
         )
 
         # Initialize text processing components
@@ -591,12 +591,12 @@ if __name__ == "__main__":
 
         settings = get_settings()
 
-        # Test 1: Load prompts (new architecture)
-        print("Test 1: Load prompts (new architecture)...", end=" ")
+        # Test 1: Load prompts (v0.30+ hierarchical structure)
+        print("Test 1: Load prompts (v0.30+ hierarchical)...", end=" ")
         try:
-            system_prompt = load_prompt("longread_system", settings.summarizer_model, settings)
-            instructions = load_prompt("longread_instructions", settings.summarizer_model, settings)
-            template = load_prompt("longread_template", settings.summarizer_model, settings)
+            system_prompt = load_prompt("longread", "system", settings.summarizer_model, settings)
+            instructions = load_prompt("longread", "instructions", settings.summarizer_model, settings)
+            template = load_prompt("longread", "template", settings.summarizer_model, settings)
             assert "Longread Generator" in system_prompt
             assert "Принципы" in instructions
             assert "JSON" in template

@@ -336,6 +336,7 @@ async with strategy.create_client("claude-sonnet-4-5") as client:
 | `WHISPER_INCLUDE_TIMESTAMPS` | docker-compose.yml | `true` — таймкоды в транскрипте и файле |
 | `ANTHROPIC_API_KEY` | docker-compose.yml | API ключ для Claude (v0.19+) |
 | `HTTP_PROXY` / `HTTPS_PROXY` | docker-compose.yml | Прокси для Claude API (v0.20+) |
+| `PROMPTS_DIR` | docker-compose.yml | Внешние промпты без деплоя (v0.30+) |
 
 ### Конфигурационные файлы
 
@@ -343,8 +344,42 @@ async with strategy.create_client("claude-sonnet-4-5") as client:
 |------|------------|
 | `config/models.yaml` | Параметры моделей (chunk_size, thresholds) |
 | `config/glossary.yaml` | Глоссарий терминов для коррекции |
-| `config/prompts/*.md` | Промпты для LLM (поддержка {name}_{model}.md) |
+| `config/prompts/{stage}/` | Промпты для LLM (v0.30+: иерархическая структура) |
 | `config/events.yaml` | Типы событий для парсинга имён |
+
+### Структура промптов (v0.30+)
+
+Промпты организованы по этапам pipeline:
+
+```
+config/prompts/
+├── cleaning/            # Очистка транскрипта
+│   ├── system.md
+│   ├── system_gemma2.md # model-specific
+│   └── user.md
+├── longread/            # Генерация лонгрида
+│   ├── system.md
+│   ├── instructions.md
+│   └── template.md
+├── summary/             # Генерация конспекта
+├── story/               # Генерация истории
+└── outline/             # Извлечение outline
+    └── map.md
+```
+
+**Загрузка промптов:**
+```python
+from app.config import load_prompt
+
+# Новая сигнатура: load_prompt(stage, component, model, settings)
+system = load_prompt("cleaning", "system", model, settings)
+user = load_prompt("cleaning", "user", model, settings)
+```
+
+**Внешние промпты (без деплоя):**
+- Монтируется через `PROMPTS_DIR=/data/prompts`
+- Приоритет: внешние → встроенные
+- Редактирование через SMB
 
 Подробнее: [docs/configuration.md](docs/configuration.md)
 

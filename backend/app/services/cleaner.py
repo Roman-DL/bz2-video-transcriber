@@ -8,7 +8,7 @@ import logging
 import re
 import time
 
-from app.config import Settings, get_settings, load_model_config, load_prompt
+from app.config import Settings, get_settings, load_glossary_text, load_model_config, load_prompt
 from app.models.schemas import CleanedTranscript, RawTranscript, VideoMetadata
 from app.services.ai_clients import BaseAIClient, OllamaClient
 
@@ -48,28 +48,15 @@ class TranscriptCleaner:
         """
         self.ai_client = ai_client
         self.settings = settings
-        self.system_prompt = load_prompt("cleaner_system", settings.cleaner_model, settings)
-        self.user_template = load_prompt("cleaner_user", settings.cleaner_model, settings)
-        self.glossary_text = self._load_glossary_text(settings)
+        self.system_prompt = load_prompt("cleaning", "system", settings.cleaner_model, settings)
+        self.user_template = load_prompt("cleaning", "user", settings.cleaner_model, settings)
+        self.glossary_text = load_glossary_text(settings)
 
         # Load model-specific chunking configuration
         config = load_model_config(settings.cleaner_model, "cleaner", settings)
         self.chunk_size = config.get("chunk_size", DEFAULT_CHUNK_SIZE)
         self.chunk_overlap = config.get("chunk_overlap", DEFAULT_CHUNK_OVERLAP)
         self.small_text_threshold = config.get("small_text_threshold", DEFAULT_SMALL_TEXT_THRESHOLD)
-
-    def _load_glossary_text(self, settings: Settings) -> str:
-        """
-        Load glossary.yaml as text for LLM context.
-
-        Args:
-            settings: Application settings
-
-        Returns:
-            Glossary content as YAML text
-        """
-        glossary_path = settings.config_dir / "glossary.yaml"
-        return glossary_path.read_text(encoding="utf-8")
 
     async def clean(
         self,

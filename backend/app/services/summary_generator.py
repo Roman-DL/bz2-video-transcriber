@@ -73,15 +73,15 @@ class SummaryGenerator:
         self.ai_client = ai_client
         self.settings = settings
 
-        # Load 3-component prompt architecture
+        # Load 3-component prompt architecture (v0.30+: hierarchical structure)
         self.system_prompt = load_prompt(
-            "summary_system", settings.summarizer_model, settings
+            "summary", "system", settings.summarizer_model, settings
         )
         self.instructions = load_prompt(
-            "summary_instructions", settings.summarizer_model, settings
+            "summary", "instructions", settings.summarizer_model, settings
         )
         self.template = load_prompt(
-            "summary_template", settings.summarizer_model, settings
+            "summary", "template", settings.summarizer_model, settings
         )
 
         # Get model-specific config
@@ -352,12 +352,12 @@ if __name__ == "__main__":
 
         settings = get_settings()
 
-        # Test 1: Load prompts (new 3-component architecture)
-        print("Test 1: Load prompts (3-component architecture)...", end=" ")
+        # Test 1: Load prompts (v0.30+ hierarchical structure)
+        print("Test 1: Load prompts (v0.30+ hierarchical)...", end=" ")
         try:
-            system_prompt = load_prompt("summary_system", settings.summarizer_model, settings)
-            instructions = load_prompt("summary_instructions", settings.summarizer_model, settings)
-            template = load_prompt("summary_template", settings.summarizer_model, settings)
+            system_prompt = load_prompt("summary", "system", settings.summarizer_model, settings)
+            instructions = load_prompt("summary", "instructions", settings.summarizer_model, settings)
+            template = load_prompt("summary", "template", settings.summarizer_model, settings)
             assert "навигационный документ" in system_prompt
             assert "topic_area" in instructions
             assert "JSON" in template
