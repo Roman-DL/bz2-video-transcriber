@@ -150,15 +150,15 @@ async def chunk(
 ## Использование
 
 ```python
-# Старый код работает без изменений
-from app.services.chunker import SemanticChunker
-chunks = await chunker.chunk(transcript, metadata)
-
-# Новый код использует shared utils
+# Shared utils для LLM сервисов
 from app.utils import extract_json, calculate_num_predict
 
 json_str = extract_json(response, json_type="array")
-num_predict = calculate_num_predict(tokens, task="chunker")
+num_predict = calculate_num_predict(tokens, task="longread")
+
+# v0.26: Chunking теперь детерминированный
+from app.utils.h2_chunker import chunk_by_h2
+chunks = chunk_by_h2(markdown, video_id)
 ```
 
 ## Последствия

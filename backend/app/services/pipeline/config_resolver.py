@@ -24,11 +24,11 @@ class ConfigResolver:
     Example:
         resolver = ConfigResolver(settings)
 
-        # Get settings with chunker model override
-        custom_settings = resolver.with_model("qwen2.5:14b", "chunker")
+        # Get settings with longread model override
+        custom_settings = resolver.with_model("qwen2.5:14b", "longread")
 
         # Use in service
-        chunker = SemanticChunker(ai_client, custom_settings)
+        generator = LongreadGenerator(ai_client, custom_settings)
     """
 
     def __init__(self, settings: Settings):

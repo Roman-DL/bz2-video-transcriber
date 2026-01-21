@@ -111,7 +111,7 @@ def create_default_stages(
     registry.register(ParseStage(settings))
     registry.register(TranscribeStage(ai_client, settings))
     registry.register(CleanStage(ai_client, settings))
-    registry.register(ChunkStage(ai_client, settings))
+    registry.register(ChunkStage(settings))  # v0.26+: no AI client needed
     registry.register(LongreadStage(ai_client, settings))
     registry.register(SummarizeStage(ai_client, settings))
     registry.register(StoryStage(ai_client, settings))
@@ -122,13 +122,14 @@ def create_default_stages(
 
 # Default stage names for full pipeline
 # Note: story stage is conditional based on content_type
+# v0.25+: chunk moved AFTER longread/story (deterministic H2 parsing)
 DEFAULT_PIPELINE_STAGES = [
     "parse",
     "transcribe",
     "clean",
-    "chunk",
     "longread",    # Skipped for LEADERSHIP
     "summarize",   # Skipped for LEADERSHIP
     "story",       # Skipped for EDUCATIONAL
+    "chunk",       # v0.25+: H2 chunking from longread/story
     "save",
 ]

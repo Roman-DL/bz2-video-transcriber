@@ -1,4 +1,4 @@
-# Этап 4: Chunk (Semantic Splitting)
+# Этап 4: Chunk (Deterministic H2 Parsing)
 
 [< Назад: Clean](03-clean.md) | [Обзор Pipeline](README.md) | [Далее: Longread >](05-longread.md)
 
@@ -6,261 +6,134 @@
 
 ## Назначение
 
-Разбиение очищенного транскрипта на смысловые блоки для RAG-поиска в БЗ 2.0.
+Разбиение сгенерированного контента на смысловые блоки для RAG-поиска в БЗ 2.0.
+
+## v0.26: Детерминированное чанкирование
+
+**ВАЖНО:** Начиная с v0.25, чанкирование полностью детерминировано и не использует LLM.
+
+### Изменение порядка в pipeline
+
+```
+До v0.25:  Clean → Chunk (LLM) → Longread → Summary
+После:    Clean → Longread → Summary → Chunk (H2 parsing)
+```
+
+Чанкирование теперь выполняется **ПОСЛЕ** генерации longread/story, парсингом H2 заголовков из markdown.
+
+---
 
 ## Архитектура
 
-LLM разбивает текст на самодостаточные блоки. Для длинных транскриптов (>10K символов) используется подход **Map-Reduce + Overlap**, обеспечивающий глобальный контекст.
+ChunkStage парсит H2 заголовки (`## `) из сгенерированного markdown и создаёт чанки:
 
 | Критерий | Значение | Почему |
 |----------|----------|--------|
-| Размер chunk | 100-400 слов (оптимум 200-300) | Оптимально для embeddings |
-| Смысловая завершённость | Одна тема/мысль | Chunk понятен без контекста |
-| Overlap между частями | 1500 символов (~20%) | Сохраняет контекст на границах |
+| Источник данных | longread.md / story.md | Структурированный markdown |
+| Метод разбиения | H2 парсинг | Детерминированно, предсказуемо |
+| Смысловая завершённость | Один раздел | Каждый H2 — отдельная тема |
 | Метаданные | topic + text + word_count | Минимум для простоты и надёжности |
 
 ### Модель данных
 
 Каждый чанк содержит:
 - **id** — уникальный идентификатор (формат: `{video_id}_{index:03d}`)
-- **topic** — краткая тема блока (3-7 слов)
-- **text** — полный текст блока
+- **topic** — заголовок H2 (без эмодзи и номеров)
+- **text** — полный текст раздела
 - **word_count** — количество слов (вычисляется автоматически)
 
 ---
 
-## Обработка больших текстов: Map-Reduce + Overlap
+## Реализация
 
-Для транскриптов > 10,000 символов используется двухэтапный подход:
+### H2 Chunker (`app/utils/h2_chunker.py`)
 
-### Архитектура
+```python
+from app.utils.h2_chunker import chunk_by_h2
 
+markdown = """
+# Заголовок
+
+## Введение
+Текст введения...
+
+## Основная часть
+Текст основной части...
+
+## Заключение
+Текст заключения...
+"""
+
+chunks = chunk_by_h2(markdown, video_id="test-123")
+# chunks.total_chunks == 3
+# chunks.chunks[0].topic == "Введение"
 ```
-CleanedTranscript
-       │
-       ▼
-┌─────────────────┐
-│   TextSplitter  │  → Split с overlap (1500 chars)
-└────────┬────────┘
-         │ list[TextPart]
-         ▼
-┌──────────────────────┐
-│   OutlineExtractor   │  → MAP: parallel outline extraction
-│                      │  → REDUCE: дедупликация тем (>60%)
-└────────┬─────────────┘
-         │ TranscriptOutline
-         ▼
-┌──────────────────────┐
-│   SemanticChunker    │  → Chunking с контекстом outline
-└──────────────────────┘
-```
 
-### Этап 1: Split with Overlap (TextSplitter)
+### Обработка заголовков
 
-Текст разбивается на перекрывающиеся части:
+- **Эмодзи удаляются:** `## 1️⃣ Кто они` → `Кто они`
+- **Номера удаляются:** `## 3. Решение` → `Решение`
+- **YAML front matter игнорируется**
 
-| Параметр | Значение | Описание |
-|----------|----------|----------|
-| PART_SIZE | 6000 символов | Размер одной части (уменьшен для gemma2:9b) |
-| OVERLAP_SIZE | 1500 символов | Перекрытие между частями (~20%) |
-| MIN_PART_SIZE | 2000 символов | Минимум для последней части |
+### ChunkStage
 
-**Почему overlap важен:**
-- Темы на границах частей не теряют контекст
-- LLM видит начало и конец смежных тем
-- Решает ~80% проблем "разрезанных" тем
+```python
+class ChunkStage(BaseStage):
+    name = "chunk"
+    depends_on = ["parse", "longread", "story"]  # После генерации контента
 
-### Разбиение предложений
+    def __init__(self, settings: Settings):
+        # v0.26: AI client НЕ нужен
+        self.settings = settings
 
-TextSplitter разбивает текст на предложения по `.!?`. Однако Whisper (large-v3-turbo) часто ставит запятые вместо точек в русском тексте, создавая "предложения" >20000 символов.
-
-**Решение:** Если "предложение" > PART_SIZE, TextSplitter дополнительно разбивает его по запятым.
-
-Это гарантирует что части текста не превысят контекст LLM модели (8192 токена для gemma2:9b).
-
-### Этап 2: MAP — Извлечение Outline
-
-Из каждой части параллельно извлекается структура:
-- **topics** — 2-4 основных темы части
-- **key_points** — 3-5 ключевых тезисов
-- **summary** — 1-2 предложения
-
-**Параллельность:** Используется `Semaphore(2)` для ограничения нагрузки на сервер.
-
-### Этап 3: REDUCE — Объединение
-
-Все PartOutline объединяются в единый TranscriptOutline с дедупликацией тем (Jaccard similarity >60%).
-
-### Этап 4: Chunking с контекстом
-
-При создании чанков LLM получает глобальный контекст:
-
-```
-## КОНТЕКСТ ВСЕГО ВИДЕО
-
-Транскрипт состоит из 34 частей.
-
-### Основные темы видео:
-- Белки и их роль в питании
-- Жиры и гормональная система
-- Углеводы как источник энергии
-
-### Структура по частям:
-**Часть 1:** Темы: Введение, Питание
-Содержание: Обсуждение важности правильного питания...
+    async def execute(self, context: StageContext) -> TranscriptChunks:
+        metadata = context.get_result("parse")
+        markdown = self._get_source_markdown(context, metadata)
+        return chunk_by_h2(markdown, metadata.video_id)
 ```
 
 ---
 
-## Shared Outline
+## Выбор источника по content_type
 
-В full pipeline outline извлекается **один раз** и передаётся в Chunker и LongreadGenerator:
-
-```
-CleanedTranscript
-       │
-       ▼
-[Outline Extraction]  ← Выполняется в pipeline
-       │
-       ▼
-   Chunker
-       │
-       ▼
-TranscriptChunks
-       │
-       ▼
-LongreadGenerator  ← Получает тот же outline
-       │
-       ▼
-   Longread
-       │
-       ▼
-SummaryGenerator  ← Работает с longread
-       │
-       ▼
-   Summary
-```
-
-**Почему важно:**
-- Нет дублирования работы (outline не извлекается дважды)
-- Одинаковый контекст для Chunker и LongreadGenerator
-- В step-by-step режиме сервисы могут извлекать outline самостоятельно
+| ContentType | Источник | Пример структуры |
+|-------------|----------|------------------|
+| EDUCATIONAL | longread.md | `## Введение`, `## Основные понятия`, ... |
+| LEADERSHIP | story.md | `## 1️⃣ Кто они`, `## 2️⃣ Проблема`, ... |
 
 ---
 
-## Валидация чанков
+## Преимущества v0.26
 
-### Валидация размера
-
-LLM иногда игнорирует требования к размеру. После получения ответа:
-- Чанки < 100 слов объединяются с соседними до ~250 слов
-- Индексы перенумеровываются
-
-### Валидация языка
-
-LLM иногда генерирует описание содержания вместо копирования текста. Проверяется:
-- **Кириллица <50%** — модель переключилась на английский
-
-```
-ERROR: Chunk 12 has non-Russian text (cyrillic=15%): Providing Solutions...
-```
-
-**Причина:** Модель иногда "анализирует" текст вместо разбиения и генерирует своё описание на английском.
-
-**Решение:** Усиленный промпт с явным запретом на английский и генерацию описаний.
-
----
-
-## Graceful Degradation
-
-### Проблема: обрезанный output
-
-LLM модели имеют лимит на количество output-токенов (`num_predict`). Chunker копирует весь исходный текст в JSON-ответ, поэтому output может быть **больше input**.
-
-**Симптом:** `Invalid JSON in LLM response: Expecting value: line 37 column 1`
-
-**Причина:** Output обрезается на середине JSON, парсинг падает.
-
-### Решение: динамический num_predict
-
-Chunker вычисляет нужное количество токенов на основе размера входного текста:
-
-```
-estimated_tokens = (char_count / 3) * 1.3
-num_predict = max(4096, estimated_tokens + 500)
-```
-
-- **char_count / 3** — примерное количество токенов в русском тексте
-- **× 1.3** — запас на JSON-разметку и topic
-- **+ 500** — буфер безопасности
-- **min 4096** — минимум для коротких текстов
-
-### Fallback: простое разбиение
-
-Если парсинг JSON всё равно не удался (невалидный ответ, пустой ответ), chunker создаёт **fallback chunks**:
-
-- Простое разбиение по ~300 слов (без семантического анализа)
-- Topic = "Часть N" (без LLM-генерации)
-- Обработка продолжается вместо падения
-
-**Почему это важно:**
-- Pipeline завершается успешно даже при проблемах с LLM
-- Пользователь получает результат (пусть и менее качественный)
-- Ошибка логируется для диагностики
+1. **Детерминированность** — одинаковый input всегда даёт одинаковый output
+2. **Скорость** — мгновенно (~0.1s вместо минут LLM)
+3. **Надёжность** — нет проблем с JSON parsing, timeout, rate limits
+4. **Качество** — структура определяется longread/story промптами
 
 ---
 
 ## Оценка времени обработки
 
-Для 2-часового видео (220 KB, ~34 части) с Semaphore(2):
-
 | Этап | Время |
 |------|-------|
-| Split | ~1 сек |
-| MAP (outline) | ~8-9 мин |
-| REDUCE | ~1 сек |
-| Chunking | ~8-9 мин |
-| **Итого** | **~17-20 мин** |
-
-*При увеличении Semaphore до 4 время сократится до ~10-12 мин*
-
----
-
-## Конфигурация
-
-Параметры можно настроить в соответствующих файлах:
-
-| Параметр | Файл | Значение по умолчанию |
-|----------|------|----------------------|
-| PART_SIZE | text_splitter.py | 6000 |
-| OVERLAP_SIZE | text_splitter.py | 1500 |
-| MAX_PARALLEL_LLM_REQUESTS | outline_extractor.py | 2 |
-| TOPIC_SIMILARITY_THRESHOLD | outline_extractor.py | 0.6 |
-| LARGE_TEXT_THRESHOLD | chunker.py | 10000 |
-| MIN_CHUNK_WORDS | chunker.py | 50 |
+| H2 parsing | < 0.1 сек |
 
 ---
 
 ## Тестирование
 
 ```bash
-# TextSplitter
-python3 -m backend.app.services.text_splitter
+# H2 Chunker
+cd backend && python -m app.utils.h2_chunker
 
-# OutlineExtractor
-python3 -m backend.app.services.outline_extractor
-
-# SemanticChunker (полный тест)
-python3 -m backend.app.services.chunker
+# ChunkStage
+cd backend && python -m app.services.stages.chunk_stage
 ```
 
 ---
 
 ## Связанные файлы
 
-- **Сервис chunking:** `backend/app/services/chunker.py`
-- **TextSplitter:** `backend/app/services/text_splitter.py`
-- **OutlineExtractor:** `backend/app/services/outline_extractor.py`
-- **Модели:** `backend/app/models/schemas.py` (TextPart, PartOutline, TranscriptOutline)
-- **Промпт chunking:** `config/prompts/chunker.md`
-- **Промпт outline:** `config/prompts/map_outline.md`
+- **H2 Chunker:** `backend/app/utils/h2_chunker.py`
+- **ChunkStage:** `backend/app/services/stages/chunk_stage.py`
+- **Модели:** `backend/app/models/schemas.py` (TranscriptChunks, Chunk)

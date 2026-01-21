@@ -28,6 +28,24 @@ export function MetadataView({ metadata }: MetadataViewProps) {
 
       <dt className="text-gray-500">Video ID</dt>
       <dd className="text-gray-900 font-mono text-xs">{metadata.video_id}</dd>
+
+      {metadata.content_type && (
+        <>
+          <dt className="text-gray-500">Тип контента</dt>
+          <dd className="text-gray-900">
+            {metadata.content_type === 'educational' ? 'Обучающий' : 'Лидерская история'}
+          </dd>
+        </>
+      )}
+
+      {metadata.event_category && (
+        <>
+          <dt className="text-gray-500">Категория</dt>
+          <dd className="text-gray-900">
+            {metadata.event_category === 'regular' ? 'Регулярное' : 'Выездное'}
+          </dd>
+        </>
+      )}
     </dl>
   );
 }

@@ -165,8 +165,10 @@ sys.path.insert(0, '/app')
 | Сервис | Класс | Файл |
 |--------|-------|------|
 | Cleaner | `TranscriptCleaner` | cleaner.py |
-| Chunker | `SemanticChunker` | chunker.py |
+| Chunker | `chunk_by_h2` | utils/h2_chunker.py |
 | Summarizer | `VideoSummarizer` | summarizer.py |
+
+> **v0.26:** Chunker теперь детерминированный (`chunk_by_h2`), не использует LLM.
 
 ### Обязательные поля Pydantic-моделей
 

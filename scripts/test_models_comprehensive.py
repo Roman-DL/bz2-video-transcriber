@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """
-Comprehensive LLM model testing for all pipeline stages.
+Comprehensive LLM model testing for pipeline stages.
 
-Tests models with /no_think support for cleaner, chunker, and summarizer.
+Tests models with /no_think support for cleaner and summarizer.
+
+v0.26: Chunker tests removed - chunking is now deterministic (H2 parsing).
 
 Two modes:
 - stage: Test one stage with all models (default)
-- pipeline: Run full pipeline per-model (cleaner → chunker → summarizer)
+- pipeline: Run full pipeline per-model (cleaner → summarizer)
 
 Usage:
     # Stage mode: test cleaner with all models
@@ -32,7 +34,6 @@ sys.path.insert(0, '/app')
 from app.config import Settings, get_settings, load_prompt
 from app.models.schemas import CleanedTranscript, RawTranscript, TranscriptSegment, VideoMetadata
 from app.services.ai_client import AIClient
-from app.services.chunker import SemanticChunker
 from app.services.cleaner import TranscriptCleaner
 from app.services.summarizer import VideoSummarizer
 
@@ -45,8 +46,8 @@ from app.services.summarizer import VideoSummarizer
 TEST_DATA_PATH = "/data/archive/2025/12.22 ПШ/SV Закрытие ПО, возражения (Кухаренко Женя)/transcript_raw.txt"
 
 # Models to test
+# NOTE: Chunker tests removed in v0.26 - chunking is now deterministic (H2 parsing)
 CLEANER_MODELS = ["gemma2:9b", "qwen3:14b"]
-CHUNKER_MODELS = ["gemma2:9b", "qwen3:14b"]
 SUMMARIZER_MODELS = ["qwen2.5:14b", "qwen3:14b"]
 
 # Models that support /no_think
@@ -74,22 +75,6 @@ class CleanerResult:
 
 
 @dataclass
-class ChunkerResult:
-    """Result of a single chunker test run."""
-    model: str
-    no_think: bool
-    run: int
-    success: bool
-    chunks: int
-    avg_size: int
-    normal_chunks: int  # 100-400 words
-    small_chunks: int  # <100 words
-    large_chunks: int  # >400 words
-    time_seconds: float
-    error: str | None = None
-
-
-@dataclass
 class SummarizerResult:
     """Result of a single summarizer test run."""
     model: str
@@ -107,7 +92,10 @@ class SummarizerResult:
 
 @dataclass
 class PipelineResult:
-    """Result of a full pipeline run (cleaner → chunker → summarizer)."""
+    """Result of a full pipeline run (cleaner → summarizer).
+
+    v0.26: Chunker removed - chunking is now deterministic (H2 parsing).
+    """
     model: str
     no_think: bool
     run: int
@@ -117,12 +105,6 @@ class PipelineResult:
     cleaner_cyrillic: float
     cleaner_time: float
     cleaned_text: str | None  # For passing to next stage
-    # Chunker metrics
-    chunker_success: bool
-    chunker_chunks: int
-    chunker_avg_size: int
-    chunker_normal_ratio: float
-    chunker_time: float
     # Summarizer metrics (optional - may skip if previous failed)
     summarizer_success: bool
     summarizer_len: int
@@ -301,77 +283,6 @@ class CleanerTester:
 
 
 # =============================================================================
-# Chunker testing
-# =============================================================================
-
-class ChunkerTester:
-    """Chunker test runner with /no_think support."""
-
-    def __init__(self, ai_client: AIClient, settings: Settings):
-        self.ai_client = ai_client
-        self.settings = settings
-
-    async def test(
-        self,
-        cleaned_transcript: CleanedTranscript,
-        metadata: VideoMetadata,
-        model: str,
-        no_think: bool = False,
-        run_num: int = 1
-    ) -> ChunkerResult:
-        """Run a single chunker test."""
-        start_time = time.time()
-
-        try:
-            # Create chunker with patched settings
-            chunker = SemanticChunker(self.ai_client, self.settings)
-            chunker.settings.chunker_model = model
-
-            # Patch prompt template for /no_think (must be at START)
-            if no_think:
-                chunker.prompt_template = "/no_think\n" + chunker.prompt_template
-
-            # Run chunking
-            result = await chunker.chunk(cleaned_transcript, metadata)
-            elapsed = time.time() - start_time
-
-            # Calculate metrics
-            sizes = [c.word_count for c in result.chunks]
-            small = sum(1 for s in sizes if s < 100)
-            normal = sum(1 for s in sizes if 100 <= s <= 400)
-            large = sum(1 for s in sizes if s > 400)
-
-            return ChunkerResult(
-                model=model,
-                no_think=no_think,
-                run=run_num,
-                success=True,
-                chunks=result.total_chunks,
-                avg_size=result.avg_chunk_size,
-                normal_chunks=normal,
-                small_chunks=small,
-                large_chunks=large,
-                time_seconds=round(elapsed, 1),
-            )
-
-        except Exception as e:
-            elapsed = time.time() - start_time
-            return ChunkerResult(
-                model=model,
-                no_think=no_think,
-                run=run_num,
-                success=False,
-                chunks=0,
-                avg_size=0,
-                normal_chunks=0,
-                small_chunks=0,
-                large_chunks=0,
-                time_seconds=round(elapsed, 1),
-                error=str(e)[:200],
-            )
-
-
-# =============================================================================
 # Summarizer testing
 # =============================================================================
 
@@ -469,37 +380,6 @@ def aggregate_cleaner_results(results: list[CleanerResult]) -> dict:
     }
 
 
-def aggregate_chunker_results(results: list[ChunkerResult]) -> dict:
-    """Aggregate multiple chunker runs into summary statistics."""
-    successes = [r for r in results if r.success]
-    if not successes:
-        return {
-            "success_rate": 0,
-            "avg_chunks": 0,
-            "avg_size": 0,
-            "avg_normal_ratio": 0,
-            "avg_time": 0,
-            "score": 0,
-        }
-
-    avg_chunks = mean([r.chunks for r in successes])
-    avg_normal_ratio = mean([r.normal_chunks / max(r.chunks, 1) for r in successes])
-
-    # Score formula (from existing test_chunker_models.py)
-    success_rate = len(successes) / len(results)
-    chunk_penalty = abs(avg_chunks - 15) / 15
-    score = success_rate * (1 - chunk_penalty * 0.5) * (0.5 + avg_normal_ratio * 0.5)
-
-    return {
-        "success_rate": success_rate,
-        "avg_chunks": avg_chunks,
-        "avg_size": mean([r.avg_size for r in successes]),
-        "avg_normal_ratio": avg_normal_ratio,
-        "avg_time": mean([r.time_seconds for r in successes]),
-        "score": score,
-    }
-
-
 def print_cleaner_report(all_results: dict[str, list[CleanerResult]]):
     """Print cleaner test report."""
     print("\n" + "=" * 70)
@@ -521,32 +401,6 @@ def print_cleaner_report(all_results: dict[str, list[CleanerResult]]):
             f"{stats['avg_cyrillic']*100:6.0f}% | "
             f"{stats['avg_sentences']*100:7.0f}% | "
             f"{stats['avg_time']:4.1f}s |"
-        )
-
-    print()
-
-
-def print_chunker_report(all_results: dict[str, list[ChunkerResult]]):
-    """Print chunker test report."""
-    print("\n" + "=" * 70)
-    print("CHUNKER RESULTS")
-    print("=" * 70)
-    print()
-    print("| Model | NoThink | Success | Chunks | Avg Size | Normal% | Score |")
-    print("|-------|---------|---------|--------|----------|---------|-------|")
-
-    for key, results in all_results.items():
-        model, no_think = key.rsplit("_", 1)
-        no_think_str = "Yes" if no_think == "nothink" else "No"
-        stats = aggregate_chunker_results(results)
-
-        print(
-            f"| {model:13} | {no_think_str:7} | "
-            f"{stats['success_rate']*100:5.0f}% | "
-            f"{stats['avg_chunks']:5.1f} | "
-            f"{stats['avg_size']:7.0f} | "
-            f"{stats['avg_normal_ratio']*100:5.0f}% | "
-            f"{stats['score']:.2f} |"
         )
 
     print()
@@ -603,7 +457,10 @@ def print_summarizer_report(all_results: dict[str, list[SummarizerResult]]):
 
 
 def print_pipeline_report(all_results: dict[str, list[PipelineResult]]):
-    """Print full pipeline test report."""
+    """Print full pipeline test report.
+
+    v0.26: Chunker removed - pipeline is now cleaner → summarizer.
+    """
     print("\n" + "=" * 90)
     print("PIPELINE RESULTS (per-model full chain)")
     print("=" * 90)
@@ -624,21 +481,12 @@ def print_pipeline_report(all_results: dict[str, list[PipelineResult]]):
                   f"time={r.cleaner_time:.1f}s")
 
             if r.cleaner_success:
-                print(f"  Chunker:    {'OK' if r.chunker_success else 'FAIL'} | "
-                      f"chunks={r.chunker_chunks} | "
-                      f"avg={r.chunker_avg_size}w | "
-                      f"normal={r.chunker_normal_ratio*100:.0f}% | "
-                      f"time={r.chunker_time:.1f}s")
-            else:
-                print(f"  Chunker:    SKIPPED (cleaner failed)")
-
-            if r.chunker_success:
                 print(f"  Summarizer: {'OK' if r.summarizer_success else 'FAIL'} | "
                       f"len={r.summarizer_len}w | "
                       f"key_pts={r.summarizer_key_points} | "
                       f"time={r.summarizer_time:.1f}s")
             else:
-                print(f"  Summarizer: SKIPPED")
+                print(f"  Summarizer: SKIPPED (cleaner failed)")
 
             print(f"  TOTAL:      {r.total_time:.1f}s")
 
@@ -651,15 +499,14 @@ def print_pipeline_report(all_results: dict[str, list[PipelineResult]]):
     print("SUMMARY TABLE")
     print("=" * 90)
     print()
-    print("| Model | NoThink | Clean | Chunk | Summ | Total Time |")
-    print("|-------|---------|-------|-------|------|------------|")
+    print("| Model | NoThink | Clean | Summ | Total Time |")
+    print("|-------|---------|-------|------|------------|")
 
     for key, results in all_results.items():
         model, no_think = key.rsplit("_", 1)
         no_think_str = "Yes" if no_think == "nothink" else "No"
 
         clean_ok = sum(1 for r in results if r.cleaner_success)
-        chunk_ok = sum(1 for r in results if r.chunker_success)
         summ_ok = sum(1 for r in results if r.summarizer_success)
         total = len(results)
         avg_time = mean([r.total_time for r in results])
@@ -667,7 +514,6 @@ def print_pipeline_report(all_results: dict[str, list[PipelineResult]]):
         print(
             f"| {model:13} | {no_think_str:7} | "
             f"{clean_ok}/{total} | "
-            f"{chunk_ok}/{total} | "
             f"{summ_ok}/{total} | "
             f"{avg_time:8.1f}s |"
         )
@@ -724,77 +570,6 @@ async def run_cleaner_tests(ai_client: AIClient, settings: Settings, num_runs: i
 
                 if result.success:
                     print(f"OK: {result.compression:.1f}% compression, {result.cyrillic_ratio*100:.0f}% cyrillic")
-                else:
-                    print(f"FAILED: {result.error}")
-
-    return all_results
-
-
-async def run_chunker_tests(
-    ai_client: AIClient,
-    settings: Settings,
-    num_runs: int = 3,
-    cleaned_text: str | None = None,
-    strip_ts: bool = True
-) -> dict[str, list[ChunkerResult]]:
-    """Run all chunker tests."""
-    print("\n" + "=" * 70)
-    print("TESTING CHUNKER")
-    print("=" * 70)
-
-    # Use provided cleaned text or load from file
-    if cleaned_text is None:
-        print("\nLoading test transcript (will clean first)...")
-        transcript_text = load_test_transcript(strip_ts=strip_ts)
-        raw_transcript = create_raw_transcript(transcript_text)
-        metadata = create_mock_metadata()
-
-        # Clean with baseline model first
-        cleaner = TranscriptCleaner(ai_client, settings)
-        cleaned_result = await cleaner.clean(raw_transcript, metadata)
-        cleaned_text = cleaned_result.text
-        print(f"  Cleaned: {len(cleaned_text)} chars")
-
-    metadata = create_mock_metadata()
-    cleaned_transcript = CleanedTranscript(
-        text=cleaned_text,
-        original_length=len(cleaned_text),
-        cleaned_length=len(cleaned_text),
-        model_name="test",
-    )
-
-    tester = ChunkerTester(ai_client, settings)
-    all_results: dict[str, list[ChunkerResult]] = {}
-
-    for model in CHUNKER_MODELS:
-        # Test without /no_think
-        print(f"\n--- {model} (standard) ---")
-        key = f"{model}_standard"
-        all_results[key] = []
-
-        for run in range(1, num_runs + 1):
-            print(f"  Run {run}/{num_runs}...", end=" ", flush=True)
-            result = await tester.test(cleaned_transcript, metadata, model, no_think=False, run_num=run)
-            all_results[key].append(result)
-
-            if result.success:
-                print(f"OK: {result.chunks} chunks, avg={result.avg_size} words")
-            else:
-                print(f"FAILED: {result.error}")
-
-        # Test with /no_think if supported
-        if model in NO_THINK_MODELS:
-            print(f"\n--- {model} (/no_think) ---")
-            key = f"{model}_nothink"
-            all_results[key] = []
-
-            for run in range(1, num_runs + 1):
-                print(f"  Run {run}/{num_runs}...", end=" ", flush=True)
-                result = await tester.test(cleaned_transcript, metadata, model, no_think=True, run_num=run)
-                all_results[key].append(result)
-
-                if result.success:
-                    print(f"OK: {result.chunks} chunks, avg={result.avg_size} words")
                 else:
                     print(f"FAILED: {result.error}")
 
@@ -882,9 +657,11 @@ async def run_pipeline_tests(
     num_runs: int = 1,
     strip_ts: bool = True
 ) -> dict[str, list[PipelineResult]]:
-    """Run full pipeline per model: cleaner → chunker → summarizer.
+    """Run full pipeline per model: cleaner → summarizer.
 
-    Each model runs its own cleaned text through chunker and summarizer,
+    v0.26: Chunker removed - chunking is now deterministic (H2 parsing).
+
+    Each model runs its own cleaned text through summarizer,
     allowing fair comparison of end-to-end performance.
     """
     print("\n" + "=" * 90)
@@ -921,7 +698,7 @@ async def run_pipeline_tests(
                 errors: list[str] = []
 
                 # === STAGE 1: CLEANER ===
-                print(f"\n[1/3] Cleaner...", end=" ", flush=True)
+                print(f"\n[1/2] Cleaner...", end=" ", flush=True)
                 cleaner_start = time.time()
 
                 try:
@@ -949,57 +726,14 @@ async def run_pipeline_tests(
                     cyrillic = 0
                     cleaned_text = None
 
-                # === STAGE 2: CHUNKER ===
-                chunker_success = False
-                chunker_chunks = 0
-                chunker_avg_size = 0
-                chunker_normal_ratio = 0
-                chunker_time = 0
-
-                if cleaner_success and cleaned_text:
-                    print(f"[2/3] Chunker...", end=" ", flush=True)
-                    chunker_start = time.time()
-
-                    try:
-                        cleaned_transcript = CleanedTranscript(
-                            text=cleaned_text,
-                            original_length=len(cleaned_text),
-                            cleaned_length=len(cleaned_text),
-                                                model_name=model,
-                        )
-
-                        chunker = SemanticChunker(ai_client, settings)
-                        chunker.settings.chunker_model = model
-                        if no_think:
-                            chunker.prompt_template = "/no_think\n" + chunker.prompt_template
-
-                        chunk_result = await chunker.chunk(cleaned_transcript, metadata)
-                        chunker_time = time.time() - chunker_start
-
-                        sizes = [c.word_count for c in chunk_result.chunks]
-                        normal = sum(1 for s in sizes if 100 <= s <= 400)
-                        chunker_normal_ratio = normal / max(len(sizes), 1)
-
-                        print(f"OK ({chunk_result.total_chunks} chunks, avg={chunk_result.avg_chunk_size}w, {chunker_normal_ratio*100:.0f}% normal, {chunker_time:.1f}s)")
-                        chunker_success = True
-                        chunker_chunks = chunk_result.total_chunks
-                        chunker_avg_size = chunk_result.avg_chunk_size
-
-                    except Exception as e:
-                        chunker_time = time.time() - chunker_start
-                        print(f"FAILED: {str(e)[:100]}")
-                        errors.append(f"Chunker: {str(e)[:100]}")
-                else:
-                    print(f"[2/3] Chunker... SKIPPED (cleaner failed)")
-
-                # === STAGE 3: SUMMARIZER ===
+                # === STAGE 2: SUMMARIZER ===
                 summarizer_success = False
                 summarizer_len = 0
                 summarizer_key_points = 0
                 summarizer_time = 0
 
-                if chunker_success and cleaned_text:
-                    print(f"[3/3] Summarizer...", end=" ", flush=True)
+                if cleaner_success and cleaned_text:
+                    print(f"[2/2] Summarizer...", end=" ", flush=True)
                     summarizer_start = time.time()
 
                     try:
@@ -1008,7 +742,7 @@ async def run_pipeline_tests(
                             text=cleaned_text,
                             original_length=len(cleaned_text),
                             cleaned_length=len(cleaned_text),
-                                                model_name=model,
+                            model_name=model,
                         )
 
                         summarizer = VideoSummarizer(ai_client, settings)
@@ -1034,7 +768,7 @@ async def run_pipeline_tests(
                         print(f"FAILED: {str(e)[:100]}")
                         errors.append(f"Summarizer: {str(e)[:100]}")
                 else:
-                    print(f"[3/3] Summarizer... SKIPPED")
+                    print(f"[2/2] Summarizer... SKIPPED (cleaner failed)")
 
                 total_time = time.time() - start_total
 
@@ -1047,11 +781,6 @@ async def run_pipeline_tests(
                     cleaner_cyrillic=cyrillic,
                     cleaner_time=cleaner_time,
                     cleaned_text=cleaned_text,
-                    chunker_success=chunker_success,
-                    chunker_chunks=chunker_chunks,
-                    chunker_avg_size=chunker_avg_size,
-                    chunker_normal_ratio=chunker_normal_ratio,
-                    chunker_time=chunker_time,
                     summarizer_success=summarizer_success,
                     summarizer_len=summarizer_len,
                     summarizer_key_points=summarizer_key_points,
@@ -1063,7 +792,6 @@ async def run_pipeline_tests(
 
                 print(f"\nTotal: {total_time:.1f}s | "
                       f"Clean={'OK' if cleaner_success else 'FAIL'} | "
-                      f"Chunk={'OK' if chunker_success else 'FAIL'} | "
                       f"Summ={'OK' if summarizer_success else 'FAIL'}")
 
     return all_results
@@ -1080,9 +808,9 @@ async def main():
     )
     parser.add_argument(
         "--stage",
-        choices=["cleaner", "chunker", "summarizer", "all"],
+        choices=["cleaner", "summarizer", "all"],
         default="cleaner",
-        help="Which stage to test in stage mode (default: cleaner)"
+        help="Which stage to test in stage mode (default: cleaner). Note: chunker removed in v0.26."
     )
     parser.add_argument(
         "--runs",
@@ -1130,10 +858,6 @@ async def main():
             if args.stage in ["cleaner", "all"]:
                 cleaner_results = await run_cleaner_tests(ai_client, settings, num_runs, strip_ts)
                 print_cleaner_report(cleaner_results)
-
-            if args.stage in ["chunker", "all"]:
-                chunker_results = await run_chunker_tests(ai_client, settings, num_runs, strip_ts=strip_ts)
-                print_chunker_report(chunker_results)
 
             if args.stage in ["summarizer", "all"]:
                 summarizer_results = await run_summarizer_tests(ai_client, settings, num_runs, strip_ts=strip_ts)
