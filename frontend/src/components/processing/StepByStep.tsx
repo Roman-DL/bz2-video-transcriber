@@ -51,6 +51,7 @@ import {
   Zap,
   Layers,
   Clock,
+  RefreshCw,
 } from 'lucide-react';
 
 interface StepByStepProps {
@@ -523,6 +524,37 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
     return STAGES_WITH_PROMPTS.includes(step as StageWithPrompts);
   };
 
+  // Find the last completed LLM step before current step
+  const getPreviousCompletedLLMStep = (): StageWithModels | null => {
+    const currentIndex = pipelineSteps.indexOf(currentStep);
+    for (let i = currentIndex - 1; i >= 0; i--) {
+      const step = pipelineSteps[i];
+      if (isLLMStep(step)) {
+        // Check if step is actually completed (has result)
+        const hasResult = (() => {
+          switch (step) {
+            case 'clean': return !!data.cleanedTranscript;
+            case 'longread': return !!data.longread;
+            case 'summarize': return !!data.summary;
+            case 'story': return !!data.story;
+            default: return false;
+          }
+        })();
+        if (hasResult) return step as StageWithModels;
+      }
+    }
+    return null;
+  };
+
+  // Rerun a step with current overrides
+  const rerunStep = async (step: PipelineStep) => {
+    resetDataFromStep(step);
+    setCurrentStep(step);
+    await runStep(step);
+  };
+
+  const previousLLMStep = getPreviousCompletedLLMStep();
+
   // Loading state during auto-parse
   if (isInitializing) {
     return (
@@ -671,50 +703,75 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
               </div>
             </div>
           )}
+        </div>
+      )}
 
-          {/* Model and prompt selectors for LLM stages (step-by-step mode only) */}
-          {!autoRun && !isLoading && isLLMStep(currentStep) && (
-            <div className="mt-3 pt-3 border-t border-blue-200">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-medium text-blue-800">Настройки:</span>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {/* Model selector - compact mode */}
-                {llmOptions.length > 0 && (() => {
-                  // 'story' uses 'summarize' model setting (no separate story model)
-                  const settingsKey = currentStep === 'story' ? 'summarize' : currentStep;
-                  return (
-                    <ModelSelector
-                      label="Модель"
-                      value={modelOverrides[currentStep]}
-                      defaultValue={defaultModels?.[settingsKey] || models[settingsKey] || ''}
-                      options={llmOptions}
-                      onChange={(value) => setModelOverrides((prev) => ({ ...prev, [currentStep]: value }))}
-                      compact
-                    />
-                  );
-                })()}
+      {/* Rerun block for previous LLM step (step-by-step mode only) */}
+      {!autoRun && !isLoading && previousLLMStep && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-green-600" />
+              <span className="text-sm font-medium text-gray-700">
+                {STEP_LABELS[previousLLMStep]}
+              </span>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => rerunStep(previousLLMStep)}
+              className="flex items-center gap-1"
+            >
+              <RefreshCw className="w-3 h-3" />
+              Перезапустить
+            </Button>
+          </div>
 
-                {/* Prompt selectors */}
-                {hasSelectablePrompts(getPromptsForStep(currentStep)) &&
-                  getPromptsForStep(currentStep)?.components.map((comp) => (
+          {/* Model selector */}
+          <div className="space-y-3">
+            {llmOptions.length > 0 && (() => {
+              const settingsKey = previousLLMStep === 'story' ? 'summarize' : previousLLMStep;
+              return (
+                <ModelSelector
+                  label="Модель"
+                  value={modelOverrides[previousLLMStep]}
+                  defaultValue={defaultModels?.[settingsKey] || models[settingsKey] || ''}
+                  options={llmOptions}
+                  onChange={(value) => setModelOverrides((prev) => ({ ...prev, [previousLLMStep]: value }))}
+                  compact
+                />
+              );
+            })()}
+
+            {/* Divider between model and prompts */}
+            {hasSelectablePrompts(getPromptsForStep(previousLLMStep)) && (
+              <div className="border-t border-dashed border-gray-300" />
+            )}
+
+            {/* Prompt selectors */}
+            {hasSelectablePrompts(getPromptsForStep(previousLLMStep)) && (
+              <div>
+                <span className="text-xs text-gray-500 mb-2 block">Промпты:</span>
+                <div className="grid grid-cols-2 gap-2">
+                  {getPromptsForStep(previousLLMStep)?.components.map((comp) => (
                     <ComponentPromptSelector
                       key={comp.component}
                       label={comp.component}
                       componentData={comp}
-                      value={promptOverrides[currentStep]?.[comp.component as keyof PromptOverrides]}
+                      value={promptOverrides[previousLLMStep]?.[comp.component as keyof PromptOverrides]}
                       onChange={(value) =>
                         updatePromptOverride(
-                          currentStep,
+                          previousLLMStep,
                           comp.component as keyof PromptOverrides,
                           value
                         )
                       }
                     />
                   ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 
