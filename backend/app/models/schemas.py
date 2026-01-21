@@ -24,6 +24,27 @@ class ProcessingStatus(str, Enum):
     FAILED = "failed"
 
 
+class ContentType(str, Enum):
+    """Type of content for processing pipeline.
+
+    Determines output documents and chunking source:
+    - educational: longread.md + summary.md, chunks from longread
+    - leadership: story.md (8 blocks), chunks from story
+    """
+    EDUCATIONAL = "educational"
+    LEADERSHIP = "leadership"
+
+
+class EventCategory(str, Enum):
+    """Category of event for archive structure.
+
+    - regular: weekly schools (ПШ) → archive/{year}/ПШ/{MM.DD}/{Title}/
+    - offsite: events (выездные) → archive/{year}/Выездные/{Event}/{Title}/
+    """
+    REGULAR = "regular"
+    OFFSITE = "offsite"
+
+
 class VideoMetadata(BaseModel):
     """Metadata extracted from video filename."""
 
@@ -37,6 +58,9 @@ class VideoMetadata(BaseModel):
     source_path: Path
     archive_path: Path
     duration_seconds: float | None = None  # Video duration from ffprobe
+    content_type: ContentType = ContentType.EDUCATIONAL
+    event_category: EventCategory = EventCategory.REGULAR
+    event_name: str | None = None  # For offsite events: "Форум TABTeam (Москва)"
 
     @computed_field
     @property
@@ -45,6 +69,12 @@ class VideoMetadata(BaseModel):
         if self.stream:
             return f"{self.event_type}.{self.stream}"
         return self.event_type
+
+    @computed_field
+    @property
+    def is_offsite(self) -> bool:
+        """True if this is an offsite event (not regular weekly school)."""
+        return self.event_category == EventCategory.OFFSITE
 
 
 class TranscriptSegment(BaseModel):

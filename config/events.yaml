@@ -1,9 +1,17 @@
 # Конфигурация типов мероприятий для парсинга имени файла
-# Формат имени: {дата} {тип}.{поток} {тема} ({спикер}).mp4
+#
+# Поддерживаемые форматы:
+# 1. Regular (ПШ): {дата} {тип}.{поток} {тема} ({спикер}).mp4
+# 2. Offsite: {Фамилия} ({Имя}).mp4 или {Фамилия} — {Название}.mp4
+#
+# category: regular | offsite
+#   - regular: еженедельные школы → archive/{year}/{event_type}/{MM.DD}/{Title}/
+#   - offsite: выездные мероприятия → archive/{year}/Выездные/{event_name}/{Title}/
 
 event_types:
   ПШ:
     name: "Понедельничная Школа"
+    category: regular
     streams:
       SV: "Супервайзеры"
       НП: "Независимые партнёры"
@@ -11,6 +19,7 @@ event_types:
 
   ГП:
     name: "Группа поддержки"
+    category: regular
     streams:
       SV: "Супервайзеры"
       НП: "Независимые партнёры"
@@ -18,12 +27,14 @@ event_types:
 
   ФК:
     name: "Фитнес-клуб"
+    category: regular
     streams:
       AM: "Утренний"
       PM: "Вечерний"
 
   ВЕБ:
     name: "Вебинар"
+    category: regular
     streams:
       PROD: "Продукты"
       BIZ: "Бизнес"
@@ -31,13 +42,23 @@ event_types:
 
   ОБУ:
     name: "Обучение"
+    category: regular
     streams:
       BASE: "Базовый курс"
       ADV: "Продвинутый"
       SPEC: "Специализированный"
 
+  # Virtual event type for offsite events parsed from folder structure
+  ВЫЕЗД:
+    name: "Выездное мероприятие"
+    category: offsite
+    streams: {}
+
 # Формат даты в имени файла
 date_format: "%Y.%m.%d"
 
-# Паттерн имени файла (для документации)
-filename_pattern: "{date} {type}.{stream} {title} ({speaker})"
+# Паттерны имени файла (для документации)
+filename_patterns:
+  regular: "{date} {type}.{stream} {title} ({speaker})"
+  offsite_leadership: "{Фамилия} ({Имя})"
+  offsite_educational: "{Фамилия} — {Название}"

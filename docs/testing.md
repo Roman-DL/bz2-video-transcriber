@@ -1,4 +1,117 @@
-# Тестирование на сервере
+# Тестирование
+
+Руководство по тестированию модулей локально и на сервере.
+
+---
+
+## Локальное тестирование модулей
+
+### Настройка окружения (macOS)
+
+На macOS нельзя устанавливать пакеты в системный Python. Используй виртуальное окружение:
+
+```bash
+cd backend
+
+# Создать виртуальное окружение (один раз)
+python3 -m venv .venv
+
+# Активировать окружение
+source .venv/bin/activate
+
+# Установить зависимости
+pip install -r requirements.txt
+
+# Запустить тесты модуля
+python -m app.services.parser
+python -m app.services.saver
+
+# Деактивировать (по завершении)
+deactivate
+```
+
+### Встроенные тесты модулей
+
+Многие модули содержат тесты в блоке `if __name__ == "__main__"`. Для их запуска:
+
+```bash
+cd backend
+source .venv/bin/activate
+
+# Тесты парсера
+python -m app.services.parser
+
+# Тесты saver (требует asyncio)
+python -m app.services.saver
+```
+
+### Проверка синтаксиса без запуска
+
+Быстрая проверка Python-файлов без выполнения:
+
+```bash
+python3 -m py_compile backend/app/services/parser.py
+python3 -m py_compile backend/app/models/schemas.py
+```
+
+### Изолированные тесты (без Settings)
+
+Если тесты требуют Settings, но локально нет `.env`, можно тестировать логику изолированно:
+
+```bash
+cd backend
+source .venv/bin/activate
+python3 -c "
+from app.models.schemas import ContentType, EventCategory
+
+# Test enums
+assert ContentType.EDUCATIONAL.value == 'educational'
+assert EventCategory.REGULAR.value == 'regular'
+print('Enums: OK')
+
+# Test regex patterns
+from app.services.parser import OFFSITE_LEADERSHIP_PATTERN
+match = OFFSITE_LEADERSHIP_PATTERN.match('Антоновы (Дмитрий и Юлия).mp4')
+assert match is not None
+print('Patterns: OK')
+"
+```
+
+### Структура тестов в модулях
+
+При добавлении тестов в модуль используй этот шаблон:
+
+```python
+if __name__ == "__main__":
+    """Run tests when executed directly."""
+    import sys
+
+    def test_example():
+        """Test description."""
+        print("Test: description...", end=" ")
+        # ... тест ...
+        print("OK")
+
+    tests = [test_example]
+
+    failed = 0
+    for test in tests:
+        try:
+            test()
+        except AssertionError as e:
+            print(f"FAILED: {e}")
+            failed += 1
+        except Exception as e:
+            print(f"ERROR: {e}")
+            failed += 1
+
+    print(f"\n{'All tests passed!' if failed == 0 else f'{failed} test(s) failed.'}")
+    sys.exit(failed)
+```
+
+---
+
+## Тестирование на сервере
 
 Руководство по автоматическому тестированию pipeline-шагов на сервере без веб-интерфейса.
 

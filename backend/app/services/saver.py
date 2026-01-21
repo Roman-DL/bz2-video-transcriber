@@ -197,6 +197,9 @@ class FileSaver:
                 "archive_path": str(metadata.archive_path),
                 "stream_full": metadata.stream_full,
                 "duration_seconds": metadata.duration_seconds,
+                "content_type": metadata.content_type.value,
+                "event_category": metadata.event_category.value,
+                "event_name": metadata.event_name,
             },
             "raw_transcript": {
                 "segments": [

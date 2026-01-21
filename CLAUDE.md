@@ -100,7 +100,7 @@ backend/app/api/cache_routes.py       # Cache API endpoints
 
 **Структура кэша:**
 ```
-archive/2025/01.09 ПШ/Video Title/
+archive/2025/ПШ/01.09/Video Title/
 ├── pipeline_results.json    # Текущие результаты
 └── .cache/
     ├── manifest.json        # Версии и метаданные
@@ -137,6 +137,46 @@ result = await cache.load(archive_path, CacheStageName.CLEANING, version=1)
 - `POST /api/cache/version` — установка текущей версии
 
 Подробнее: [docs/adr/005-result-caching.md](docs/adr/005-result-caching.md)
+
+## Content Types и Archive Structure (v0.21+)
+
+Система поддерживает два типа контента с разными pipeline и выходными документами:
+
+| ContentType | Выходные файлы | Описание |
+|-------------|----------------|----------|
+| `educational` | `longread.md` + `summary.md` | Обучающие темы |
+| `leadership` | `story.md` | Лидерские истории (8 блоков) |
+
+**Категории мероприятий:**
+
+| EventCategory | Структура архива | Примеры |
+|---------------|------------------|---------|
+| `regular` | `archive/{year}/{event_type}/{MM.DD}/{Title}/` | ПШ (еженедельные школы) |
+| `offsite` | `archive/{year}/Выездные/{event_name}/{Title}/` | Форумы, выездные |
+
+**Определение типа по имени файла:**
+
+```python
+# Regular events (ПШ): дата + тип в имени → content_type = educational
+"2025.01.13 ПШ.SV Закрытие ПО (Кухаренко).mp4"
+
+# Offsite leadership: Фамилия (Имя) → content_type = leadership
+"Антоновы (Дмитрий и Юлия).mp4"
+
+# Offsite educational: Фамилия — Название → content_type = educational
+"Мекибель — Модели работы с МП.mp4"
+```
+
+**Модели:**
+```python
+from app.models.schemas import ContentType, EventCategory, VideoMetadata
+
+# VideoMetadata теперь содержит:
+metadata.content_type   # ContentType.EDUCATIONAL | LEADERSHIP
+metadata.event_category # EventCategory.REGULAR | OFFSITE
+metadata.event_name     # Для offsite: "Форум TABTeam (Москва)"
+metadata.is_offsite     # computed: True если event_category == OFFSITE
+```
 
 ## Stage Abstraction (v0.14+)
 
@@ -286,24 +326,46 @@ client, model = await strategy.get_client_with_fallback(
 
 ### Особенности macOS
 
-На macOS используй `python3` вместо `python`:
+На macOS системный Python защищён от установки пакетов. Используй виртуальное окружение:
 
 ```bash
-# Проверка синтаксиса Python
+# Проверка синтаксиса (работает без venv)
 python3 -m py_compile backend/app/api/step_routes.py
 
-# Установка зависимостей
-cd backend && pip3 install -r requirements.txt
+# Для запуска кода — создай venv
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
 # Запуск сервера
-python3 -m uvicorn app.main:app --reload --port 8801
+python -m uvicorn app.main:app --reload --port 8801
 ```
+
+### Локальное тестирование
+
+Многие модули содержат встроенные тесты в `if __name__ == "__main__"`:
+
+```bash
+cd backend
+source .venv/bin/activate
+
+# Тесты парсера (проверка паттернов, archive_path)
+python -m app.services.parser
+
+# Тесты saver
+python -m app.services.saver
+```
+
+Подробнее: [docs/testing.md](docs/testing.md) — настройка окружения, изолированные тесты, шаблоны
 
 ### Backend
 
 ```bash
-cd backend && pip3 install -r requirements.txt
-python3 -m uvicorn app.main:app --reload --port 8801
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python -m uvicorn app.main:app --reload --port 8801
 ```
 
 ### Frontend
