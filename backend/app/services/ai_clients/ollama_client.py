@@ -1,14 +1,13 @@
 """
 Ollama AI client implementation.
 
-Provides async HTTP client for Ollama and Whisper APIs with retry logic.
+Provides async HTTP client for Ollama LLM API with retry logic.
 Implements BaseAIClient protocol for text generation and chat completions.
+
+Note: Whisper transcription is handled by separate WhisperClient.
 """
 
-import asyncio
 import logging
-import time
-from pathlib import Path
 
 import httpx
 from tenacity import (
@@ -39,24 +38,21 @@ RETRY_DECORATOR = retry(
 
 class OllamaClient(BaseAIClientImpl):
     """
-    Async HTTP client for Ollama and Whisper AI services.
+    Async HTTP client for Ollama LLM API.
 
-    Implements BaseAIClient protocol for LLM operations and provides
-    additional Whisper transcription functionality.
+    Implements BaseAIClient protocol for LLM operations (generate, chat).
+    For transcription, use WhisperClient instead.
 
     Example:
         async with OllamaClient.from_settings(settings) as client:
             status = await client.check_services()
             response = await client.generate("Hello!")
-            transcript = await client.transcribe(video_path)
     """
 
     def __init__(
         self,
         config: AIClientConfig,
-        whisper_url: str | None = None,
         default_model: str = "gemma2:9b",
-        default_language: str = "ru",
         llm_timeout: float = 300.0,
     ):
         """
@@ -64,15 +60,11 @@ class OllamaClient(BaseAIClientImpl):
 
         Args:
             config: AI client configuration with Ollama URL
-            whisper_url: URL for Whisper API (optional)
             default_model: Default model for generation
-            default_language: Default language for transcription
             llm_timeout: Timeout for LLM requests in seconds
         """
         super().__init__(config)
-        self.whisper_url = whisper_url
         self.default_model = default_model
-        self.default_language = default_language
         self.llm_timeout = llm_timeout
 
         # No global timeout - each request sets its own timeout explicitly
@@ -95,9 +87,7 @@ class OllamaClient(BaseAIClientImpl):
         )
         return cls(
             config=config,
-            whisper_url=settings.whisper_url,
             default_model=settings.summarizer_model,
-            default_language=settings.whisper_language,
             llm_timeout=settings.llm_timeout,
         )
 
@@ -107,21 +97,18 @@ class OllamaClient(BaseAIClientImpl):
 
     async def check_services(self) -> dict:
         """
-        Check availability of Ollama and Whisper services.
+        Check availability of Ollama service.
 
         Returns:
             Dict with service status:
             {
                 "ollama": bool,
-                "whisper": bool,
                 "ollama_version": str | None
             }
         """
         ollama_available = False
         ollama_version = None
-        whisper_available = False
 
-        # Check Ollama
         try:
             response = await self.http_client.get(
                 f"{self.config.base_url}/api/version",
@@ -135,153 +122,10 @@ class OllamaClient(BaseAIClientImpl):
         except Exception as e:
             logger.debug(f"Ollama not available: {e}")
 
-        # Check Whisper
-        if self.whisper_url:
-            try:
-                response = await self.http_client.get(
-                    f"{self.whisper_url}/health",
-                    timeout=5.0,
-                )
-                if response.status_code == 200 and response.text == "OK":
-                    whisper_available = True
-                    logger.debug("Whisper available")
-            except Exception as e:
-                logger.debug(f"Whisper not available: {e}")
-
         return {
             "ollama": ollama_available,
-            "whisper": whisper_available,
             "ollama_version": ollama_version,
         }
-
-    def _sync_transcribe(
-        self,
-        file_path: Path,
-        language: str,
-        whisper_url: str,
-    ) -> httpx.Response:
-        """
-        Synchronous file upload to Whisper API.
-
-        Runs in a thread pool to avoid blocking the event loop.
-
-        Args:
-            file_path: Path to audio/video file
-            language: Language code
-            whisper_url: Whisper API URL
-
-        Returns:
-            httpx.Response from Whisper API
-        """
-        with httpx.Client(timeout=7200.0) as sync_client:
-            with open(file_path, "rb") as f:
-                files = {"file": (file_path.name, f, "application/octet-stream")}
-                data = {
-                    "language": language,
-                    "response_format": "verbose_json",
-                }
-                return sync_client.post(
-                    f"{whisper_url}/v1/audio/transcriptions",
-                    files=files,
-                    data=data,
-                )
-
-    @RETRY_DECORATOR
-    async def transcribe(
-        self,
-        file_path: Path,
-        language: str | None = None,
-    ) -> dict:
-        """
-        Transcribe audio/video file using Whisper API.
-
-        Uses thread pool for file upload to avoid blocking the event loop,
-        allowing progress ticker to update during long transcriptions.
-
-        Args:
-            file_path: Path to audio/video file
-            language: Language code (default: from settings)
-
-        Returns:
-            Dict with transcription result including segments
-
-        Raises:
-            FileNotFoundError: If file doesn't exist
-            AIClientError: If transcription fails
-        """
-        if not self.whisper_url:
-            raise AIClientConnectionError(
-                "Whisper URL not configured",
-                provider="whisper",
-            )
-
-        if language is None:
-            language = self.default_language
-
-        file_path = Path(file_path)
-        if not file_path.exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
-
-        file_size_mb = file_path.stat().st_size / 1024 / 1024
-        logger.info(f"Transcribing: {file_path.name} ({file_size_mb:.1f} MB)")
-        logger.debug(f"Whisper URL: {self.whisper_url}, language: {language}")
-
-        start_time = time.time()
-
-        try:
-            # Run synchronous file upload in thread pool to not block event loop
-            response = await asyncio.to_thread(
-                self._sync_transcribe,
-                file_path,
-                language,
-                self.whisper_url,
-            )
-
-            elapsed = time.time() - start_time
-            logger.debug(f"Whisper response: {response.status_code}, elapsed: {elapsed:.1f}s")
-
-            response.raise_for_status()
-            result = response.json()
-
-            duration = result.get("duration", 0)
-            segments = len(result.get("segments", []))
-            logger.info(
-                f"Transcription complete: {segments} segments, "
-                f"duration: {duration:.0f}s, elapsed: {elapsed:.1f}s"
-            )
-            return result
-
-        except httpx.TimeoutException as e:
-            elapsed = time.time() - start_time
-            logger.error(f"Transcription timeout after {elapsed:.1f}s: {e}")
-            raise AIClientTimeoutError(
-                f"Transcription timeout after {elapsed:.1f}s",
-                provider="whisper",
-                original_error=e,
-            ) from e
-
-        except httpx.HTTPStatusError as e:
-            elapsed = time.time() - start_time
-            logger.error(
-                f"Transcription HTTP error after {elapsed:.1f}s: "
-                f"{e.response.status_code} - {e.response.text[:200]}"
-            )
-            raise AIClientResponseError(
-                f"Transcription failed: HTTP {e.response.status_code}",
-                provider="whisper",
-                status_code=e.response.status_code,
-                response_body=e.response.text[:500],
-                original_error=e,
-            ) from e
-
-        except Exception as e:
-            elapsed = time.time() - start_time
-            logger.error(f"Transcription failed after {elapsed:.1f}s: {type(e).__name__}: {e}")
-            raise AIClientConnectionError(
-                f"Transcription failed: {e}",
-                provider="whisper",
-                original_error=e,
-            ) from e
 
     @RETRY_DECORATOR
     async def generate(
@@ -452,6 +296,7 @@ class OllamaClient(BaseAIClientImpl):
 
 if __name__ == "__main__":
     """Run tests when executed directly."""
+    import asyncio
     import sys
 
     from app.config import get_settings
@@ -465,20 +310,18 @@ if __name__ == "__main__":
 
         settings = get_settings()
         print(f"Ollama URL: {settings.ollama_url}")
-        print(f"Whisper URL: {settings.whisper_url}")
         print(f"Summarizer Model: {settings.summarizer_model}")
         print()
 
         async with OllamaClient.from_settings(settings) as client:
             # Test 1: Check services
-            print("Test 1: Checking services...", end=" ")
+            print("Test 1: Checking Ollama...", end=" ")
             try:
                 status = await client.check_services()
                 print("OK")
                 print(f"  Ollama: {'available' if status['ollama'] else 'unavailable'}")
                 if status["ollama_version"]:
                     print(f"  Ollama version: {status['ollama_version']}")
-                print(f"  Whisper: {'available' if status['whisper'] else 'unavailable'}")
             except Exception as e:
                 print(f"FAILED: {e}")
                 return 1
@@ -517,10 +360,6 @@ if __name__ == "__main__":
                     return 1
             else:
                 print("SKIPPED (Ollama unavailable)")
-
-            # Test 4: Transcribe would require a real file
-            print("\nTest 4: Transcribe (file required)...", end=" ")
-            print("SKIPPED (no test file)")
 
         print("\n" + "=" * 40)
         print("All tests passed!")

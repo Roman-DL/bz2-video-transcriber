@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.config import Settings
 from app.models.schemas import ProcessingStatus, RawTranscript
-from app.services.ai_clients import OllamaClient
+from app.services.ai_clients import WhisperClient
 from app.services.stages.base import BaseStage, StageContext, StageError
 from app.services.transcriber import WhisperTranscriber
 
@@ -24,7 +24,7 @@ class TranscribeStage(BaseStage):
         Tuple of (RawTranscript, audio_path)
 
     Example:
-        stage = TranscribeStage(ai_client, settings)
+        stage = TranscribeStage(whisper_client, settings)
         context = context.with_result("parse", metadata)
         raw_transcript, audio_path = await stage.execute(context)
     """
@@ -33,16 +33,16 @@ class TranscribeStage(BaseStage):
     depends_on = ["parse"]
     status = ProcessingStatus.TRANSCRIBING
 
-    def __init__(self, ai_client: OllamaClient, settings: Settings):
+    def __init__(self, whisper_client: WhisperClient, settings: Settings):
         """Initialize transcribe stage.
 
         Args:
-            ai_client: AI client for Whisper API calls
+            whisper_client: Whisper client for transcription API calls
             settings: Application settings
         """
-        self.ai_client = ai_client
+        self.whisper_client = whisper_client
         self.settings = settings
-        self.transcriber = WhisperTranscriber(ai_client, settings)
+        self.transcriber = WhisperTranscriber(whisper_client, settings)
 
     async def execute(self, context: StageContext) -> tuple[RawTranscript, Path]:
         """Transcribe video file.

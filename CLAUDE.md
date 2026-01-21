@@ -245,28 +245,32 @@ num_predict = calculate_num_predict(tokens, task="chunker")
 
 Подробнее: [docs/adr/003-shared-utils.md](docs/adr/003-shared-utils.md)
 
-## AI Clients (v0.17+)
+## AI Clients (v0.17+, updated v0.27)
 
-Абстракция для AI провайдеров, позволяющая переключаться между Ollama и Claude API:
+Абстракция для AI провайдеров с разделением ответственности:
 
 ```
 backend/app/services/ai_clients/
-├── __init__.py          # Экспорт OllamaClient, ClaudeClient, BaseAIClient
+├── __init__.py          # Экспорт OllamaClient, ClaudeClient, WhisperClient
 ├── base.py              # BaseAIClient (Protocol), AIClientConfig, исключения
-├── ollama_client.py     # OllamaClient — Ollama + Whisper
-└── claude_client.py     # ClaudeClient — Anthropic Claude API (v0.19+)
+├── ollama_client.py     # OllamaClient — только LLM (generate, chat)
+├── claude_client.py     # ClaudeClient — Anthropic Claude API (v0.19+)
+└── whisper_client.py    # WhisperClient — транскрибация (v0.27+)
 ```
 
 **Использование:**
 ```python
-from app.services.ai_clients import OllamaClient, ClaudeClient
+from app.services.ai_clients import OllamaClient, ClaudeClient, WhisperClient
 
-# Локальная модель (Ollama)
+# Транскрибация (WhisperClient)
+async with WhisperClient.from_settings(settings) as whisper:
+    result = await whisper.transcribe(audio_path)
+
+# Локальная LLM (Ollama)
 async with OllamaClient.from_settings(settings) as client:
     response = await client.generate("Hello!")
-    transcript = await client.transcribe(video_path)
 
-# Облачная модель (Claude) — требует ANTHROPIC_API_KEY
+# Облачная LLM (Claude) — требует ANTHROPIC_API_KEY
 async with ClaudeClient.from_settings(settings) as client:
     response = await client.generate("Analyze this document...")
 ```

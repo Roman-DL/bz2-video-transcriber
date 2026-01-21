@@ -26,7 +26,7 @@ from app.models.schemas import (
     VideoMetadata,
     VideoSummary,
 )
-from app.services.ai_clients import OllamaClient
+from app.services.ai_clients import OllamaClient, WhisperClient
 from app.services.cleaner import TranscriptCleaner
 from app.services.longread_generator import LongreadGenerator
 from app.services.story_generator import StoryGenerator
@@ -203,20 +203,23 @@ class PipelineOrchestrator:
             f"Parsed: {metadata.video_id} ({metadata.duration_seconds:.0f}s)",
         )
 
-        # Stages 2-6: Require AI client
-        async with OllamaClient(self.settings) as ai_client:
-            # Initialize services
-            transcriber = WhisperTranscriber(ai_client, self.settings)
-            cleaner = TranscriptCleaner(ai_client, self.settings)
-            longread_gen = LongreadGenerator(ai_client, self.settings)
-            summary_gen = SummaryGenerator(ai_client, self.settings)
-            story_gen = StoryGenerator(ai_client, self.settings)
-            saver = FileSaver(self.settings)
+        # Stage 2: Transcribe (requires WhisperClient)
+        async with WhisperClient.from_settings(self.settings) as whisper_client:
+            transcriber = WhisperTranscriber(whisper_client, self.settings)
 
             # Stage 2: Transcribe (extracts audio first, then sends to Whisper)
             raw_transcript, audio_path = await self._do_transcribe(
                 transcriber, video_path, metadata.duration_seconds, progress_callback
             )
+
+        # Stages 3-6: Require LLM client (OllamaClient for local models)
+        async with OllamaClient.from_settings(self.settings) as ai_client:
+            # Initialize LLM services
+            cleaner = TranscriptCleaner(ai_client, self.settings)
+            longread_gen = LongreadGenerator(ai_client, self.settings)
+            summary_gen = SummaryGenerator(ai_client, self.settings)
+            story_gen = StoryGenerator(ai_client, self.settings)
+            saver = FileSaver(self.settings)
 
             # Stage 3: Clean
             cleaned_transcript = await self._do_clean(
@@ -315,8 +318,8 @@ class PipelineOrchestrator:
         """
         video_path = Path(video_path)
 
-        async with OllamaClient(self.settings) as ai_client:
-            transcriber = WhisperTranscriber(ai_client, self.settings)
+        async with WhisperClient.from_settings(self.settings) as whisper_client:
+            transcriber = WhisperTranscriber(whisper_client, self.settings)
             return await transcriber.transcribe(video_path)
 
     async def clean(

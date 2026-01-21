@@ -20,17 +20,22 @@ router = APIRouter(prefix="/api", tags=["pipeline"])
 @router.get("/inbox", response_model=list[str])
 async def list_inbox_files() -> list[str]:
     """
-    List video files in inbox directory.
+    List video and audio files in inbox directory.
 
     Returns:
-        List of video filenames (mp4, mkv, avi, mov)
+        List of media filenames (video: mp4, mkv, avi, mov, webm; audio: mp3, wav, m4a, flac, aac, ogg)
     """
     settings = get_settings()
 
     if not settings.inbox_dir.exists():
         return []
 
-    extensions = {".mp4", ".mkv", ".avi", ".mov", ".webm"}
+    extensions = {
+        # Video formats
+        ".mp4", ".mkv", ".avi", ".mov", ".webm",
+        # Audio formats (for offsite events)
+        ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg",
+    }
     files = [
         f.name
         for f in settings.inbox_dir.iterdir()

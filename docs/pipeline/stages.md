@@ -76,11 +76,12 @@ class MyStage(BaseStage):
 
 ```python
 from app.services.stages import StageRegistry, create_default_stages
-from app.services.ai_clients import OllamaClient
+from app.services.ai_clients import OllamaClient, WhisperClient
 
-# Создание реестра со стандартными стадиями
-async with OllamaClient.from_settings(settings) as ai_client:
-    registry = create_default_stages(ai_client, settings)
+# v0.27+: Раздельные клиенты для транскрибации и LLM
+async with WhisperClient.from_settings(settings) as whisper:
+    async with OllamaClient.from_settings(settings) as llm:
+        registry = create_default_stages(whisper, llm, settings)
 
 # Построение pipeline (автоматически добавляет зависимости)
 stages = registry.build_pipeline(["parse", "transcribe", "clean"])

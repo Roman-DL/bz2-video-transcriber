@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import cache_routes, models_routes, routes, step_routes
 from app.config import get_settings
 from app.logging_config import setup_logging
-from app.services.ai_clients import OllamaClient
+from app.services.ai_clients import OllamaClient, WhisperClient
 
 # Configure logging before anything else
 settings = get_settings()
@@ -34,9 +34,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"Archive directory: {settings.archive_dir}")
 
     # Check AI services
-    async with OllamaClient.from_settings(settings) as client:
-        status = await client.check_services()
-        logger.info(f"AI Services - Whisper: {status['whisper']}, Ollama: {status['ollama']}")
+    async with OllamaClient.from_settings(settings) as ollama:
+        ollama_status = await ollama.check_services()
+
+    async with WhisperClient.from_settings(settings) as whisper:
+        whisper_available = await whisper.check_health()
+
+    logger.info(f"AI Services - Ollama: {ollama_status['ollama']}, Whisper: {whisper_available}")
 
     yield
 
@@ -86,15 +90,20 @@ async def services_health() -> dict:
         Status of Whisper and Ollama services
     """
     settings = get_settings()
-    async with OllamaClient.from_settings(settings) as client:
-        status = await client.check_services()
-        return {
-            "whisper": status["whisper"],
-            "ollama": status["ollama"],
-            "whisper_url": settings.whisper_url,
-            "ollama_url": settings.ollama_url,
-            "whisper_include_timestamps": settings.whisper_include_timestamps,
-        }
+
+    async with OllamaClient.from_settings(settings) as ollama:
+        ollama_status = await ollama.check_services()
+
+    async with WhisperClient.from_settings(settings) as whisper:
+        whisper_available = await whisper.check_health()
+
+    return {
+        "whisper": whisper_available,
+        "ollama": ollama_status["ollama"],
+        "whisper_url": settings.whisper_url,
+        "ollama_url": settings.ollama_url,
+        "whisper_include_timestamps": settings.whisper_include_timestamps,
+    }
 
 
 if __name__ == "__main__":

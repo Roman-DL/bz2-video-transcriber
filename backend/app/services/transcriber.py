@@ -11,7 +11,7 @@ from pathlib import Path
 
 from app.config import Settings, get_settings
 from app.models.schemas import RawTranscript, TranscriptSegment
-from app.services.ai_clients import OllamaClient
+from app.services.ai_clients import WhisperClient
 from app.services.audio_extractor import AudioExtractor
 
 logger = logging.getLogger(__name__)
@@ -23,21 +23,21 @@ class WhisperTranscriber:
     Video/audio transcription service using Whisper API.
 
     Example:
-        async with OllamaClient.from_settings(settings) as client:
+        async with WhisperClient.from_settings(settings) as client:
             transcriber = WhisperTranscriber(client, settings)
             transcript = await transcriber.transcribe(Path("video.mp4"))
             print(transcript.full_text)
     """
 
-    def __init__(self, ai_client: OllamaClient, settings: Settings):
+    def __init__(self, whisper_client: WhisperClient, settings: Settings):
         """
         Initialize transcriber.
 
         Args:
-            ai_client: AI client for API calls
+            whisper_client: Whisper client for transcription API calls
             settings: Application settings
         """
-        self.ai_client = ai_client
+        self.whisper_client = whisper_client
         self.settings = settings
 
     async def transcribe(
@@ -82,7 +82,7 @@ class WhisperTranscriber:
 
         # Step 2: Send audio to Whisper API (not video!)
         whisper_start = time.time()
-        response_data = await self.ai_client.transcribe(
+        response_data = await self.whisper_client.transcribe(
             file_path=audio_path,
             language=self.settings.whisper_language,
         )
@@ -204,10 +204,10 @@ if __name__ == "__main__":
 
         # Test 3: Real transcription (optional)
         print("\nTest 3: Real transcription...", end=" ")
-        async with OllamaClient.from_settings(settings) as client:
-            status = await client.check_services()
+        async with WhisperClient.from_settings(settings) as whisper:
+            available = await whisper.check_health()
 
-            if not status["whisper"]:
+            if not available:
                 print("SKIPPED (Whisper unavailable)")
             else:
                 # Check if test file exists (only mp4 - we extract audio from video)
@@ -216,7 +216,7 @@ if __name__ == "__main__":
                     print("SKIPPED (no test video)")
                 else:
                     try:
-                        transcriber = WhisperTranscriber(client, settings)
+                        transcriber = WhisperTranscriber(whisper, settings)
                         transcript, audio_path = await transcriber.transcribe(test_files[0])
                         print("OK")
                         print(f"  Video: {test_files[0].name}")

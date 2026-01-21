@@ -236,122 +236,75 @@ def check_ollama() -> dict:
 
 ---
 
-## Общий клиент для AI сервисов
+## AI клиенты (v0.27+)
+
+Система использует разделённые клиенты для разных AI сервисов:
+
+- **WhisperClient** — транскрибация через Whisper API
+- **OllamaClient** — LLM операции (generate, chat) через Ollama
+- **ClaudeClient** — LLM операции через Anthropic API
 
 ```python
 """
-ai_client.py — Клиент для работы с локальными AI сервисами.
+Примеры использования AI клиентов.
 """
 
-import requests
-from typing import Optional
-from dataclasses import dataclass
+from app.services.ai_clients import WhisperClient, OllamaClient, ClaudeClient
+from app.config import get_settings
 
+settings = get_settings()
 
-@dataclass
-class AIConfig:
-    """Конфигурация AI сервисов."""
-    ollama_url: str = "http://100.64.0.1:11434"
-    whisper_url: str = "http://100.64.0.1:9000"
-    default_model: str = "qwen2.5:14b"
-    timeout: int = 300
+# ═══════════════════════════════════════════════════════════════════
+# WhisperClient — транскрибация
+# ═══════════════════════════════════════════════════════════════════
 
+async with WhisperClient.from_settings(settings) as whisper:
+    # Проверка доступности
+    available = await whisper.check_health()
+    print(f"Whisper: {'✅' if available else '❌'}")
 
-class AIClient:
-    """Клиент для Ollama и Whisper."""
-    
-    def __init__(self, config: Optional[AIConfig] = None):
-        self.config = config or AIConfig()
-    
-    def check_services(self) -> dict:
-        """Проверить доступность всех сервисов."""
-        return {
-            "ollama": self._check_ollama(),
-            "whisper": self._check_whisper()
-        }
-    
-    def _check_ollama(self) -> bool:
-        try:
-            r = requests.get(f"{self.config.ollama_url}/api/version", timeout=5)
-            return r.status_code == 200
-        except:
-            return False
-    
-    def _check_whisper(self) -> bool:
-        try:
-            r = requests.get(f"{self.config.whisper_url}/health", timeout=5)
-            return r.text == "OK"
-        except:
-            return False
-    
-    def transcribe(
-        self,
-        file_path: str,
-        language: str = "ru",
-        response_format: str = "text"
-    ) -> str:
-        """Транскрибировать файл через Whisper."""
-        with open(file_path, "rb") as f:
-            response = requests.post(
-                f"{self.config.whisper_url}/v1/audio/transcriptions",
-                files={"file": f},
-                data={
-                    "language": language,
-                    "response_format": response_format
-                },
-                timeout=600
-            )
-        response.raise_for_status()
-        return response.text if response_format == "text" else response.json()
-    
-    def generate(self, prompt: str, model: Optional[str] = None) -> str:
-        """Генерация текста через Ollama."""
-        response = requests.post(
-            f"{self.config.ollama_url}/api/generate",
-            json={
-                "model": model or self.config.default_model,
-                "prompt": prompt,
-                "stream": False
-            },
-            timeout=self.config.timeout
-        )
-        response.raise_for_status()
-        return response.json()["response"]
-    
-    def chat(
-        self,
-        messages: list[dict],
-        model: Optional[str] = None,
-        temperature: float = 0.7
-    ) -> str:
-        """Chat через Ollama (OpenAI формат)."""
-        response = requests.post(
-            f"{self.config.ollama_url}/v1/chat/completions",
-            json={
-                "model": model or self.config.default_model,
-                "messages": messages,
-                "temperature": temperature
-            },
-            timeout=self.config.timeout
-        )
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"]
+    # Транскрибация
+    result = await whisper.transcribe(
+        file_path="audio.mp3",
+        language="ru"
+    )
+    print(f"Текст: {result['text'][:100]}...")
 
+# ═══════════════════════════════════════════════════════════════════
+# OllamaClient — локальные LLM
+# ═══════════════════════════════════════════════════════════════════
 
-# Использование
-if __name__ == "__main__":
-    client = AIClient()
-    
-    # Проверка сервисов
-    status = client.check_services()
+async with OllamaClient.from_settings(settings) as ollama:
+    # Проверка доступности
+    status = await ollama.check_services()
     print(f"Ollama: {'✅' if status['ollama'] else '❌'}")
-    print(f"Whisper: {'✅' if status['whisper'] else '❌'}")
-    
-    # Транскрипция
-    # text = client.transcribe("video.mp4", language="ru")
-    
-    # Генерация
-    # result = client.generate("Привет! Как дела?")
+
+    # Генерация текста
+    response = await ollama.generate(
+        prompt="Привет! Как дела?",
+        model="qwen2.5:14b"
+    )
+    print(f"Ответ: {response}")
+
+    # Chat completion
+    response = await ollama.chat(
+        messages=[
+            {"role": "user", "content": "Что такое Python?"}
+        ],
+        model="qwen2.5:14b",
+        temperature=0.7
+    )
+    print(f"Chat: {response}")
+
+# ═══════════════════════════════════════════════════════════════════
+# ClaudeClient — облачные LLM
+# ═══════════════════════════════════════════════════════════════════
+
+async with ClaudeClient.from_settings(settings) as claude:
+    response = await claude.generate(
+        prompt="Проанализируй этот документ...",
+        model="claude-sonnet-4-5"
+    )
 ```
 
 ---

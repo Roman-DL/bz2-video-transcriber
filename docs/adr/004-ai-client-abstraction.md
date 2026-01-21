@@ -2,7 +2,7 @@
 
 ## Статус
 
-Принято (2025-01-20)
+Принято (2025-01-20), обновлено (2026-01-21) — добавлен WhisperClient
 
 ## Контекст
 
@@ -44,9 +44,12 @@ models:
 backend/app/services/ai_clients/
 ├── __init__.py          # Экспорт публичных классов
 ├── base.py              # BaseAIClient (Protocol), AIClientConfig, исключения
-├── ollama_client.py     # OllamaClient — реализация для Ollama + Whisper
-└── claude_client.py     # ClaudeClient — заглушка для Phase 5
+├── ollama_client.py     # OllamaClient — только LLM (generate, chat)
+├── claude_client.py     # ClaudeClient — Anthropic Claude API
+└── whisper_client.py    # WhisperClient — транскрибация (v0.27+)
 ```
+
+> **v0.27:** Транскрибация выделена в отдельный `WhisperClient` для соблюдения Single Responsibility Principle. `OllamaClient` теперь отвечает только за LLM операции.
 
 #### BaseAIClient Protocol
 
