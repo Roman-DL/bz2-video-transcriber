@@ -73,6 +73,8 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
   const [data, setData] = useState<StepData>({});
   const [error, setError] = useState<string | null>(null);
   const [expandedBlocks, setExpandedBlocks] = useState<Set<BlockType>>(new Set());
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [parseError, setParseError] = useState<string | null>(null);
   const { models } = useSettings();
 
   const toggleBlock = (block: BlockType) => {
@@ -100,6 +102,35 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
   const stepSummarize = useStepSummarize();
   const stepStory = useStepStory();
   const stepSave = useStepSave();
+
+  // Auto-parse on mount to determine content_type
+  useEffect(() => {
+    let mounted = true;
+
+    const autoParse = async () => {
+      try {
+        const metadata = await stepParse.mutateAsync({
+          video_filename: filename,
+          whisper_model: models.transcribe,
+        });
+        if (mounted) {
+          setData({ metadata });
+          expandOnlyBlock('metadata');
+          setCurrentStep('transcribe');
+          setIsInitializing(false);
+        }
+      } catch (err) {
+        if (mounted) {
+          setParseError(err instanceof Error ? err.message : 'Ошибка парсинга');
+          setIsInitializing(false);
+        }
+      }
+    };
+
+    autoParse();
+
+    return () => { mounted = false; };
+  }, [filename]);
 
   // Determine pipeline steps based on content type
   const contentType = data.metadata?.content_type || 'educational';
@@ -197,6 +228,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
   // Auto-run effect
   useEffect(() => {
     if (!autoRun) return;
+    if (isInitializing) return; // Wait for auto-parse to complete
     if (isLoading) return;
     if (isComplete) return;
     if (error) return;
@@ -208,7 +240,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
         isRunningRef.current = false;
       });
     }
-  }, [autoRun, currentStep, isLoading, isComplete, error, data]);
+  }, [autoRun, currentStep, isLoading, isComplete, error, data, isInitializing]);
 
   const runStep = async (step: PipelineStep) => {
     setError(null);
@@ -352,6 +384,57 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
     if (stepIndex === currentStepIndex) return 'current';
     return 'pending';
   };
+
+  // Loading state during auto-parse
+  if (isInitializing) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-sm font-medium text-gray-500 mb-1">
+            Определение типа контента
+          </h3>
+          <p className="text-sm text-gray-900 truncate">{filename}</p>
+        </div>
+
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <Spinner size="lg" />
+            <p className="mt-4 text-sm text-gray-600">
+              Анализ метаданных файла...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Parse error state
+  if (parseError) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-sm font-medium text-gray-500 mb-1">
+            Ошибка определения типа контента
+          </h3>
+          <p className="text-sm text-gray-900 truncate">{filename}</p>
+        </div>
+
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-red-700">
+            <AlertCircle className="w-5 h-5" />
+            <span className="font-medium">Ошибка парсинга</span>
+          </div>
+          <p className="mt-1 text-sm text-red-600">{parseError}</p>
+        </div>
+
+        <div className="flex justify-end">
+          <Button variant="secondary" onClick={onCancel}>
+            Закрыть
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
