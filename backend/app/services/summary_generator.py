@@ -73,16 +73,10 @@ class SummaryGenerator:
         self.ai_client = ai_client
         self.settings = settings
 
-        # Load 3-component prompt architecture (v0.30+: hierarchical structure)
-        self.system_prompt = load_prompt(
-            "summary", "system", settings.summarizer_model, settings
-        )
-        self.instructions = load_prompt(
-            "summary", "instructions", settings.summarizer_model, settings
-        )
-        self.template = load_prompt(
-            "summary", "template", settings.summarizer_model, settings
-        )
+        # Load 3-component prompt architecture (v0.31+: simplified signature)
+        self.system_prompt = load_prompt("summary", "system", settings)
+        self.instructions = load_prompt("summary", "instructions", settings)
+        self.template = load_prompt("summary", "template", settings)
 
         # Get model-specific config
         model_config = get_model_config(settings.summarizer_model, settings)
@@ -355,9 +349,9 @@ if __name__ == "__main__":
         # Test 1: Load prompts (v0.30+ hierarchical structure)
         print("Test 1: Load prompts (v0.30+ hierarchical)...", end=" ")
         try:
-            system_prompt = load_prompt("summary", "system", settings.summarizer_model, settings)
-            instructions = load_prompt("summary", "instructions", settings.summarizer_model, settings)
-            template = load_prompt("summary", "template", settings.summarizer_model, settings)
+            system_prompt = load_prompt("summary", "system", settings)
+            instructions = load_prompt("summary", "instructions", settings)
+            template = load_prompt("summary", "template", settings)
             assert "навигационный документ" in system_prompt
             assert "topic_area" in instructions
             assert "JSON" in template

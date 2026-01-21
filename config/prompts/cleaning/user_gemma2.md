@@ -1,3 +1,0 @@
-<input>
-{transcript}
-</input>

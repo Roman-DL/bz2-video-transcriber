@@ -75,7 +75,9 @@ class VideoSummarizer:
         self.ai_client = ai_client
         self.settings = settings
         self.prompt_name = prompt_name
-        self.prompt_template = load_prompt(prompt_name, settings.summarizer_model, settings)
+        # NOTE: VideoSummarizer is deprecated, use SummaryGenerator instead
+        # This will fail as there's no "summarizer" stage directory
+        self.prompt_template = load_prompt(prompt_name, "prompt", settings)
 
     def set_prompt(self, prompt_name: str) -> None:
         """
@@ -85,7 +87,8 @@ class VideoSummarizer:
             prompt_name: Name of prompt template file (without .md extension)
         """
         self.prompt_name = prompt_name
-        self.prompt_template = load_prompt(prompt_name, self.settings.summarizer_model, self.settings)
+        # NOTE: VideoSummarizer is deprecated, use SummaryGenerator instead
+        self.prompt_template = load_prompt(prompt_name, "prompt", self.settings)
         logger.info(f"Prompt changed to: {prompt_name}")
 
     async def summarize(
@@ -277,7 +280,7 @@ if __name__ == "__main__":
         # Test 1: Load prompt
         print("Test 1: Load prompt...", end=" ")
         try:
-            prompt = load_prompt("summarizer", settings.summarizer_model, settings)
+            prompt = load_prompt("summarizer", "prompt", settings)
             assert "{title}" in prompt, "Prompt missing {title} placeholder"
             assert "{speaker}" in prompt, "Prompt missing {speaker} placeholder"
             assert "{transcript}" in prompt, "Prompt missing {transcript} placeholder"

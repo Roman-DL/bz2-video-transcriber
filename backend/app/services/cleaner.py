@@ -48,8 +48,8 @@ class TranscriptCleaner:
         """
         self.ai_client = ai_client
         self.settings = settings
-        self.system_prompt = load_prompt("cleaning", "system", settings.cleaner_model, settings)
-        self.user_template = load_prompt("cleaning", "user", settings.cleaner_model, settings)
+        self.system_prompt = load_prompt("cleaning", "system", settings)
+        self.user_template = load_prompt("cleaning", "user", settings)
         self.glossary_text = load_glossary_text(settings)
 
         # Load model-specific chunking configuration

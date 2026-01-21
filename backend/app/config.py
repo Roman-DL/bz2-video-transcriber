@@ -53,30 +53,21 @@ def get_settings() -> Settings:
 
 def load_prompt(
     stage: str,
-    component: str,
-    model: str | None = None,
+    name: str,
     settings: Settings | None = None,
 ) -> str:
     """
-    Load a prompt template with external folder priority and model-specific fallback.
+    Load a prompt template by stage and filename.
 
-    v0.30+: Hierarchical structure with external prompts support.
+    v0.31+: Simplified API without model-specific lookup.
 
     Lookup order (first found wins):
-    1. prompts_dir/{stage}/{component}_{model_family}.md (external, model-specific)
-    2. prompts_dir/{stage}/{component}.md (external, generic)
-    3. config_dir/prompts/{stage}/{component}_{model_family}.md (built-in, model-specific)
-    4. config_dir/prompts/{stage}/{component}.md (built-in, generic)
-
-    Model family is extracted from model name:
-    - "gemma2:9b" -> "gemma2"
-    - "qwen2.5:14b" -> "qwen2"
-    - "claude-sonnet-4-5" -> "claude-sonnet"
+    1. prompts_dir/{stage}/{name}.md (external)
+    2. config_dir/prompts/{stage}/{name}.md (built-in)
 
     Args:
         stage: Pipeline stage ("cleaning", "longread", "summary", "story", "outline")
-        component: Prompt component ("system", "instructions", "template", "user", "map")
-        model: Model name for model-specific prompts (optional)
+        name: Prompt filename without .md ("system", "system_v2", "instructions")
         settings: Optional settings instance
 
     Returns:
@@ -88,36 +79,22 @@ def load_prompt(
     if settings is None:
         settings = get_settings()
 
-    # Extract model family for model-specific prompts
-    model_family = None
-    if model:
-        model_family = model.split(":")[0].rstrip("0123456789.")
-
-    # Build list of paths to check (in priority order)
     paths_to_check: list[Path] = []
 
     # External prompts directory (highest priority)
     if settings.prompts_dir and settings.prompts_dir.exists():
-        if model_family:
-            paths_to_check.append(
-                settings.prompts_dir / stage / f"{component}_{model_family}.md"
-            )
-        paths_to_check.append(settings.prompts_dir / stage / f"{component}.md")
+        paths_to_check.append(settings.prompts_dir / stage / f"{name}.md")
 
     # Built-in prompts directory (fallback)
-    builtin_prompts_dir = settings.config_dir / "prompts"
-    if model_family:
-        paths_to_check.append(builtin_prompts_dir / stage / f"{component}_{model_family}.md")
-    paths_to_check.append(builtin_prompts_dir / stage / f"{component}.md")
+    paths_to_check.append(settings.config_dir / "prompts" / stage / f"{name}.md")
 
     # Return first existing file
     for path in paths_to_check:
         if path.exists():
             return path.read_text(encoding="utf-8")
 
-    # No prompt found
     raise FileNotFoundError(
-        f"Prompt not found: stage={stage}, component={component}, model={model}. "
+        f"Prompt not found: {stage}/{name}.md. "
         f"Checked paths: {[str(p) for p in paths_to_check]}"
     )
 

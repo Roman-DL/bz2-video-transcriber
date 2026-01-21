@@ -62,8 +62,8 @@ class OutlineExtractor:
         self.ai_client = ai_client
         self.settings = settings
         self.max_parallel = max_parallel
-        # v0.30+: hierarchical prompts structure
-        self.prompt_template = load_prompt("outline", "map", settings.summarizer_model, settings)
+        # v0.31+: simplified signature
+        self.prompt_template = load_prompt("outline", "map", settings)
 
     async def extract(self, parts: list[TextPart]) -> TranscriptOutline:
         """
@@ -361,7 +361,7 @@ if __name__ == "__main__":
         # Test 1: Load prompt (v0.30+ hierarchical structure)
         print("\nTest 1: Load prompt (v0.30+ hierarchical)...", end=" ")
         try:
-            prompt = load_prompt("outline", "map", settings.summarizer_model, settings)
+            prompt = load_prompt("outline", "map", settings)
             assert "{part_index}" in prompt, "Missing {part_index}"
             assert "{total_parts}" in prompt, "Missing {total_parts}"
             assert "{text}" in prompt, "Missing {text}"

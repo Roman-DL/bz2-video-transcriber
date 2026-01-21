@@ -7,6 +7,8 @@ from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, computed_field
 
 
@@ -855,3 +857,40 @@ class StepSaveRequest(BaseModel):
         default=None,
         description="Path to extracted audio file (from transcribe step)",
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Prompt Configuration Models (v0.31+)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class PromptVariantInfo(BaseModel):
+    """Information about a prompt file variant."""
+
+    name: str = Field(..., description="Prompt name without extension (e.g., 'system', 'system_v2')")
+    source: Literal["external", "builtin"] = Field(..., description="Source location")
+    filename: str = Field(..., description="Full filename (e.g., 'system_v2.md')")
+
+
+class ComponentPrompts(BaseModel):
+    """Available prompt variants for a component."""
+
+    component: str = Field(..., description="Component name (e.g., 'system', 'user', 'instructions')")
+    default: str = Field(..., description="Default prompt name")
+    variants: list[PromptVariantInfo] = Field(default_factory=list, description="Available variants")
+
+
+class StagePromptsResponse(BaseModel):
+    """Response for GET /api/prompts/{stage}."""
+
+    stage: str = Field(..., description="Pipeline stage name")
+    components: list[ComponentPrompts] = Field(default_factory=list, description="Components with variants")
+
+
+class PromptOverrides(BaseModel):
+    """Override prompts for a pipeline step."""
+
+    system: str | None = Field(default=None, description="Override for system prompt")
+    user: str | None = Field(default=None, description="Override for user prompt")
+    instructions: str | None = Field(default=None, description="Override for instructions prompt")
+    template: str | None = Field(default=None, description="Override for template prompt")
