@@ -1,19 +1,20 @@
 """
-Longread stage for generating longread documents from chunks.
+Longread stage for generating longread documents from cleaned transcript.
 
 Creates an edited version of the transcript for those who didn't watch the video.
+
+v0.25+: Now depends on clean instead of chunk (new pipeline order).
 """
 
 import logging
 
 from app.config import Settings
 from app.models.schemas import (
+    CleanedTranscript,
     ContentType,
     Longread,
     LongreadSection,
     ProcessingStatus,
-    TranscriptChunks,
-    TranscriptOutline,
     VideoMetadata,
 )
 from app.services.ai_clients import BaseAIClient
@@ -25,14 +26,16 @@ logger = logging.getLogger(__name__)
 
 
 class LongreadStage(BaseStage):
-    """Generate longread document from transcript chunks.
+    """Generate longread document from cleaned transcript.
 
     A longread is an edited version of the transcript that preserves
     the speaker's voice and logic while improving readability.
 
+    v0.25+: Now depends on clean instead of chunk.
+
     Input (from context):
         - parse: VideoMetadata
-        - chunk: Tuple of (TranscriptChunks, TranscriptOutline | None, list[TextPart])
+        - clean: CleanedTranscript
 
     Output:
         Longread document with sections
@@ -43,7 +46,7 @@ class LongreadStage(BaseStage):
     """
 
     name = "longread"
-    depends_on = ["parse", "chunk"]
+    depends_on = ["parse", "clean"]
     status = ProcessingStatus.LONGREAD
 
     def __init__(self, ai_client: BaseAIClient, settings: Settings):
@@ -75,10 +78,12 @@ class LongreadStage(BaseStage):
         return metadata.content_type == ContentType.LEADERSHIP
 
     async def execute(self, context: StageContext) -> Longread:
-        """Generate longread from transcript chunks.
+        """Generate longread from cleaned transcript.
+
+        v0.25+: Now uses clean result instead of chunk.
 
         Args:
-            context: Context with parse and chunk results
+            context: Context with parse and clean results
 
         Returns:
             Longread document
@@ -89,39 +94,38 @@ class LongreadStage(BaseStage):
         self.validate_context(context)
 
         metadata: VideoMetadata = context.get_result("parse")
-        chunks, outline, _ = context.get_result("chunk")
+        cleaned: CleanedTranscript = context.get_result("clean")
 
         try:
-            return await self.generator.generate(chunks, metadata, outline)
+            return await self.generator.generate(cleaned, metadata)
         except Exception as e:
             logger.warning(f"Longread generation failed: {e}, using fallback")
-            return self._create_fallback_longread(metadata, chunks)
+            return self._create_fallback_longread(metadata, cleaned)
 
     def _create_fallback_longread(
         self,
         metadata: VideoMetadata,
-        chunks: TranscriptChunks,
+        cleaned: CleanedTranscript,
     ) -> Longread:
         """Create fallback longread when generation fails.
 
-        Uses chunks directly as sections.
+        Creates a single-section longread from cleaned text.
 
         Args:
             metadata: Video metadata
-            chunks: Transcript chunks
+            cleaned: Cleaned transcript
 
         Returns:
-            Longread with chunks as sections
+            Longread with single section
         """
         sections = [
             LongreadSection(
-                index=chunk.index,
-                title=chunk.topic,
-                content=chunk.text,
-                source_chunks=[chunk.index],
-                word_count=chunk.word_count,
+                index=1,
+                title=metadata.title,
+                content=cleaned.text,
+                source_chunks=[1],
+                word_count=cleaned.word_count,
             )
-            for chunk in chunks.chunks
         ]
 
         return Longread(

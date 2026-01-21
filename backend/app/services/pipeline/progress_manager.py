@@ -3,6 +3,8 @@ Progress management for pipeline stages.
 
 Calculates overall progress based on stage weights and tracks
 individual stage progress.
+
+v0.25+: Updated stage order - Longread/Summary before Chunk (now instant).
 """
 
 import logging
@@ -21,10 +23,15 @@ class ProgressManager:
     """
     Manages progress calculation and reporting for pipeline stages.
 
+    v0.25+: Updated for new pipeline order:
+        Parse -> Transcribe -> Clean -> Longread -> Summary -> Chunk -> Save
+
     Weights are calibrated based on actual processing times:
     - transcribe: 87s (dominant)
     - clean: 7.5s
-    - chunk+longread+summary: 25s
+    - longread: 20s (map-reduce sections)
+    - summary: 10s (from cleaned transcript)
+    - chunk: <1s (deterministic H2 parsing)
     - save: <1s
 
     Example:
@@ -35,24 +42,26 @@ class ProgressManager:
     """
 
     # Progress weights for each stage (must sum to 100)
+    # v0.25+: Reordered - Longread/Summary before Chunk
     STAGE_WEIGHTS = {
         ProcessingStatus.PARSING: 2,        # 0-2%: instant
         ProcessingStatus.TRANSCRIBING: 45,  # 2-47%: dominant stage
         ProcessingStatus.CLEANING: 10,      # 47-57%
-        ProcessingStatus.CHUNKING: 12,      # 57-69%
-        ProcessingStatus.LONGREAD: 18,      # 69-87%: map-reduce sections
-        ProcessingStatus.SUMMARIZING: 10,   # 87-97%: from longread
+        ProcessingStatus.LONGREAD: 25,      # 57-82%: map-reduce sections
+        ProcessingStatus.SUMMARIZING: 13,   # 82-95%: from cleaned transcript
+        ProcessingStatus.CHUNKING: 2,       # 95-97%: instant (H2 parsing)
         ProcessingStatus.SAVING: 3,         # 97-100%: instant
     }
 
     # Define stage order for progress calculation
+    # v0.25+: Longread/Summary before Chunk
     STAGE_ORDER = [
         ProcessingStatus.PARSING,
         ProcessingStatus.TRANSCRIBING,
         ProcessingStatus.CLEANING,
-        ProcessingStatus.CHUNKING,
         ProcessingStatus.LONGREAD,
         ProcessingStatus.SUMMARIZING,
+        ProcessingStatus.CHUNKING,
         ProcessingStatus.SAVING,
     ]
 
@@ -129,7 +138,7 @@ if __name__ == "__main__":
     import asyncio
 
     async def run_tests():
-        print("\nRunning ProgressManager tests...\n")
+        print("\nRunning ProgressManager tests (v0.25+)...\n")
 
         manager = ProgressManager()
 
@@ -158,10 +167,11 @@ if __name__ == "__main__":
         assert abs(progress - expected) < 0.1, f"Expected {expected}, got {progress}"
         print("OK")
 
-        # Test 5: SAVING at 0%
+        # Test 5: SAVING at 0% (v0.25+: new order)
         print("Test 5: SAVING at 0%...", end=" ")
         progress = manager.calculate_overall_progress(ProcessingStatus.SAVING, 0)
-        expected = 2 + 45 + 10 + 12 + 18 + 10  # 97
+        # v0.25+: PARSING(2) + TRANSCRIBING(45) + CLEANING(10) + LONGREAD(25) + SUMMARIZING(13) + CHUNKING(2) = 97
+        expected = 2 + 45 + 10 + 25 + 13 + 2  # 97
         assert progress == expected, f"Expected {expected}, got {progress}"
         print("OK")
 
@@ -190,6 +200,15 @@ if __name__ == "__main__":
         # Test 8: Update progress with None callback (no error)
         print("Test 8: Update progress with None callback...", end=" ")
         await manager.update_progress(None, ProcessingStatus.PARSING, 50, "Test")
+        print("OK")
+
+        # Test 9: Stage order (v0.25+)
+        print("Test 9: Stage order (v0.25+)...", end=" ")
+        order = manager.STAGE_ORDER
+        # Verify LONGREAD comes before CHUNKING
+        longread_idx = order.index(ProcessingStatus.LONGREAD)
+        chunking_idx = order.index(ProcessingStatus.CHUNKING)
+        assert longread_idx < chunking_idx, "LONGREAD must come before CHUNKING"
         print("OK")
 
         print("\n" + "=" * 40)

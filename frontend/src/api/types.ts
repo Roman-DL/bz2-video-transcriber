@@ -200,20 +200,18 @@ export interface StepCleanRequest {
 }
 
 export interface StepChunkRequest {
+  markdown_content: string;
+  metadata: VideoMetadata;
+}
+
+export interface StepLongreadRequest {
   cleaned_transcript: CleanedTranscript;
   metadata: VideoMetadata;
   model?: string;
 }
 
-export interface StepLongreadRequest {
-  chunks: TranscriptChunks;
-  metadata: VideoMetadata;
-  outline?: TranscriptOutline;
-  model?: string;
-}
-
 export interface StepSummarizeRequest {
-  longread: Longread;
+  cleaned_transcript: CleanedTranscript;
   metadata: VideoMetadata;
   model?: string;
 }
@@ -265,12 +263,12 @@ export const STEP_LABELS: Record<PipelineStep, string> = {
 
 // Steps for educational content
 export const EDUCATIONAL_STEPS: PipelineStep[] = [
-  'parse', 'transcribe', 'clean', 'chunk', 'longread', 'summarize', 'save',
+  'parse', 'transcribe', 'clean', 'longread', 'summarize', 'chunk', 'save',
 ];
 
 // Steps for leadership content
 export const LEADERSHIP_STEPS: PipelineStep[] = [
-  'parse', 'transcribe', 'clean', 'chunk', 'story', 'save',
+  'parse', 'transcribe', 'clean', 'story', 'chunk', 'save',
 ];
 
 // Archive types
@@ -352,7 +350,6 @@ export interface AvailableModelsResponse {
 export interface DefaultModelsResponse {
   transcribe: string;
   clean: string;
-  chunk: string;
   summarize: string;
 }
 
@@ -383,6 +380,5 @@ export interface ModelsConfigResponse {
 export interface ModelSettings {
   transcribe?: string;
   clean?: string;
-  chunk?: string;
   summarize?: string;
 }

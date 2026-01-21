@@ -7,19 +7,17 @@ import { useAvailableModels, useDefaultModels, useModelsConfig } from '@/api/hoo
 import type { ModelSettings, ModelConfig, WhisperModelConfig, ClaudeModelConfig, ProviderType } from '@/api/types';
 import { ChevronDown, RotateCcw } from 'lucide-react';
 
-type PipelineStage = 'transcribe' | 'clean' | 'chunk' | 'summarize';
+type PipelineStage = 'transcribe' | 'clean' | 'summarize';
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
   transcribe: 'Транскрипция',
   clean: 'Очистка',
-  chunk: 'Чанкирование',
   summarize: 'Суммаризация',
 };
 
 const STAGE_CONFIG_KEYS: Record<PipelineStage, keyof ModelConfig | null> = {
   transcribe: null, // Whisper doesn't have config in models.yaml
   clean: 'cleaner',
-  chunk: 'chunker',
   summarize: null, // Summarizer doesn't have stage-specific config
 };
 
@@ -195,7 +193,7 @@ export function SettingsModal() {
       options.push(...ollamaToOptions(availableModels.ollama_models));
     } else if (defaultModels) {
       // Fallback to default models
-      const defaults = new Set([defaultModels.clean, defaultModels.chunk, defaultModels.summarize]);
+      const defaults = new Set([defaultModels.clean, defaultModels.summarize]);
       options.push(...ollamaToOptions(Array.from(defaults)));
     }
 
@@ -253,16 +251,6 @@ export function SettingsModal() {
             options={llmOptions}
             onChange={(v) => handleChange('clean', v)}
             config={getModelConfig(localModels.clean || defaultModels?.clean)}
-          />
-
-          {/* Chunk */}
-          <ModelSelector
-            stage="chunk"
-            value={localModels.chunk}
-            defaultValue={defaultModels?.chunk || ''}
-            options={llmOptions}
-            onChange={(v) => handleChange('chunk', v)}
-            config={getModelConfig(localModels.chunk || defaultModels?.chunk)}
           />
 
           {/* Summarize */}

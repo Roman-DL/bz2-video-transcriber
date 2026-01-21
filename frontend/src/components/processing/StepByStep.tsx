@@ -115,7 +115,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
     stepStory.isPending ||
     stepSave.isPending;
 
-  // Get current progress from active hook
+  // Get current progress from active hook (SSE steps only)
   const getCurrentProgress = (): {
     progress: number | null;
     message: string | null;
@@ -136,13 +136,6 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           message: stepClean.message,
           estimatedSeconds: stepClean.estimatedSeconds,
           elapsedSeconds: stepClean.elapsedSeconds,
-        };
-      case 'chunk':
-        return {
-          progress: stepChunk.progress,
-          message: stepChunk.message,
-          estimatedSeconds: stepChunk.estimatedSeconds,
-          elapsedSeconds: stepChunk.elapsedSeconds,
         };
       case 'longread':
         return {
@@ -166,6 +159,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           elapsedSeconds: stepStory.elapsedSeconds,
         };
       default:
+        // parse, chunk, save - instant operations, no progress
         return { progress: null, message: null, estimatedSeconds: null, elapsedSeconds: null };
     }
   };
@@ -181,12 +175,15 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
       case 'parse': return true;
       case 'transcribe': return !!data.metadata;
       case 'clean': return !!data.rawTranscript && !!data.metadata;
-      case 'chunk': return !!data.cleanedTranscript && !!data.metadata;
-      case 'longread': return !!data.chunks && !!data.metadata;
-      case 'summarize': return !!data.longread && !!data.metadata;
+      case 'longread': return !!data.cleanedTranscript && !!data.metadata;
+      case 'summarize': return !!data.cleanedTranscript && !!data.metadata;
       case 'story': return !!data.cleanedTranscript && !!data.metadata;
+      case 'chunk':
+        if (contentType === 'leadership') {
+          return !!data.story && !!data.metadata;
+        }
+        return !!data.longread && !!data.summary && !!data.metadata;
       case 'save':
-        // Different requirements based on content type
         if (contentType === 'leadership') {
           return !!data.metadata && !!data.rawTranscript && !!data.cleanedTranscript && !!data.chunks && !!data.story;
         }
@@ -252,28 +249,15 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           });
           setData((prev) => ({ ...prev, cleanedTranscript }));
           expandOnlyBlock('cleanedTranscript');
-          setCurrentStep('chunk');
-          break;
-
-        case 'chunk':
-          if (!data.cleanedTranscript || !data.metadata) return;
-          const chunks = await stepChunk.mutate({
-            cleaned_transcript: data.cleanedTranscript,
-            metadata: data.metadata,
-            model: models.chunk,
-          });
-          setData((prev) => ({ ...prev, chunks }));
-          expandOnlyBlock('chunks');
-          // Next step depends on content type
           setCurrentStep(contentType === 'leadership' ? 'story' : 'longread');
           break;
 
         case 'longread':
-          if (!data.chunks || !data.metadata) return;
+          if (!data.cleanedTranscript || !data.metadata) return;
           const longread = await stepLongread.mutate({
-            chunks: data.chunks,
+            cleaned_transcript: data.cleanedTranscript,
             metadata: data.metadata,
-            model: models.summarize, // Use summarize model for longread
+            model: models.summarize,
           });
           setData((prev) => ({ ...prev, longread }));
           expandOnlyBlock('longread');
@@ -281,15 +265,15 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           break;
 
         case 'summarize':
-          if (!data.longread || !data.metadata) return;
+          if (!data.cleanedTranscript || !data.metadata) return;
           const summary = await stepSummarize.mutate({
-            longread: data.longread,
+            cleaned_transcript: data.cleanedTranscript,
             metadata: data.metadata,
             model: models.summarize,
           });
           setData((prev) => ({ ...prev, summary }));
           expandOnlyBlock('summary');
-          setCurrentStep('save');
+          setCurrentStep('chunk');
           break;
 
         case 'story':
@@ -301,6 +285,29 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           });
           setData((prev) => ({ ...prev, story }));
           expandOnlyBlock('story');
+          setCurrentStep('chunk');
+          break;
+
+        case 'chunk':
+          if (!data.metadata) return;
+          let markdownContent: string;
+          if (contentType === 'leadership') {
+            if (!data.story) return;
+            markdownContent = data.story.blocks
+              .map(b => `## ${b.block_number}️⃣ ${b.block_name}\n\n${b.content}`)
+              .join('\n\n');
+          } else {
+            if (!data.longread) return;
+            markdownContent = data.longread.sections
+              .map(s => `## ${s.title}\n\n${s.content}`)
+              .join('\n\n');
+          }
+          const chunks = await stepChunk.mutateAsync({
+            markdown_content: markdownContent,
+            metadata: data.metadata,
+          });
+          setData((prev) => ({ ...prev, chunks }));
+          expandOnlyBlock('chunks');
           setCurrentStep('save');
           break;
 
@@ -618,14 +625,14 @@ function getStepDescription(step: PipelineStep): string {
       return 'Извлечение аудио и транскрипция через Whisper (может занять несколько минут)';
     case 'clean':
       return 'Очистка текста с использованием глоссария и LLM';
-    case 'chunk':
-      return 'Разбиение на семантические чанки';
     case 'longread':
-      return 'Генерация лонгрида из чанков (структурированный документ)';
+      return 'Генерация лонгрида из очищенного транскрипта';
     case 'summarize':
-      return 'Генерация конспекта из лонгрида (краткое изложение)';
+      return 'Генерация конспекта из очищенного транскрипта';
     case 'story':
       return 'Генерация лидерской истории (8 блоков)';
+    case 'chunk':
+      return 'Разбиение на чанки по заголовкам H2 (детерминированно)';
     case 'save':
       return 'Сохранение результатов в архив';
   }

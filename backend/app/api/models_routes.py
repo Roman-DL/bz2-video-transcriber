@@ -118,7 +118,6 @@ async def get_default_models() -> dict:
     return {
         "transcribe": transcribe_model,
         "clean": settings.cleaner_model,
-        "chunk": settings.chunker_model,
         "summarize": settings.summarizer_model,
     }
 

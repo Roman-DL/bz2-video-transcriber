@@ -1,10 +1,11 @@
 """
 Longread generator service.
 
-Creates longread documents from transcript chunks using Map-Reduce approach.
+Creates longread documents from cleaned transcript using Map-Reduce approach.
 Each section is generated in parallel with outline as shared context.
 
 v0.23+: New prompt architecture (system + instructions + template).
+v0.25+: Accepts CleanedTranscript directly (no chunks dependency).
 """
 
 import asyncio
@@ -16,13 +17,16 @@ from typing import Any
 from app.config import Settings, get_settings, load_prompt, get_model_config
 from app.utils.json_utils import extract_json
 from app.models.schemas import (
+    CleanedTranscript,
     Longread,
     LongreadSection,
-    TranscriptChunks,
+    TextPart,
     TranscriptOutline,
     VideoMetadata,
 )
 from app.services.ai_clients import BaseAIClient, OllamaClient
+from app.services.outline_extractor import OutlineExtractor
+from app.services.text_splitter import TextSplitter
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -43,8 +47,9 @@ RUSSIAN_MONTHS = [
 ]
 
 # Default configuration
-DEFAULT_CHUNKS_PER_SECTION = 4
+DEFAULT_PARTS_PER_SECTION = 2  # Text parts per section (was chunks_per_section)
 DEFAULT_MAX_PARALLEL_SECTIONS = 2
+DEFAULT_LARGE_TEXT_THRESHOLD = 10000  # Extract outline for texts > 10K chars
 
 
 class LongreadGenerator:
@@ -52,18 +57,21 @@ class LongreadGenerator:
     Longread generation service using Map-Reduce approach.
 
     For large transcripts:
-    1. MAP: Groups chunks into sections and generates each section in parallel
-    2. REDUCE: Generates introduction and conclusion from section summaries
+    1. SPLIT: Split text into parts using TextSplitter
+    2. OUTLINE: Extract outline if text > threshold (optional)
+    3. MAP: Generate sections from text parts in parallel
+    4. REDUCE: Generate introduction and conclusion from section summaries
 
     Each section receives the full outline as context, making it aware of
-    the overall structure while processing only its assigned chunks.
+    the overall structure while processing only its assigned text parts.
 
     v0.23+: Uses new prompt architecture with system + instructions + template.
+    v0.25+: Accepts CleanedTranscript directly instead of chunks.
 
     Example:
         async with OllamaClient.from_settings(settings) as client:
             generator = LongreadGenerator(client, settings)
-            longread = await generator.generate(chunks, metadata, outline)
+            longread = await generator.generate(cleaned_transcript, metadata)
             markdown = longread.to_markdown()
     """
 
@@ -89,50 +97,66 @@ class LongreadGenerator:
             "longread_template", settings.summarizer_model, settings
         )
 
+        # Initialize text processing components
+        self.text_splitter = TextSplitter()
+        self.outline_extractor = OutlineExtractor(ai_client, settings)
+
         # Get model-specific config
         model_config = get_model_config(settings.summarizer_model, settings)
         longread_config = model_config.get("longread", {})
-        self.chunks_per_section = longread_config.get(
-            "chunks_per_section", DEFAULT_CHUNKS_PER_SECTION
+        self.parts_per_section = longread_config.get(
+            "parts_per_section",
+            longread_config.get("chunks_per_section", DEFAULT_PARTS_PER_SECTION)
         )
         self.max_parallel = longread_config.get(
             "max_parallel_sections", DEFAULT_MAX_PARALLEL_SECTIONS
         )
+        self.large_text_threshold = longread_config.get(
+            "large_text_threshold", DEFAULT_LARGE_TEXT_THRESHOLD
+        )
 
         logger.debug(
-            f"LongreadGenerator config: chunks_per_section={self.chunks_per_section}, "
-            f"max_parallel={self.max_parallel}"
+            f"LongreadGenerator config: parts_per_section={self.parts_per_section}, "
+            f"max_parallel={self.max_parallel}, threshold={self.large_text_threshold}"
         )
 
     async def generate(
         self,
-        chunks: TranscriptChunks,
+        cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
-        outline: TranscriptOutline | None,
     ) -> Longread:
         """
-        Generate longread from transcript chunks.
+        Generate longread from cleaned transcript.
+
+        v0.25+: Accepts CleanedTranscript directly instead of chunks.
+        Internally splits text and extracts outline if needed.
 
         Args:
-            chunks: Transcript chunks from SemanticChunker
+            cleaned_transcript: Cleaned transcript text
             metadata: Video metadata
-            outline: TranscriptOutline for context (may be None for small texts)
 
         Returns:
             Longread with introduction, sections, and conclusion
         """
         start_time = time.time()
 
-        # Format outline for prompts
-        outline_context = outline.to_context() if outline else "Контекст не предоставлен."
+        # Phase 0: Split text into parts
+        text_parts = self.text_splitter.split(cleaned_transcript.text)
+        input_chars = len(cleaned_transcript.text)
 
         logger.info(
-            f"Generating longread: {chunks.total_chunks} chunks, "
-            f"chunks_per_section={self.chunks_per_section}"
+            f"Generating longread: {input_chars} chars, "
+            f"{len(text_parts)} parts, parts_per_section={self.parts_per_section}"
         )
 
+        # Phase 0.5: Extract outline for large texts
+        outline = await self._extract_outline_if_needed(
+            cleaned_transcript, text_parts
+        )
+        outline_context = outline.to_context() if outline else "Контекст не предоставлен."
+
         # Phase 1: MAP - Generate sections in parallel
-        sections = await self._generate_sections(chunks, metadata, outline_context)
+        sections = await self._generate_sections(text_parts, metadata, outline_context)
 
         # Phase 2: REDUCE - Generate intro and conclusion
         intro, conclusion, classification = await self._generate_frame(
@@ -177,7 +201,8 @@ class LongreadGenerator:
 
         perf_logger.info(
             f"PERF | longread | "
-            f"chunks={chunks.total_chunks} | "
+            f"chars={input_chars} | "
+            f"parts={len(text_parts)} | "
             f"sections={longread.total_sections} | "
             f"words={longread.total_word_count} | "
             f"time={elapsed:.1f}s"
@@ -185,9 +210,44 @@ class LongreadGenerator:
 
         return longread
 
+    async def _extract_outline_if_needed(
+        self,
+        cleaned: CleanedTranscript,
+        text_parts: list[TextPart],
+    ) -> TranscriptOutline | None:
+        """
+        Extract outline for large texts.
+
+        Args:
+            cleaned: Cleaned transcript
+            text_parts: Text parts from splitter
+
+        Returns:
+            Outline if text is large enough, None otherwise
+        """
+        input_chars = len(cleaned.text)
+
+        if input_chars <= self.large_text_threshold:
+            logger.debug(f"Small text ({input_chars} chars), skipping outline extraction")
+            return None
+
+        logger.info(
+            f"Large text detected ({input_chars} chars), "
+            f"extracting outline from {len(text_parts)} parts"
+        )
+
+        outline = await self.outline_extractor.extract(text_parts)
+
+        logger.info(
+            f"Outline extracted: {outline.total_parts} parts, "
+            f"{len(outline.all_topics)} unique topics"
+        )
+
+        return outline
+
     async def _generate_sections(
         self,
-        chunks: TranscriptChunks,
+        text_parts: list[TextPart],
         metadata: VideoMetadata,
         outline_context: str,
     ) -> list[LongreadSection]:
@@ -195,16 +255,16 @@ class LongreadGenerator:
         Generate sections in parallel using semaphore for rate limiting.
 
         Args:
-            chunks: All transcript chunks
+            text_parts: Text parts from TextSplitter
             metadata: Video metadata
             outline_context: Formatted outline for context
 
         Returns:
             List of LongreadSection in order
         """
-        # Group chunks into sections
-        chunk_groups = self._group_chunks(chunks)
-        total_sections = len(chunk_groups)
+        # Group text parts into sections
+        part_groups = self._group_parts(text_parts)
+        total_sections = len(part_groups)
 
         logger.info(
             f"Generating {total_sections} sections "
@@ -215,13 +275,13 @@ class LongreadGenerator:
         semaphore = asyncio.Semaphore(self.max_parallel)
 
         async def generate_with_semaphore(
-            section_idx: int, chunk_group: list
+            section_idx: int, part_group: list[TextPart]
         ) -> LongreadSection:
             async with semaphore:
                 return await self._generate_section(
                     section_idx=section_idx + 1,
                     total_sections=total_sections,
-                    chunks=chunk_group,
+                    parts=part_group,
                     metadata=metadata,
                     outline_context=outline_context,
                 )
@@ -229,38 +289,33 @@ class LongreadGenerator:
         # Run all sections in parallel with semaphore
         tasks = [
             generate_with_semaphore(idx, group)
-            for idx, group in enumerate(chunk_groups)
+            for idx, group in enumerate(part_groups)
         ]
         sections = await asyncio.gather(*tasks)
 
         return list(sections)
 
-    def _group_chunks(self, chunks: TranscriptChunks) -> list[list[dict]]:
+    def _group_parts(self, text_parts: list[TextPart]) -> list[list[TextPart]]:
         """
-        Group chunks into sections of N chunks each.
+        Group text parts into sections.
 
         Args:
-            chunks: All transcript chunks
+            text_parts: All text parts from TextSplitter
 
         Returns:
-            List of chunk groups (each group is a list of chunk dicts)
+            List of part groups (each group is a list of TextPart)
         """
-        groups = []
-        current_group = []
+        groups: list[list[TextPart]] = []
+        current_group: list[TextPart] = []
 
-        for chunk in chunks.chunks:
-            current_group.append({
-                "index": chunk.index,
-                "topic": chunk.topic,
-                "text": chunk.text,
-                "word_count": chunk.word_count,
-            })
+        for part in text_parts:
+            current_group.append(part)
 
-            if len(current_group) >= self.chunks_per_section:
+            if len(current_group) >= self.parts_per_section:
                 groups.append(current_group)
                 current_group = []
 
-        # Add remaining chunks
+        # Add remaining parts
         if current_group:
             groups.append(current_group)
 
@@ -270,17 +325,17 @@ class LongreadGenerator:
         self,
         section_idx: int,
         total_sections: int,
-        chunks: list[dict],
+        parts: list[TextPart],
         metadata: VideoMetadata,
         outline_context: str,
     ) -> LongreadSection:
         """
-        Generate a single section from a group of chunks.
+        Generate a single section from a group of text parts.
 
         Args:
             section_idx: Section number (1-based)
             total_sections: Total number of sections
-            chunks: Chunks for this section
+            parts: Text parts for this section
             metadata: Video metadata
             outline_context: Formatted outline for context
 
@@ -289,12 +344,12 @@ class LongreadGenerator:
         """
         logger.debug(f"Generating section {section_idx}/{total_sections}")
 
-        # Format chunks for prompt
-        chunks_text = self._format_chunks(chunks)
+        # Format parts for prompt
+        parts_text = self._format_parts(parts)
 
         # Build prompt with new architecture
         prompt = self._build_section_prompt(
-            section_idx, total_sections, chunks_text, metadata, outline_context
+            section_idx, total_sections, parts_text, metadata, outline_context
         )
 
         # Call LLM
@@ -305,7 +360,7 @@ class LongreadGenerator:
         # Parse response
         section_data = self._parse_json_response(response)
 
-        source_indices = [c["index"] for c in chunks]
+        source_indices = [p.index for p in parts]
 
         return LongreadSection(
             index=section_idx,
@@ -319,7 +374,7 @@ class LongreadGenerator:
         self,
         section_idx: int,
         total_sections: int,
-        chunks_text: str,
+        parts_text: str,
         metadata: VideoMetadata,
         outline_context: str,
     ) -> str:
@@ -329,7 +384,7 @@ class LongreadGenerator:
         Args:
             section_idx: Section number
             total_sections: Total sections count
-            chunks_text: Formatted chunks content
+            parts_text: Formatted text parts content
             metadata: Video metadata
             outline_context: Outline for context
 
@@ -356,9 +411,9 @@ class LongreadGenerator:
             "",
             outline_context,
             "",
-            "### Чанки для обработки",
+            "### Текст для обработки",
             "",
-            chunks_text,
+            parts_text,
             "",
             "### Формат ответа",
             "",
@@ -373,21 +428,21 @@ class LongreadGenerator:
         ]
         return "\n".join(prompt_parts)
 
-    def _format_chunks(self, chunks: list[dict]) -> str:
+    def _format_parts(self, parts: list[TextPart]) -> str:
         """
-        Format chunks for inclusion in prompt.
+        Format text parts for inclusion in prompt.
 
         Args:
-            chunks: List of chunk dicts
+            parts: List of TextPart objects
 
         Returns:
-            Formatted string with chunk contents
+            Formatted string with part contents
         """
         lines = []
-        for chunk in chunks:
-            lines.append(f"### Чанк {chunk['index']}: {chunk['topic']}")
+        for part in parts:
+            lines.append(f"### Часть {part.index}")
             lines.append("")
-            lines.append(chunk["text"])
+            lines.append(part.text)
             lines.append("")
         return "\n".join(lines)
 
@@ -528,8 +583,6 @@ if __name__ == "__main__":
     from datetime import date
     from pathlib import Path
 
-    from app.models.schemas import TranscriptChunk
-
     logging.basicConfig(level=logging.INFO)
 
     async def run_tests():
@@ -552,32 +605,30 @@ if __name__ == "__main__":
             print(f"FAILED: {e}")
             return 1
 
-        # Test 2: Chunk grouping
-        print("\nTest 2: Chunk grouping...", end=" ")
+        # Test 2: Part grouping (v0.25+)
+        print("\nTest 2: Part grouping...", end=" ")
         try:
             # Create mock generator (no AI client needed for this test)
             generator = LongreadGenerator(None, settings)  # type: ignore
-            generator.chunks_per_section = 3
+            generator.parts_per_section = 3
 
-            mock_chunks = TranscriptChunks(
-                chunks=[
-                    TranscriptChunk(
-                        id=f"test_{i}",
-                        index=i,
-                        topic=f"Topic {i}",
-                        text=f"Text for chunk {i}",
-                        word_count=50,
-                    )
-                    for i in range(1, 8)  # 7 chunks
-                ],
-                model_name="test",
-            )
+            mock_parts = [
+                TextPart(
+                    index=i,
+                    text=f"Text for part {i}",
+                    start_char=0,
+                    end_char=100,
+                    has_overlap_before=i > 1,
+                    has_overlap_after=i < 7,
+                )
+                for i in range(1, 8)  # 7 parts
+            ]
 
-            groups = generator._group_chunks(mock_chunks)
+            groups = generator._group_parts(mock_parts)
             assert len(groups) == 3, f"Expected 3 groups, got {len(groups)}"
             assert len(groups[0]) == 3
             assert len(groups[1]) == 3
-            assert len(groups[2]) == 1  # Remaining chunk
+            assert len(groups[2]) == 1  # Remaining part
             print("OK")
             print(f"  Groups: {[len(g) for g in groups]}")
         except Exception as e:
@@ -623,29 +674,19 @@ if __name__ == "__main__":
                         archive_path=Path("/archive/test"),
                     )
 
-                    mock_chunks = TranscriptChunks(
-                        chunks=[
-                            TranscriptChunk(
-                                id="test_1",
-                                index=1,
-                                topic="Введение",
-                                text="Сегодня мы поговорим о работе с клиентами. "
-                                     "Это важная тема для каждого консультанта.",
-                                word_count=15,
-                            ),
-                            TranscriptChunk(
-                                id="test_2",
-                                index=2,
-                                topic="Первые шаги",
-                                text="Первое, что нужно сделать - это понять потребности клиента. "
-                                     "Задавайте вопросы, слушайте внимательно.",
-                                word_count=18,
-                            ),
-                        ],
+                    # v0.25+: Use CleanedTranscript instead of chunks
+                    mock_cleaned = CleanedTranscript(
+                        text=(
+                            "Сегодня мы поговорим о работе с клиентами. "
+                            "Это важная тема для каждого консультанта. "
+                            "Первое, что нужно сделать - это понять потребности клиента. "
+                            "Задавайте вопросы, слушайте внимательно."
+                        ),
+                        word_count=33,
                         model_name="test",
                     )
 
-                    longread = await generator.generate(mock_chunks, mock_metadata, None)
+                    longread = await generator.generate(mock_cleaned, mock_metadata)
 
                     assert longread.total_sections > 0
                     assert longread.total_word_count > 0

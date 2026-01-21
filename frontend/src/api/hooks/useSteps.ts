@@ -178,15 +178,20 @@ export const useStepClean = createStepWithProgress<CleanedTranscript, StepCleanR
 );
 
 /**
- * Split cleaned transcript into semantic chunks.
- * Uses SSE with progress.
+ * Chunk markdown by H2 headers (deterministic).
+ * Fast operation - uses regular HTTP.
  */
-export const useStepChunk = createStepWithProgress<TranscriptChunks, StepChunkRequest>(
-  '/api/step/chunk'
-);
+export function useStepChunk() {
+  return useMutation({
+    mutationFn: async (request: StepChunkRequest) => {
+      const { data } = await apiClient.post<TranscriptChunks>('/api/step/chunk', request);
+      return data;
+    },
+  });
+}
 
 /**
- * Generate longread document from transcript chunks.
+ * Generate longread document from cleaned transcript.
  * Uses SSE with progress.
  */
 export const useStepLongread = createStepWithProgress<Longread, StepLongreadRequest>(
@@ -194,7 +199,7 @@ export const useStepLongread = createStepWithProgress<Longread, StepLongreadRequ
 );
 
 /**
- * Generate summary (конспект) from longread.
+ * Generate summary (конспект) from cleaned transcript.
  * Uses SSE with progress.
  */
 export const useStepSummarize = createStepWithProgress<Summary, StepSummarizeRequest>(

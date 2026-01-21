@@ -34,9 +34,11 @@ http://100.64.0.1:8801      # Backend API
 ## Архитектура
 
 ```
-Video → Parse → Whisper → Clean → Chunk ─┬─→ Longread → Summary → Save (educational)
-                                         └─→ Story → Save (leadership)
+Video → Parse → Whisper → Clean ─┬─→ Longread → Summary → Chunk (H2) → Save (educational)
+                                 └─→ Story → Chunk (H2) → Save (leadership)
 ```
+
+> **v0.25+:** Chunk теперь детерминированный (парсинг H2 заголовков), выполняется ПОСЛЕ longread/story.
 
 ## Документация
 

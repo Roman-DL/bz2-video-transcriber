@@ -770,25 +770,27 @@ class StepCleanRequest(BaseModel):
 
 
 class StepChunkRequest(BaseModel):
-    """Request for /step/chunk endpoint."""
+    """Request for /step/chunk endpoint.
 
-    cleaned_transcript: CleanedTranscript
-    metadata: VideoMetadata
-    model: str | None = Field(
-        default=None,
-        description="Override LLM model for chunking",
+    v0.25+: Now accepts markdown content for deterministic H2 chunking.
+    No LLM needed - parses H2 headers from longread/story markdown.
+    """
+
+    markdown_content: str = Field(
+        description="Longread or Story markdown to chunk by H2 headers"
     )
+    metadata: VideoMetadata
 
 
 class StepLongreadRequest(BaseModel):
-    """Request for /step/longread endpoint."""
+    """Request for /step/longread endpoint.
 
-    chunks: TranscriptChunks
+    v0.25+: Now takes CleanedTranscript instead of chunks.
+    Longread is generated directly from cleaned transcript.
+    """
+
+    cleaned_transcript: CleanedTranscript
     metadata: VideoMetadata
-    outline: TranscriptOutline | None = Field(
-        default=None,
-        description="Transcript outline for context (optional)",
-    )
     model: str | None = Field(
         default=None,
         description="Override LLM model for longread generation",

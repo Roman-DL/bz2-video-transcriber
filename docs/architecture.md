@@ -93,9 +93,9 @@ priority: high
 │  │                          │    │                          │   │
 │  │  Задачи:                 │    │  Задачи:                 │   │
 │  │  • Cleaner               │    │  • Транскрипция          │   │
-│  │  • Chunker               │    │                          │   │
 │  │  • Longread              │    │                          │   │
 │  │  • Summary               │    │                          │   │
+│  │  (Chunker v0.25+: H2)    │    │                          │   │
 │  └──────────────────────────┘    └──────────────────────────┘   │
 │                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐   │
@@ -124,9 +124,9 @@ priority: high
 | **Backend** | FastAPI + SSE | API, оркестрация |
 | **Transcriber** | HTTP → faster-whisper API | Вызов внешнего сервиса |
 | **Cleaner** | HTTP → Ollama Chat API (gemma2:9b) | Очистка транскрипта |
-| **Chunker** | HTTP → Ollama API | Смысловое разбиение |
 | **LongreadGenerator** | HTTP → Ollama API | Генерация развёрнутого текста |
 | **SummaryGenerator** | HTTP → Ollama API | Генерация конспекта |
+| **H2Chunker** | Deterministic (v0.25+) | Разбиение по H2 заголовкам |
 
 ---
 
@@ -317,26 +317,31 @@ Manager   Factory   Resolver    Registry      (AI client)
 │                    (управление этапами)                        │
 └────────────┬───────────────────────────────────────────────────┘
              │
-    ┌────────┼────────┬────────┬────────┬───────────────────┐
-    ▼        ▼        ▼        ▼        ▼                   ▼
-  Parse  Transcribe  Clean   Chunk  ┌───┴───┐             Save
-  Stage    Stage    Stage   Stage   │       │             Stage
-                                    ▼       ▼
-                               Longread  Story     (v0.23+)
-                                Stage    Stage
-                                    │       │
-                               Summarize    │
-                                Stage       │
-                                    │       │
-                     ┌──────────────┴───────┘
-                     ▼
-               StageContext
-          (передача данных)
+    ┌────────┼────────┬────────┬───────────────────┬────────┐
+    ▼        ▼        ▼        ▼                   ▼        ▼
+  Parse  Transcribe  Clean  ┌───┴───┐            Chunk    Save
+  Stage    Stage    Stage   │       │            Stage    Stage
+                            ▼       ▼          (H2 det.)
+                       Longread  Story
+                        Stage    Stage
+                            │       │
+                       Summarize    │
+                        Stage       │
+                            │       │
+                     ┌──────┴───────┴────┐
+                     ▼                   │
+               StageContext              │
+          (передача данных)              ▼
+                                   deterministic
+                                  H2 chunking
 ```
 
+**Pipeline (v0.25+):**
+- `Parse → Transcribe → Clean → Longread/Story → Summary → Chunk (H2) → Save`
+
 **Ветвление по content_type (v0.23+):**
-- `EDUCATIONAL` → LongreadStage → SummarizeStage → longread.md + summary.md
-- `LEADERSHIP` → StoryStage → story.md (8 блоков)
+- `EDUCATIONAL` → LongreadStage → SummarizeStage → ChunkStage → longread.md + summary.md
+- `LEADERSHIP` → StoryStage → ChunkStage → story.md (8 блоков)
 
 **Основные классы:**
 - `BaseStage` — абстрактный базовый класс для этапов

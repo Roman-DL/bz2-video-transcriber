@@ -339,51 +339,40 @@ async def step_clean(request: StepCleanRequest) -> StreamingResponse:
     )
 
 
-@router.post("/chunk")
-async def step_chunk(request: StepChunkRequest) -> StreamingResponse:
+@router.post("/chunk", response_model=TranscriptChunks)
+async def step_chunk(request: StepChunkRequest) -> TranscriptChunks:
     """
-    Split cleaned transcript into semantic chunks with SSE progress.
+    Chunk markdown by H2 headers (deterministic).
 
-    Returns SSE stream with progress updates and final TranscriptChunks.
+    v0.25+: No LLM needed - instant operation that parses H2 headers
+    from longread/story markdown. No SSE needed as it's instant.
 
     Args:
-        request: StepChunkRequest with cleaned_transcript and metadata
+        request: StepChunkRequest with markdown_content and metadata
 
     Returns:
-        StreamingResponse with SSE events
+        TranscriptChunks with H2-based chunks
     """
-    settings = get_settings()
     orchestrator = get_orchestrator()
-    estimator = ProgressEstimator(settings)
 
-    # Calculate input size for time estimation
-    input_chars = len(request.cleaned_transcript.text)
-    estimate = estimator.estimate_chunk(input_chars)
-
-    return create_sse_response(
-        run_with_sse_progress(
-            stage=ProcessingStatus.CHUNKING,
-            estimator=estimator,
-            estimated_seconds=estimate.estimated_seconds,
-            message=f"Chunking {input_chars:,} chars",
-            operation=lambda: orchestrator.chunk(
-                cleaned_transcript=request.cleaned_transcript,
-                metadata=request.metadata,
-                model=request.model,
-            ),
-        )
+    chunks = orchestrator.chunk(
+        markdown_content=request.markdown_content,
+        metadata=request.metadata,
     )
+
+    return chunks
 
 
 @router.post("/longread")
 async def step_longread(request: StepLongreadRequest) -> StreamingResponse:
     """
-    Generate longread document from transcript chunks with SSE progress.
+    Generate longread document from cleaned transcript with SSE progress.
 
+    v0.25+: Now takes CleanedTranscript instead of chunks.
     Creates a structured longread with introduction, sections, and conclusion.
 
     Args:
-        request: StepLongreadRequest with chunks, metadata, and optional outline
+        request: StepLongreadRequest with cleaned_transcript and metadata
 
     Returns:
         StreamingResponse with SSE events -> Longread
@@ -392,8 +381,8 @@ async def step_longread(request: StepLongreadRequest) -> StreamingResponse:
     orchestrator = get_orchestrator()
     estimator = ProgressEstimator(settings)
 
-    # Calculate input size for time estimation (~6 chars per word)
-    input_chars = sum(c.word_count * 6 for c in request.chunks.chunks)
+    # Calculate input size for time estimation
+    input_chars = len(request.cleaned_transcript.text)
     estimate = estimator.estimate_summarize(input_chars)
     estimated_seconds = estimate.estimated_seconds * 1.5  # Longread takes longer
 
@@ -402,11 +391,10 @@ async def step_longread(request: StepLongreadRequest) -> StreamingResponse:
             stage=ProcessingStatus.LONGREAD,
             estimator=estimator,
             estimated_seconds=estimated_seconds,
-            message=f"Generating longread from {request.chunks.total_chunks} chunks",
+            message=f"Generating longread from {input_chars:,} chars",
             operation=lambda: orchestrator.longread(
-                chunks=request.chunks,
+                cleaned_transcript=request.cleaned_transcript,
                 metadata=request.metadata,
-                outline=request.outline,
                 model=request.model,
             ),
         )

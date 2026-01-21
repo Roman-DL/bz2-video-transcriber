@@ -22,24 +22,20 @@ from app.models.schemas import (
     RawTranscript,
     Story,
     Summary,
-    TextPart,
     TranscriptChunks,
-    TranscriptOutline,
     VideoMetadata,
     VideoSummary,
 )
-from app.services.ai_clients import BaseAIClient, OllamaClient
-from app.services.chunker import DEFAULT_LARGE_TEXT_THRESHOLD, SemanticChunker
+from app.services.ai_clients import OllamaClient
 from app.services.cleaner import TranscriptCleaner
 from app.services.longread_generator import LongreadGenerator
-from app.services.outline_extractor import OutlineExtractor
 from app.services.story_generator import StoryGenerator
 from app.services.summary_generator import SummaryGenerator
-from app.services.text_splitter import TextSplitter
 from app.services.parser import FilenameParseError, parse_filename
 from app.services.saver import FileSaver
 from app.services.summarizer import VideoSummarizer
 from app.services.transcriber import WhisperTranscriber
+from app.utils.h2_chunker import chunk_by_h2
 
 from .config_resolver import ConfigResolver
 from .fallback_factory import FallbackFactory
@@ -212,7 +208,6 @@ class PipelineOrchestrator:
             # Initialize services
             transcriber = WhisperTranscriber(ai_client, self.settings)
             cleaner = TranscriptCleaner(ai_client, self.settings)
-            chunker = SemanticChunker(ai_client, self.settings)
             longread_gen = LongreadGenerator(ai_client, self.settings)
             summary_gen = SummaryGenerator(ai_client, self.settings)
             story_gen = StoryGenerator(ai_client, self.settings)
@@ -229,15 +224,14 @@ class PipelineOrchestrator:
             )
 
             # Stage 4-6: Content-type specific pipeline
+            # v0.25+: New order - Longread/Story first, then deterministic chunking
             if metadata.content_type == ContentType.LEADERSHIP:
-                # Leadership: Chunk -> Story (no longread/summary)
+                # Leadership: Story -> Chunk (deterministic from story markdown)
                 chunks, story = await self._do_leadership_pipeline(
-                    chunker,
                     story_gen,
                     cleaned_transcript,
                     metadata,
                     progress_callback,
-                    ai_client,
                 )
                 # Stage 7: Save leadership content
                 files_created = await self._do_save_leadership(
@@ -251,15 +245,13 @@ class PipelineOrchestrator:
                     progress_callback,
                 )
             else:
-                # Educational: Chunk -> Longread -> Summary
+                # Educational: Longread -> Summary -> Chunk (deterministic from longread markdown)
                 chunks, longread, summary = await self._do_educational_pipeline(
-                    chunker,
                     longread_gen,
                     summary_gen,
                     cleaned_transcript,
                     metadata,
                     progress_callback,
-                    ai_client,
                 )
                 # Stage 7: Save educational content
                 files_created = await self._do_save_educational(
@@ -350,43 +342,39 @@ class PipelineOrchestrator:
             cleaner = TranscriptCleaner(ai_client, settings)
             return await cleaner.clean(raw_transcript, metadata)
 
-    async def chunk(
+    def chunk(
+        self,
+        markdown_content: str,
+        metadata: VideoMetadata,
+    ) -> TranscriptChunks:
+        """
+        Chunk markdown content by H2 headers.
+
+        v0.25+: Deterministic chunking, no LLM needed.
+
+        Args:
+            markdown_content: Longread or Story markdown
+            metadata: Video metadata (for chunk IDs)
+
+        Returns:
+            TranscriptChunks with H2-based chunks
+        """
+        return chunk_by_h2(markdown_content, metadata.video_id)
+
+    async def longread(
         self,
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
         model: str | None = None,
-    ) -> TranscriptChunks:
+    ) -> Longread:
         """
-        Split cleaned transcript into semantic chunks.
+        Generate longread document from cleaned transcript.
+
+        v0.25+: Now takes CleanedTranscript instead of chunks.
 
         Args:
             cleaned_transcript: Cleaned transcript
-            metadata: Video metadata (for chunk IDs)
-            model: Optional model override for chunking
-
-        Returns:
-            TranscriptChunks with semantic chunks
-        """
-        settings = self.config_resolver.with_model(model, "chunker")
-        actual_model = model or settings.chunker_model
-        async with self.processing_strategy.create_client(actual_model) as ai_client:
-            chunker = SemanticChunker(ai_client, settings)
-            return await chunker.chunk(cleaned_transcript, metadata)
-
-    async def longread(
-        self,
-        chunks: TranscriptChunks,
-        metadata: VideoMetadata,
-        outline: TranscriptOutline | None = None,
-        model: str | None = None,
-    ) -> Longread:
-        """
-        Generate longread document from transcript chunks.
-
-        Args:
-            chunks: Transcript chunks from chunking stage
             metadata: Video metadata
-            outline: Optional transcript outline for context
             model: Optional model override for generation
 
         Returns:
@@ -397,10 +385,10 @@ class PipelineOrchestrator:
         async with self.processing_strategy.create_client(actual_model) as ai_client:
             generator = LongreadGenerator(ai_client, settings)
             try:
-                return await generator.generate(chunks, metadata, outline)
+                return await generator.generate(cleaned_transcript, metadata)
             except Exception as e:
                 logger.warning(f"Longread generation failed: {e}, using fallback")
-                return self.fallback_factory.create_longread(metadata, chunks)
+                return self.fallback_factory.create_longread_from_cleaned(metadata, cleaned_transcript)
 
     async def summarize_from_cleaned(
         self,
@@ -621,115 +609,27 @@ class PipelineOrchestrator:
 
         return result
 
-    async def _extract_outline(
-        self,
-        cleaned_transcript: CleanedTranscript,
-        ai_client: BaseAIClient,
-        callback: ProgressCallback | None = None,
-    ) -> tuple[list[TextPart], TranscriptOutline | None]:
-        """
-        Extract outline from transcript for large texts.
-
-        For small texts (<= DEFAULT_LARGE_TEXT_THRESHOLD), returns None outline.
-        For large texts, extracts outline using Map-Reduce approach.
-
-        Args:
-            cleaned_transcript: Cleaned transcript
-            ai_client: AI client for LLM calls
-            callback: Optional progress callback
-
-        Returns:
-            Tuple of (text_parts, outline or None)
-        """
-        text = cleaned_transcript.text
-        input_chars = len(text)
-
-        text_splitter = TextSplitter()
-        text_parts = text_splitter.split(text)
-
-        if input_chars <= DEFAULT_LARGE_TEXT_THRESHOLD:
-            logger.debug(f"Small text ({input_chars} chars), skipping outline extraction")
-            return text_parts, None
-
-        # Large text: extract outline using Map-Reduce
-        logger.info(
-            f"Large text detected ({input_chars} chars), "
-            f"extracting outline from {len(text_parts)} parts"
-        )
-
-        if callback:
-            await callback(
-                ProcessingStatus.CHUNKING,
-                0,
-                f"Extracting outline from {len(text_parts)} parts",
-            )
-
-        extractor = OutlineExtractor(ai_client, self.settings)
-        outline = await extractor.extract(text_parts)
-
-        logger.info(
-            f"Outline extracted: {outline.total_parts} parts, "
-            f"{len(outline.all_topics)} unique topics"
-        )
-
-        return text_parts, outline
-
     async def _do_educational_pipeline(
         self,
-        chunker: SemanticChunker,
         longread_gen: LongreadGenerator,
         summary_gen: SummaryGenerator,
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
         callback: ProgressCallback | None,
-        ai_client: OllamaClient,
     ) -> tuple[TranscriptChunks, Longread, Summary]:
         """
         Execute educational content pipeline.
 
-        Pipeline: Outline -> Chunk -> Longread -> Summary
+        v0.25+: New pipeline order - Longread -> Summary -> Chunk (deterministic)
 
         For content_type=EDUCATIONAL only.
-        The outline is extracted once and used by both chunker and longread generator.
+        Chunking is now deterministic from longread markdown (H2 headers).
         """
         input_chars = len(cleaned_transcript.text)
 
-        # Phase 1: Extract outline for large texts
-        text_parts, outline = await self._extract_outline(
-            cleaned_transcript, ai_client, callback
-        )
-
-        # Phase 2: Chunking
-        chunk_estimate = self.estimator.estimate_chunk(input_chars)
-        ticker = None
-        if callback:
-            ticker = await self.estimator.start_ticker(
-                stage=ProcessingStatus.CHUNKING,
-                estimated_seconds=chunk_estimate.estimated_seconds,
-                message="Chunking transcript",
-                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-            )
-
-        try:
-            chunks = await chunker.chunk_with_outline(
-                cleaned_transcript, metadata, text_parts, outline
-            )
-        except Exception as e:
-            if ticker:
-                ticker.cancel()
-            logger.warning(f"Chunking failed: {e}, using fallback")
-            chunks = self.fallback_factory.create_chunks(cleaned_transcript, metadata)
-
-        if callback and ticker:
-            await self.estimator.stop_ticker(
-                ticker,
-                ProcessingStatus.CHUNKING,
-                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-                f"Chunked: {chunks.total_chunks} chunks",
-            )
-
-        # Phase 3: Longread generation
+        # Phase 1: Longread generation (includes internal outline extraction)
         longread_estimate = self.estimator.estimate_summarize(input_chars) * 1.5
+        ticker = None
         if callback:
             ticker = await self.estimator.start_ticker(
                 stage=ProcessingStatus.LONGREAD,
@@ -739,12 +639,12 @@ class PipelineOrchestrator:
             )
 
         try:
-            longread = await longread_gen.generate(chunks, metadata, outline)
+            longread = await longread_gen.generate(cleaned_transcript, metadata)
         except Exception as e:
             if ticker:
                 ticker.cancel()
             logger.error(f"Longread generation failed: {e}")
-            longread = self.fallback_factory.create_longread(metadata, chunks)
+            longread = self.fallback_factory.create_longread_from_cleaned(metadata, cleaned_transcript)
 
         if callback and ticker:
             await self.estimator.stop_ticker(
@@ -754,7 +654,7 @@ class PipelineOrchestrator:
                 f"Longread: {longread.total_sections} sections, {longread.total_word_count} words",
             )
 
-        # Phase 4: Summary generation from cleaned transcript (v0.24+)
+        # Phase 2: Summary generation from cleaned transcript
         summary_estimate = self.estimator.estimate_summarize(input_chars) * 0.5
         if callback:
             ticker = await self.estimator.start_ticker(
@@ -780,63 +680,47 @@ class PipelineOrchestrator:
                 f"Summary: {len(summary.key_concepts)} concepts, {len(summary.quotes)} quotes",
             )
 
+        # Phase 3: Deterministic chunking from longread markdown
+        if callback:
+            await self.progress_manager.update_progress(
+                callback,
+                ProcessingStatus.CHUNKING,
+                0,
+                "Chunking by H2 headers",
+            )
+
+        chunks = chunk_by_h2(longread.to_markdown(), metadata.video_id)
+
+        if callback:
+            await self.progress_manager.update_progress(
+                callback,
+                ProcessingStatus.CHUNKING,
+                100,
+                f"Chunked: {chunks.total_chunks} chunks (deterministic)",
+            )
+
         return chunks, longread, summary
 
     async def _do_leadership_pipeline(
         self,
-        chunker: SemanticChunker,
         story_gen: StoryGenerator,
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
         callback: ProgressCallback | None,
-        ai_client: OllamaClient,
     ) -> tuple[TranscriptChunks, Story]:
         """
         Execute leadership content pipeline.
 
-        Pipeline: Outline -> Chunk -> Story
+        v0.25+: New pipeline order - Story -> Chunk (deterministic)
 
         For content_type=LEADERSHIP only.
-        Generates 8-block story instead of longread + summary.
+        Generates 8-block story, then chunks by H2 headers.
         """
         input_chars = len(cleaned_transcript.text)
 
-        # Phase 1: Extract outline for large texts
-        text_parts, outline = await self._extract_outline(
-            cleaned_transcript, ai_client, callback
-        )
-
-        # Phase 2: Chunking (same as educational)
-        chunk_estimate = self.estimator.estimate_chunk(input_chars)
-        ticker = None
-        if callback:
-            ticker = await self.estimator.start_ticker(
-                stage=ProcessingStatus.CHUNKING,
-                estimated_seconds=chunk_estimate.estimated_seconds,
-                message="Chunking transcript",
-                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-            )
-
-        try:
-            chunks = await chunker.chunk_with_outline(
-                cleaned_transcript, metadata, text_parts, outline
-            )
-        except Exception as e:
-            if ticker:
-                ticker.cancel()
-            logger.warning(f"Chunking failed: {e}, using fallback")
-            chunks = self.fallback_factory.create_chunks(cleaned_transcript, metadata)
-
-        if callback and ticker:
-            await self.estimator.stop_ticker(
-                ticker,
-                ProcessingStatus.CHUNKING,
-                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-                f"Chunked: {chunks.total_chunks} chunks",
-            )
-
-        # Phase 3: Story generation (instead of longread + summary)
+        # Phase 1: Story generation
         story_estimate = self.estimator.estimate_summarize(input_chars) * 1.5
+        ticker = None
         if callback:
             ticker = await self.estimator.start_ticker(
                 stage=ProcessingStatus.LONGREAD,  # Reuse LONGREAD status for story
@@ -861,6 +745,25 @@ class PipelineOrchestrator:
                 ProcessingStatus.LONGREAD,
                 lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
                 f"Story: {story.total_blocks} blocks, speed={story.speed}",
+            )
+
+        # Phase 2: Deterministic chunking from story markdown
+        if callback:
+            await self.progress_manager.update_progress(
+                callback,
+                ProcessingStatus.CHUNKING,
+                0,
+                "Chunking by H2 headers",
+            )
+
+        chunks = chunk_by_h2(story.to_markdown(), metadata.video_id)
+
+        if callback:
+            await self.progress_manager.update_progress(
+                callback,
+                ProcessingStatus.CHUNKING,
+                100,
+                f"Chunked: {chunks.total_chunks} chunks (deterministic)",
             )
 
         return chunks, story
@@ -955,57 +858,3 @@ class PipelineOrchestrator:
             )
 
         return files
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # Legacy compatibility (deprecated)
-    # ═══════════════════════════════════════════════════════════════════════════
-
-    # These methods are kept for backward compatibility but delegate to new classes
-
-    def _get_settings_with_model(self, model: str | None, stage: str) -> Settings:
-        """Deprecated: Use config_resolver.with_model() instead."""
-        return self.config_resolver.with_model(model, stage)  # type: ignore
-
-    async def _update_progress(
-        self,
-        callback: ProgressCallback | None,
-        status: ProcessingStatus,
-        stage_progress: float,
-        message: str,
-    ) -> None:
-        """Deprecated: Use progress_manager.update_progress() instead."""
-        await self.progress_manager.update_progress(callback, status, stage_progress, message)
-
-    def _calculate_overall_progress(
-        self,
-        current_stage: ProcessingStatus,
-        stage_progress: float = 100,
-    ) -> float:
-        """Deprecated: Use progress_manager.calculate_overall_progress() instead."""
-        return self.progress_manager.calculate_overall_progress(current_stage, stage_progress)
-
-    def _create_fallback_chunks(
-        self,
-        cleaned_transcript: CleanedTranscript,
-        metadata: VideoMetadata,
-    ) -> TranscriptChunks:
-        """Deprecated: Use fallback_factory.create_chunks() instead."""
-        return self.fallback_factory.create_chunks(cleaned_transcript, metadata)
-
-    def _create_fallback_summary(self, metadata: VideoMetadata) -> VideoSummary:
-        """Deprecated: Use fallback_factory.create_summary() instead."""
-        return self.fallback_factory.create_summary(metadata)
-
-    def _create_fallback_longread(
-        self,
-        metadata: VideoMetadata,
-        chunks: TranscriptChunks,
-    ) -> Longread:
-        """Deprecated: Use fallback_factory.create_longread() instead."""
-        return self.fallback_factory.create_longread(metadata, chunks)
-
-    # Expose STAGE_WEIGHTS for backward compatibility
-    @property
-    def STAGE_WEIGHTS(self) -> dict:
-        """Deprecated: Use progress_manager.STAGE_WEIGHTS instead."""
-        return self.progress_manager.STAGE_WEIGHTS

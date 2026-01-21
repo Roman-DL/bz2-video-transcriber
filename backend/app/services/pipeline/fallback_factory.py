@@ -3,6 +3,9 @@ Fallback object factory for pipeline stages.
 
 Creates minimal valid objects when stage processing fails,
 ensuring pipeline can complete with degraded results.
+
+v0.25+: Simplified for new pipeline architecture.
+        Chunks are now deterministic from H2 headers.
 """
 
 import logging
@@ -13,8 +16,6 @@ from app.models.schemas import (
     Longread,
     LongreadSection,
     Summary,
-    TranscriptChunk,
-    TranscriptChunks,
     VideoMetadata,
     VideoSummary,
 )
@@ -29,10 +30,11 @@ class FallbackFactory:
     All fallback objects contain valid data structure but minimal content,
     allowing the pipeline to complete and save results even on partial failures.
 
+    v0.25+: Simplified - chunks are now deterministic from H2 headers.
+
     Example:
         factory = FallbackFactory(settings)
-        chunks = factory.create_chunks(cleaned_transcript, metadata)
-        longread = factory.create_longread(metadata, chunks)
+        longread = factory.create_longread_from_cleaned(metadata, cleaned_transcript)
         summary = factory.create_summary_from_cleaned(cleaned_transcript, metadata)
     """
 
@@ -44,51 +46,6 @@ class FallbackFactory:
             settings: Application settings for model names
         """
         self.settings = settings
-
-    def create_chunks(
-        self,
-        cleaned_transcript: CleanedTranscript,
-        metadata: VideoMetadata,
-    ) -> TranscriptChunks:
-        """
-        Create fallback chunks when semantic chunking fails.
-
-        Simply splits text into fixed-size chunks (~300 words each).
-
-        Args:
-            cleaned_transcript: Cleaned transcript text
-            metadata: Video metadata for chunk IDs
-
-        Returns:
-            TranscriptChunks with simple word-based splits
-        """
-        text = cleaned_transcript.text
-        words = text.split()
-        chunk_size = 300
-        chunks: list[TranscriptChunk] = []
-
-        for i, start in enumerate(range(0, len(words), chunk_size)):
-            chunk_words = words[start : start + chunk_size]
-            chunk_text = " ".join(chunk_words)
-
-            chunks.append(
-                TranscriptChunk(
-                    id=f"{metadata.video_id}_{i + 1:03d}",
-                    index=i + 1,
-                    topic=f"Часть {i + 1}",
-                    text=chunk_text,
-                    word_count=len(chunk_words),
-                )
-            )
-
-        logger.info(
-            f"Created fallback chunks: {len(chunks)} chunks from {len(words)} words"
-        )
-
-        return TranscriptChunks(
-            chunks=chunks,
-            model_name=self.settings.chunker_model,
-        )
 
     def create_summary(self, metadata: VideoMetadata) -> VideoSummary:
         """
@@ -115,37 +72,34 @@ class FallbackFactory:
             model_name=self.settings.summarizer_model,
         )
 
-    def create_longread(
+    def create_longread_from_cleaned(
         self,
         metadata: VideoMetadata,
-        chunks: TranscriptChunks,
+        cleaned_transcript: CleanedTranscript,
     ) -> Longread:
         """
-        Create fallback longread when generation fails.
-
-        Uses chunks directly as sections without additional processing.
+        Create fallback longread from cleaned transcript when generation fails.
 
         Args:
             metadata: Video metadata
-            chunks: Transcript chunks to use as sections
+            cleaned_transcript: Cleaned transcript
 
         Returns:
-            Longread with chunks as sections
+            Longread with single section containing full text
         """
         logger.info(
             f"Creating fallback longread for: {metadata.video_id} "
-            f"from {chunks.total_chunks} chunks"
+            f"from cleaned transcript ({cleaned_transcript.word_count} words)"
         )
 
         sections = [
             LongreadSection(
-                index=chunk.index,
-                title=chunk.topic,
-                content=chunk.text,
-                source_chunks=[chunk.index],
-                word_count=chunk.word_count,
+                index=1,
+                title=metadata.title,
+                content=cleaned_transcript.text,
+                source_chunks=[1],
+                word_count=cleaned_transcript.word_count,
             )
-            for chunk in chunks.chunks
         ]
 
         return Longread(
@@ -203,6 +157,7 @@ class FallbackFactory:
             model_name=self.settings.summarizer_model,
         )
 
+
 if __name__ == "__main__":
     """Run tests when executed directly."""
     from datetime import date
@@ -210,14 +165,14 @@ if __name__ == "__main__":
 
     from app.config import get_settings
 
-    print("\nRunning FallbackFactory tests...\n")
+    print("\nRunning FallbackFactory tests (v0.25+)...\n")
 
     settings = get_settings()
     factory = FallbackFactory(settings)
 
     # Create mock data
     mock_cleaned = CleanedTranscript(
-        text=" ".join(["word"] * 650),  # 650 words -> 3 chunks
+        text=" ".join(["word"] * 650),
         original_length=1000,
         cleaned_length=650 * 5,
     )
@@ -234,50 +189,36 @@ if __name__ == "__main__":
         archive_path=Path("/archive/test"),
     )
 
-    # Test 1: Create chunks
-    print("Test 1: Create fallback chunks...", end=" ")
-    chunks = factory.create_chunks(mock_cleaned, mock_metadata)
-    assert chunks.total_chunks == 3, f"Expected 3 chunks, got {chunks.total_chunks}"
-    assert chunks.chunks[0].id == "test-video-id_001"
-    assert chunks.chunks[0].topic == "Часть 1"
-    assert chunks.chunks[0].word_count == 300
-    assert chunks.chunks[2].word_count == 50  # Remaining words
-    print("OK")
-    print(f"  Chunks: {chunks.total_chunks}, sizes: {[c.word_count for c in chunks.chunks]}")
-
-    # Test 2: Create summary
-    print("Test 2: Create fallback summary...", end=" ")
+    # Test 1: Create summary (legacy)
+    print("Test 1: Create fallback summary (legacy)...", end=" ")
     summary = factory.create_summary(mock_metadata)
     assert "Test Video" in summary.summary
     assert summary.section == "Обучение"
     assert "ПШ" in summary.tags
     assert summary.access_level == 1
     print("OK")
-    print(f"  Summary: {summary.summary}")
 
-    # Test 3: Create longread
-    print("Test 3: Create fallback longread...", end=" ")
-    longread = factory.create_longread(mock_metadata, chunks)
+    # Test 2: Create longread from cleaned
+    print("Test 2: Create longread from cleaned...", end=" ")
+    longread = factory.create_longread_from_cleaned(mock_metadata, mock_cleaned)
     assert longread.video_id == "test-video-id"
-    assert longread.total_sections == 3
-    assert longread.sections[0].title == "Часть 1"
-    assert longread.topic_area == ["мотивация"]  # Default topic_area
+    assert longread.total_sections == 1
+    assert longread.sections[0].title == "Test Video"
+    assert longread.topic_area == ["мотивация"]
     assert longread.access_level == "consultant"
     print("OK")
-    print(f"  Sections: {longread.total_sections}, topic_area: {longread.topic_area}")
 
-    # Test 4: Create summary from cleaned transcript (v0.24+)
-    print("Test 4: Create summary from cleaned transcript...", end=" ")
+    # Test 3: Create summary from cleaned
+    print("Test 3: Create summary from cleaned...", end=" ")
     summary_from_cleaned = factory.create_summary_from_cleaned(mock_cleaned, mock_metadata)
     assert summary_from_cleaned.video_id == "test-video-id"
     assert summary_from_cleaned.topic_area == ["мотивация"]
     assert summary_from_cleaned.access_level == "consultant"
     assert len(summary_from_cleaned.essence) > 0
     print("OK")
-    print(f"  Essence length: {len(summary_from_cleaned.essence)}")
 
-    # Test 5: Metadata without stream
-    print("Test 5: Metadata without stream...", end=" ")
+    # Test 4: Metadata without stream
+    print("Test 4: Metadata without stream...", end=" ")
     mock_metadata_no_stream = VideoMetadata(
         date=date(2025, 1, 9),
         event_type="ПШ",
@@ -291,7 +232,7 @@ if __name__ == "__main__":
     )
     summary_no_stream = factory.create_summary(mock_metadata_no_stream)
     assert summary_no_stream.tags == ["ПШ"]
-    longread_no_stream = factory.create_longread(mock_metadata_no_stream, chunks)
+    longread_no_stream = factory.create_longread_from_cleaned(mock_metadata_no_stream, mock_cleaned)
     assert longread_no_stream.tags == ["ПШ"]
     print("OK")
 
