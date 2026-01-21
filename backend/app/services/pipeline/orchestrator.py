@@ -402,32 +402,35 @@ class PipelineOrchestrator:
                 logger.warning(f"Longread generation failed: {e}, using fallback")
                 return self.fallback_factory.create_longread(metadata, chunks)
 
-    async def summarize_from_longread(
+    async def summarize_from_cleaned(
         self,
-        longread: Longread,
+        cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
         model: str | None = None,
     ) -> Summary:
         """
-        Generate summary (конспект) from longread document.
+        Generate summary (конспект) from cleaned transcript.
+
+        v0.24+: Summary is now generated directly from cleaned transcript,
+        allowing it to see all original details.
 
         Args:
-            longread: Longread document
+            cleaned_transcript: Cleaned transcript
             metadata: Video metadata
             model: Optional model override for generation
 
         Returns:
-            Summary with essence, concepts, tools, quotes
+            Summary with essence, concepts, tools, quotes, topic_area, access_level
         """
         settings = self.config_resolver.with_model(model, "summarizer")
         actual_model = model or settings.summarizer_model
         async with self.processing_strategy.create_client(actual_model) as ai_client:
             generator = SummaryGenerator(ai_client, settings)
             try:
-                return await generator.generate(longread, metadata)
+                return await generator.generate(cleaned_transcript, metadata)
             except Exception as e:
                 logger.warning(f"Summary generation failed: {e}, using fallback")
-                return self.fallback_factory.create_summary_from_longread(longread, metadata)
+                return self.fallback_factory.create_summary_from_cleaned(cleaned_transcript, metadata)
 
     async def story(
         self,
@@ -751,23 +754,23 @@ class PipelineOrchestrator:
                 f"Longread: {longread.total_sections} sections, {longread.total_word_count} words",
             )
 
-        # Phase 4: Summary generation from longread
+        # Phase 4: Summary generation from cleaned transcript (v0.24+)
         summary_estimate = self.estimator.estimate_summarize(input_chars) * 0.5
         if callback:
             ticker = await self.estimator.start_ticker(
                 stage=ProcessingStatus.SUMMARIZING,
                 estimated_seconds=summary_estimate,
-                message="Generating summary from longread",
+                message="Generating summary from transcript",
                 callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
             )
 
         try:
-            summary = await summary_gen.generate(longread, metadata)
+            summary = await summary_gen.generate(cleaned_transcript, metadata)
         except Exception as e:
             if ticker:
                 ticker.cancel()
             logger.error(f"Summary generation failed: {e}")
-            summary = self.fallback_factory.create_summary_from_longread(longread, metadata)
+            summary = self.fallback_factory.create_summary_from_cleaned(cleaned_transcript, metadata)
 
         if callback and ticker:
             await self.estimator.stop_ticker(
@@ -1000,14 +1003,6 @@ class PipelineOrchestrator:
     ) -> Longread:
         """Deprecated: Use fallback_factory.create_longread() instead."""
         return self.fallback_factory.create_longread(metadata, chunks)
-
-    def _create_fallback_summary_from_longread(
-        self,
-        longread: Longread,
-        metadata: VideoMetadata,
-    ) -> Summary:
-        """Deprecated: Use fallback_factory.create_summary_from_longread() instead."""
-        return self.fallback_factory.create_summary_from_longread(longread, metadata)
 
     # Expose STAGE_WEIGHTS for backward compatibility
     @property

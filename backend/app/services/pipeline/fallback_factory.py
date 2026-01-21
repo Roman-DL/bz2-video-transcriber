@@ -33,7 +33,7 @@ class FallbackFactory:
         factory = FallbackFactory(settings)
         chunks = factory.create_chunks(cleaned_transcript, metadata)
         longread = factory.create_longread(metadata, chunks)
-        summary = factory.create_summary_from_longread(longread, metadata)
+        summary = factory.create_summary_from_cleaned(cleaned_transcript, metadata)
     """
 
     def __init__(self, settings: Settings):
@@ -108,10 +108,10 @@ class FallbackFactory:
             recommendations=[],
             target_audience="Требует ручной обработки",
             questions_answered=[],
-            section="Обучение",  # Default section
+            section="Обучение",  # Legacy field for VideoSummary
             subsection="",
             tags=[metadata.event_type, metadata.stream] if metadata.stream else [metadata.event_type],
-            access_level=1,
+            access_level=1,  # VideoSummary uses int (1-4)
             model_name=self.settings.summarizer_model,
         )
 
@@ -158,50 +158,50 @@ class FallbackFactory:
             introduction="",
             sections=sections,
             conclusion="",
-            section="Обучение",
-            subsection="",
+            topic_area=["мотивация"],  # Default topic area
             tags=[metadata.event_type, metadata.stream] if metadata.stream else [metadata.event_type],
-            access_level=1,
+            access_level="consultant",
             model_name=self.settings.summarizer_model,
         )
 
-    def create_summary_from_longread(
+    def create_summary_from_cleaned(
         self,
-        longread: Longread,
+        cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
     ) -> Summary:
         """
-        Create fallback summary from longread when summary generation fails.
-
-        Extracts basic info from longread structure.
+        Create fallback summary from cleaned transcript when summary generation fails.
 
         Args:
-            longread: Longread document
+            cleaned_transcript: Cleaned transcript text
             metadata: Video metadata
 
         Returns:
-            Summary with data extracted from longread
+            Summary with minimal data extracted from transcript
         """
-        logger.info(f"Creating fallback summary from longread: {metadata.video_id}")
+        logger.info(f"Creating fallback summary from cleaned transcript: {metadata.video_id}")
+
+        # Take first 500 chars as essence
+        essence = cleaned_transcript.text[:500]
+        if len(cleaned_transcript.text) > 500:
+            essence = essence.rsplit(" ", 1)[0] + "..."
 
         return Summary(
             video_id=metadata.video_id,
             title=metadata.title,
             speaker=metadata.speaker,
             date=metadata.date,
-            essence=longread.introduction or f"Тема: {metadata.title}",
-            key_concepts=[s.title for s in longread.sections[:5]],
+            essence=essence,
+            key_concepts=[],
             practical_tools=[],
             quotes=[],
             insight="Конспект недоступен из-за технической ошибки",
             actions=[],
-            section=longread.section,
-            subsection=longread.subsection,
-            tags=longread.tags,
-            access_level=longread.access_level,
+            topic_area=["мотивация"],  # Default topic area
+            tags=[metadata.event_type, metadata.stream] if metadata.stream else [metadata.event_type],
+            access_level="consultant",
             model_name=self.settings.summarizer_model,
         )
-
 
 if __name__ == "__main__":
     """Run tests when executed directly."""
@@ -261,17 +261,20 @@ if __name__ == "__main__":
     assert longread.video_id == "test-video-id"
     assert longread.total_sections == 3
     assert longread.sections[0].title == "Часть 1"
+    assert longread.topic_area == ["мотивация"]  # Default topic_area
+    assert longread.access_level == "consultant"
     print("OK")
-    print(f"  Sections: {longread.total_sections}")
+    print(f"  Sections: {longread.total_sections}, topic_area: {longread.topic_area}")
 
-    # Test 4: Create summary from longread
-    print("Test 4: Create summary from longread...", end=" ")
-    summary_from_lr = factory.create_summary_from_longread(longread, mock_metadata)
-    assert summary_from_lr.video_id == "test-video-id"
-    assert len(summary_from_lr.key_concepts) == 3
-    assert summary_from_lr.key_concepts[0] == "Часть 1"
+    # Test 4: Create summary from cleaned transcript (v0.24+)
+    print("Test 4: Create summary from cleaned transcript...", end=" ")
+    summary_from_cleaned = factory.create_summary_from_cleaned(mock_cleaned, mock_metadata)
+    assert summary_from_cleaned.video_id == "test-video-id"
+    assert summary_from_cleaned.topic_area == ["мотивация"]
+    assert summary_from_cleaned.access_level == "consultant"
+    assert len(summary_from_cleaned.essence) > 0
     print("OK")
-    print(f"  Key concepts: {summary_from_lr.key_concepts}")
+    print(f"  Essence length: {len(summary_from_cleaned.essence)}")
 
     # Test 5: Metadata without stream
     print("Test 5: Metadata without stream...", end=" ")

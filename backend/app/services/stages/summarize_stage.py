@@ -1,15 +1,17 @@
 """
-Summarize stage for generating summaries from longread.
+Summarize stage for generating summaries from cleaned transcript.
 
 Creates a condensed summary (конспект) for navigation and quick reference.
+
+v0.24+: Generates from CleanedTranscript (not Longread).
 """
 
 import logging
 
 from app.config import Settings
 from app.models.schemas import (
+    CleanedTranscript,
     ContentType,
-    Longread,
     ProcessingStatus,
     Summary,
     VideoMetadata,
@@ -23,17 +25,20 @@ logger = logging.getLogger(__name__)
 
 
 class SummarizeStage(BaseStage):
-    """Generate summary (конспект) from longread document.
+    """Generate summary (конспект) from cleaned transcript.
 
     A summary is a navigation document for those who ALREADY watched/read
     the content. It helps recall key points quickly.
 
+    v0.24+: Now generates from CleanedTranscript instead of Longread.
+    This allows the summary to see all original details from the transcript.
+
     Input (from context):
         - parse: VideoMetadata
-        - longread: Longread document
+        - clean: CleanedTranscript
 
     Output:
-        Summary with essence, concepts, tools, quotes
+        Summary with essence, concepts, tools, quotes, topic_area, access_level
 
     Example:
         stage = SummarizeStage(ai_client, settings)
@@ -41,7 +46,7 @@ class SummarizeStage(BaseStage):
     """
 
     name = "summarize"
-    depends_on = ["parse", "longread"]
+    depends_on = ["parse", "clean"]  # v0.24: Changed from ["parse", "longread"]
     status = ProcessingStatus.SUMMARIZING
 
     def __init__(self, ai_client: BaseAIClient, settings: Settings):
@@ -73,10 +78,10 @@ class SummarizeStage(BaseStage):
         return metadata.content_type == ContentType.LEADERSHIP
 
     async def execute(self, context: StageContext) -> Summary:
-        """Generate summary from longread.
+        """Generate summary from cleaned transcript.
 
         Args:
-            context: Context with parse and longread results
+            context: Context with parse and clean results
 
         Returns:
             Summary document
@@ -87,42 +92,47 @@ class SummarizeStage(BaseStage):
         self.validate_context(context)
 
         metadata: VideoMetadata = context.get_result("parse")
-        longread: Longread = context.get_result("longread")
+        cleaned_transcript: CleanedTranscript = context.get_result("clean")
 
         try:
-            return await self.generator.generate(longread, metadata)
+            return await self.generator.generate(cleaned_transcript, metadata)
         except Exception as e:
             logger.warning(f"Summary generation failed: {e}, using fallback")
-            return self._create_fallback_summary(longread, metadata)
+            return self._create_fallback_summary(cleaned_transcript, metadata)
 
     def _create_fallback_summary(
         self,
-        longread: Longread,
+        cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
     ) -> Summary:
         """Create fallback summary when generation fails.
 
         Args:
-            longread: Longread document
+            cleaned_transcript: Cleaned transcript
             metadata: Video metadata
 
         Returns:
             Minimal summary with basic information
         """
+        # Take first 500 chars as essence
+        essence = cleaned_transcript.text[:500]
+        if len(cleaned_transcript.text) > 500:
+            essence = essence.rsplit(" ", 1)[0] + "..."
+
         return Summary(
             video_id=metadata.video_id,
             title=metadata.title,
             speaker=metadata.speaker,
             date=metadata.date,
-            essence=longread.introduction or f"Тема: {metadata.title}",
-            key_concepts=[s.title for s in longread.sections[:5]],
+            essence=essence,
+            key_concepts=[],
             practical_tools=[],
             quotes=[],
             insight="Конспект недоступен из-за технической ошибки",
             actions=[],
-            topic_area=longread.topic_area,
-            tags=longread.tags,
-            access_level=longread.access_level,
+            topic_area=["мотивация"],  # Default
+            tags=[metadata.event_type, metadata.stream] if metadata.stream else [metadata.event_type],
+            access_level="consultant",
             model_name=self.settings.summarizer_model,
         )
 
@@ -130,10 +140,10 @@ class SummarizeStage(BaseStage):
         """Estimate summary generation time.
 
         Args:
-            input_size: Longread length in characters
+            input_size: Cleaned transcript length in characters
 
         Returns:
             Estimated time in seconds
         """
-        # Summary generation is relatively quick from longread
+        # Summary from cleaned transcript takes about the same time as from longread
         return 15.0 + input_size / 500

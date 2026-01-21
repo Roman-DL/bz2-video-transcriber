@@ -798,10 +798,12 @@ class StepLongreadRequest(BaseModel):
 class StepSummarizeRequest(BaseModel):
     """Request for /step/summarize endpoint.
 
-    Updated in v0.13: Now takes Longread instead of CleanedTranscript.
+    Updated in v0.24: Now takes CleanedTranscript instead of Longread.
+    Summary is generated directly from the cleaned transcript, allowing
+    it to see all original details.
     """
 
-    longread: Longread
+    cleaned_transcript: CleanedTranscript
     metadata: VideoMetadata
     model: str | None = Field(
         default=None,

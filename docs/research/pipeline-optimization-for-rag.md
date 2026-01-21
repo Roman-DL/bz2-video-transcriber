@@ -673,13 +673,21 @@ def load_prompt(name: str, model: str = None, variant: str = None):
 - Frontend: `StoryView`, условный pipeline в `StepByStep`
 - Документация: `docs/pipeline/05b-story.md`
 
-### Фаза 4: Генерация конспекта
+### Фаза 4: Генерация конспекта ✅ (v0.24)
 
 > Цель: конспект из cleaned (только для educational)
 
-13. **Обновить SummaryStage** — источник cleaned вместо longread
-14. **Обновить промпт конспекта** — шаблон + инструкции
-15. **Условный запуск** — только для content_type=educational
+13. ✅ **Обновить SummaryStage** — источник cleaned вместо longread, depends_on = ["parse", "clean"]
+14. ✅ **3-компонентная архитектура промптов** — summary_system.md + summary_instructions.md + summary_template.md
+15. ✅ **LLM генерирует классификацию** — topic_area, tags, access_level теперь из LLM
+16. ✅ **Breaking change API** — `/step/summarize` принимает cleaned_transcript вместо longread
+
+**Реализовано:**
+- [summary_generator.py](../../backend/app/services/summary_generator.py) — полностью переписан под CleanedTranscript
+- [summarize_stage.py](../../backend/app/services/stages/summarize_stage.py) — depends_on = ["parse", "clean"]
+- [schemas.py:StepSummarizeRequest](../../backend/app/models/schemas.py) — cleaned_transcript вместо longread
+- [fallback_factory.py](../../backend/app/services/pipeline/fallback_factory.py) — исправлены баги section→topic_area
+- Промпты: `config/prompts/summary_system.md`, `summary_instructions.md`, `summary_template.md`
 
 ### Фаза 5: Детерминированное чанкование
 
@@ -737,7 +745,7 @@ def load_prompt(name: str, model: str = None, variant: str = None):
 | **Фаза 1** | 🔴 Высокий | — | ✅ v0.21 — ContentType, EventCategory, archive structure |
 | **Фаза 2** | 🔴 Высокий | Фаза 1 | ✅ v0.22 — Глоссарий как контекст для LLM |
 | **Фаза 3** | 🔴 Высокий | Фаза 2 | ✅ v0.23 — Лонгрид и история |
-| **Фаза 4** | 🔴 Высокий | Фаза 2 | ⏳ Конспект (можно параллельно с Фазой 3) |
+| **Фаза 4** | 🔴 Высокий | Фаза 2 | ✅ v0.24 — Конспект из cleaned, 3-компонентная архитектура |
 | **Фаза 5** | 🔴 Высокий | Фазы 3-4 | ⏳ Чанкование — финализация pipeline |
 | **Фаза 6** | 🟡 Средний | — | ⏳ Удобство экспериментов |
 | **Фаза 7** | 🟡 Средний | Фаза 6 | ⏳ UI для выбора промптов |

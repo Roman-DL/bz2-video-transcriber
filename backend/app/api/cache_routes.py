@@ -252,16 +252,16 @@ async def rerun_stage(request: RerunRequest) -> StreamingResponse:
             model_name = request.model or settings.longread_model
 
         elif request.stage == CacheStageName.SUMMARY:
-            # Input: Longread
-            longread_data = pipeline_data.get("longread")
-            if not longread_data:
-                raise ValueError("Longread not found in pipeline results")
+            # Input: CleanedTranscript (v0.24+)
+            cleaned_data = pipeline_data.get("cleaned_transcript")
+            if not cleaned_data:
+                raise ValueError("Cleaned transcript not found in pipeline results")
 
-            longread = Longread.model_validate(longread_data)
-            input_hash = cache.compute_hash(longread)
+            cleaned_transcript = CleanedTranscript.model_validate(cleaned_data)
+            input_hash = cache.compute_hash(cleaned_transcript)
 
-            result = await orchestrator.summarize_from_longread(
-                longread=longread,
+            result = await orchestrator.summarize_from_cleaned(
+                cleaned_transcript=cleaned_transcript,
                 metadata=metadata,
                 model=request.model,
             )

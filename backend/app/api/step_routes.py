@@ -416,12 +416,13 @@ async def step_longread(request: StepLongreadRequest) -> StreamingResponse:
 @router.post("/summarize")
 async def step_summarize(request: StepSummarizeRequest) -> StreamingResponse:
     """
-    Generate summary (конспект) from longread with SSE progress.
+    Generate summary (конспект) from cleaned transcript with SSE progress.
 
-    Updated in v0.13: Now takes Longread instead of CleanedTranscript.
+    Updated in v0.24: Now takes CleanedTranscript instead of Longread.
+    Summary is generated directly from the cleaned transcript.
 
     Args:
-        request: StepSummarizeRequest with longread and metadata
+        request: StepSummarizeRequest with cleaned_transcript and metadata
 
     Returns:
         StreamingResponse with SSE events -> Summary
@@ -431,7 +432,7 @@ async def step_summarize(request: StepSummarizeRequest) -> StreamingResponse:
     estimator = ProgressEstimator(settings)
 
     # Calculate input size for time estimation
-    input_chars = request.longread.total_word_count * 6
+    input_chars = len(request.cleaned_transcript.text)
     estimate = estimator.estimate_summarize(input_chars)
     estimated_seconds = estimate.estimated_seconds * 0.5  # Summary is faster
 
@@ -440,9 +441,9 @@ async def step_summarize(request: StepSummarizeRequest) -> StreamingResponse:
             stage=ProcessingStatus.SUMMARIZING,
             estimator=estimator,
             estimated_seconds=estimated_seconds,
-            message=f"Generating summary from longread ({request.longread.total_sections} sections)",
-            operation=lambda: orchestrator.summarize_from_longread(
-                longread=request.longread,
+            message=f"Generating summary from transcript ({input_chars:,} chars)",
+            operation=lambda: orchestrator.summarize_from_cleaned(
+                cleaned_transcript=request.cleaned_transcript,
                 metadata=request.metadata,
                 model=request.model,
             ),
