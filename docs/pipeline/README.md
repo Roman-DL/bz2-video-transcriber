@@ -5,44 +5,53 @@
 ## Схема Pipeline
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                       VIDEO PROCESSING PIPELINE                           │
-│                                                                           │
-│            Координируется PipelineOrchestrator                            │
-├───────────────────────────────────────────────────────────────────────────┤
-│                                                                           │
-│  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────────────┐         │
-│  │ 1.PARSE │───▶│2.WHISPER│───▶│3.CLEAN  │───▶│ OUTLINE         │         │
-│  │ filename│    │transcr. │    │ + gloss │    │ EXTRACTION      │         │
-│  └─────────┘    └─────────┘    └─────────┘    │ (для >10K chars)│         │
-│                                               └────────┬────────┘         │
-│                                                        │                  │
-│                                          ┌─────────────▼────────┐         │
-│                                          │    TranscriptOutline │         │
-│                                          │      (shared)        │         │
-│                                          └─────────┬────────────┘         │
-│                                                    │                      │
-│                                               ┌────▼────┐                 │
-│                                               │4.CHUNK  │                 │
-│                                               │semantic │                 │
-│                                               └────┬────┘                 │
-│                                                    │                      │
-│                                               ┌────▼────┐                 │
-│                                               │5.LONGRD │                 │
-│                                               │map-red. │                 │
-│                                               └────┬────┘                 │
-│                                                    │                      │
-│                                               ┌────▼────┐                 │
-│                                               │6.SUMMAR.│                 │
-│                                               │конспект │                 │
-│                                               └────┬────┘                 │
-│                                                    │                      │
-│                                               ┌────▼────┐                 │
-│                                               │ 7.SAVE  │                 │
-│                                               │  files  │                 │
-│                                               └─────────┘                 │
-│                                                                           │
-└───────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                       VIDEO PROCESSING PIPELINE (v0.23+)                      │
+│                                                                               │
+│            Координируется PipelineOrchestrator                                │
+├───────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────────────┐             │
+│  │ 1.PARSE │───▶│2.WHISPER│───▶│3.CLEAN  │───▶│ OUTLINE         │             │
+│  │ filename│    │transcr. │    │ + gloss │    │ EXTRACTION      │             │
+│  └─────────┘    └─────────┘    └─────────┘    │ (для >10K chars)│             │
+│                                               └────────┬────────┘             │
+│                                                        │                      │
+│                                          ┌─────────────▼────────┐             │
+│                                          │    TranscriptOutline │             │
+│                                          │      (shared)        │             │
+│                                          └─────────┬────────────┘             │
+│                                                    │                          │
+│                                               ┌────▼────┐                     │
+│                                               │4.CHUNK  │                     │
+│                                               │semantic │                     │
+│                                               └────┬────┘                     │
+│                                                    │                          │
+│            ┌───────────────────────────────────────┼───────────────────┐      │
+│            │                                       │                   │      │
+│            │ EDUCATIONAL                           │ LEADERSHIP        │      │
+│            │ (content_type)                        │ (content_type)    │      │
+│            │                                       │                   │      │
+│            │     ┌────▼────┐                  ┌────▼────┐              │      │
+│            │     │5.LONGRD │                  │5b.STORY │              │      │
+│            │     │map-red. │                  │8 blocks │              │      │
+│            │     └────┬────┘                  └────┬────┘              │      │
+│            │          │                            │                   │      │
+│            │     ┌────▼────┐                       │                   │      │
+│            │     │6.SUMMAR.│                       │                   │      │
+│            │     │конспект │                       │                   │      │
+│            │     └────┬────┘                       │                   │      │
+│            │          │                            │                   │      │
+│            └──────────┼────────────────────────────┼───────────────────┘      │
+│                       │                            │                          │
+│                       └────────────┬───────────────┘                          │
+│                                    │                                          │
+│                               ┌────▼────┐                                     │
+│                               │ 7.SAVE  │                                     │
+│                               │  files  │                                     │
+│                               └─────────┘                                     │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Этапы
@@ -54,8 +63,9 @@
 | 3 | Clean | [03-clean.md](03-clean.md) | Ollama + Glossary | `RawTranscript` | `CleanedTranscript` |
 | — | Outline | (часть pipeline) | Ollama | `CleanedTranscript` | `TranscriptOutline` |
 | 4 | Chunk | [04-chunk.md](04-chunk.md) | Ollama | `CleanedTranscript` + Outline | `TranscriptChunks` |
-| 5 | Longread | [05-longread.md](05-longread.md) | Ollama | Chunks + Outline | `Longread` |
-| 6 | Summarize | [06-summarize.md](06-summarize.md) | Ollama | Longread | `Summary` |
+| 5 | Longread | [05-longread.md](05-longread.md) | Ollama | Chunks + Outline | `Longread` (EDUCATIONAL) |
+| 5b | **Story** | [05b-story.md](05b-story.md) | Ollama | `CleanedTranscript` | `Story` (LEADERSHIP) |
+| 6 | Summarize | [06-summarize.md](06-summarize.md) | Ollama | Longread | `Summary` (EDUCATIONAL) |
 | 7 | Save | [07-save.md](07-save.md) | Python | All data | Files in archive |
 
 > **Outline Extraction:** Выполняется только для больших текстов (>10K символов). Для маленьких — longread и summary работают с полным текстом.

@@ -58,6 +58,7 @@ from app.services.stages.clean_stage import CleanStage
 from app.services.stages.chunk_stage import ChunkStage
 from app.services.stages.longread_stage import LongreadStage
 from app.services.stages.summarize_stage import SummarizeStage
+from app.services.stages.story_stage import StoryStage
 from app.services.stages.save_stage import SaveStage
 
 
@@ -76,6 +77,7 @@ __all__ = [
     "ChunkStage",
     "LongreadStage",
     "SummarizeStage",
+    "StoryStage",
     "SaveStage",
     # Factory function
     "create_default_stages",
@@ -112,18 +114,21 @@ def create_default_stages(
     registry.register(ChunkStage(ai_client, settings))
     registry.register(LongreadStage(ai_client, settings))
     registry.register(SummarizeStage(ai_client, settings))
+    registry.register(StoryStage(ai_client, settings))
     registry.register(SaveStage(settings))
 
     return registry
 
 
 # Default stage names for full pipeline
+# Note: story stage is conditional based on content_type
 DEFAULT_PIPELINE_STAGES = [
     "parse",
     "transcribe",
     "clean",
     "chunk",
-    "longread",
-    "summarize",
+    "longread",    # Skipped for LEADERSHIP
+    "summarize",   # Skipped for LEADERSHIP
+    "story",       # Skipped for EDUCATIONAL
     "save",
 ]

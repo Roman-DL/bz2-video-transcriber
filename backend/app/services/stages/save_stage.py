@@ -1,7 +1,8 @@
 """
 Save stage for persisting all processing results to archive.
 
-Saves transcripts, chunks, longread, summary, and audio to the archive directory.
+Saves transcripts, chunks, longread/story, summary, and audio to the archive directory.
+v0.23+: Supports conditional saving based on content_type.
 """
 
 from pathlib import Path
@@ -9,9 +10,11 @@ from pathlib import Path
 from app.config import Settings
 from app.models.schemas import (
     CleanedTranscript,
+    ContentType,
     Longread,
     ProcessingStatus,
     RawTranscript,
+    Story,
     Summary,
     TranscriptChunks,
     VideoMetadata,
@@ -28,8 +31,13 @@ class SaveStage(BaseStage):
         - transcribe: Tuple of (RawTranscript, audio_path)
         - clean: CleanedTranscript
         - chunk: Tuple of (TranscriptChunks, outline, text_parts)
+
+        For EDUCATIONAL content:
         - longread: Longread
         - summarize: Summary
+
+        For LEADERSHIP content:
+        - story: Story
 
     Output:
         List of created file names
@@ -40,7 +48,8 @@ class SaveStage(BaseStage):
     """
 
     name = "save"
-    depends_on = ["parse", "transcribe", "clean", "chunk", "longread", "summarize"]
+    # Dependencies include all possible sources - actual required deps checked in execute
+    depends_on = ["parse", "transcribe", "clean", "chunk"]
     status = ProcessingStatus.SAVING
 
     def __init__(self, settings: Settings):
@@ -64,25 +73,36 @@ class SaveStage(BaseStage):
         Raises:
             StageError: If saving fails
         """
-        self.validate_context(context)
-
         metadata: VideoMetadata = context.get_result("parse")
         raw_transcript, audio_path = context.get_result("transcribe")
         cleaned: CleanedTranscript = context.get_result("clean")
         chunks, _, _ = context.get_result("chunk")
-        longread: Longread = context.get_result("longread")
-        summary: Summary = context.get_result("summarize")
 
         try:
-            return await self.saver.save(
-                metadata,
-                raw_transcript,
-                cleaned,
-                chunks,
-                longread,
-                summary,
-                audio_path,
-            )
+            if metadata.content_type == ContentType.LEADERSHIP:
+                # Leadership: story instead of longread + summary
+                story: Story = context.get_result("story")
+                return await self.saver.save_leadership(
+                    metadata,
+                    raw_transcript,
+                    cleaned,
+                    chunks,
+                    story,
+                    audio_path,
+                )
+            else:
+                # Educational: longread + summary
+                longread: Longread = context.get_result("longread")
+                summary: Summary = context.get_result("summarize")
+                return await self.saver.save_educational(
+                    metadata,
+                    raw_transcript,
+                    cleaned,
+                    chunks,
+                    longread,
+                    summary,
+                    audio_path,
+                )
         except Exception as e:
             raise StageError(self.name, f"Save failed: {e}", e)
 

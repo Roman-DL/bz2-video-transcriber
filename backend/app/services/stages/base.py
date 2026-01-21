@@ -195,6 +195,20 @@ class BaseStage(ABC):
         """
         pass
 
+    def should_skip(self, context: StageContext) -> bool:
+        """Check if stage should be skipped based on context.
+
+        Override in subclasses for conditional stage execution.
+        Used for content_type branching (e.g., skip LongreadStage for leadership).
+
+        Args:
+            context: Context with results from previous stages
+
+        Returns:
+            True if stage should be skipped, False otherwise
+        """
+        return False
+
     def estimate_time(self, input_size: int) -> float:
         """Estimate execution time in seconds.
 

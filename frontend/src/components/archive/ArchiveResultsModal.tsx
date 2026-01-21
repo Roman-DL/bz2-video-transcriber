@@ -9,8 +9,9 @@ import {
   CleanedTranscriptView,
 } from '@/components/results/TranscriptView';
 import { ChunksView } from '@/components/results/ChunksView';
+import { StoryView } from '@/components/results/StoryView';
 import { useArchiveResults } from '@/api/hooks/useArchive';
-import { AlertCircle, FileText, Zap, Layers, Clock, BookOpen } from 'lucide-react';
+import { AlertCircle, FileText, Zap, Layers, Clock, BookOpen, Users } from 'lucide-react';
 import type { ArchiveItemWithPath } from '@/api/types';
 
 interface ArchiveResultsModalProps {
@@ -25,7 +26,8 @@ type BlockType =
   | 'cleanedTranscript'
   | 'chunks'
   | 'longread'
-  | 'summary';
+  | 'summary'
+  | 'story';
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -140,7 +142,7 @@ export function ArchiveResultsModal({
   item,
 }: ArchiveResultsModalProps) {
   const [expandedBlocks, setExpandedBlocks] = useState<Set<BlockType>>(
-    new Set(['summary', 'longread'])
+    new Set(['summary', 'longread', 'story'])
   );
 
   const { data, isLoading, isError } = useArchiveResults(
@@ -312,6 +314,24 @@ export function ArchiveResultsModal({
               <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
                 {formatObjectAsText(results.summary)}
               </div>
+            </CollapsibleCard>
+          )}
+
+          {/* Story (leadership content) */}
+          {results.story && (
+            <CollapsibleCard
+              title="Лидерская история"
+              icon={Users}
+              stats={
+                <>
+                  <span>{results.story.total_blocks} блоков</span>
+                  <span>{results.story.speed}</span>
+                </>
+              }
+              expanded={expandedBlocks.has('story')}
+              onToggle={() => toggleBlock('story')}
+            >
+              <StoryView story={results.story} />
             </CollapsibleCard>
           )}
         </div>

@@ -6,6 +6,7 @@ import {
   useStepChunk,
   useStepLongread,
   useStepSummarize,
+  useStepStory,
   useStepSave,
 } from '@/api/hooks/useSteps';
 import type {
@@ -15,9 +16,10 @@ import type {
   TranscriptChunks,
   Longread,
   Summary,
+  Story,
   PipelineStep,
 } from '@/api/types';
-import { PIPELINE_STEPS, STEP_LABELS } from '@/api/types';
+import { STEP_LABELS, EDUCATIONAL_STEPS, LEADERSHIP_STEPS } from '@/api/types';
 import { Button } from '@/components/common/Button';
 import { Spinner } from '@/components/common/Spinner';
 import { ProgressBar } from '@/components/common/ProgressBar';
@@ -30,6 +32,7 @@ import {
 import { ChunksView } from '@/components/results/ChunksView';
 import { LongreadView } from '@/components/results/LongreadView';
 import { SummaryView } from '@/components/results/SummaryView';
+import { StoryView } from '@/components/results/StoryView';
 import { useSettings } from '@/contexts/SettingsContext';
 import {
   CheckCircle,
@@ -59,10 +62,11 @@ interface StepData {
   chunks?: TranscriptChunks;
   longread?: Longread;
   summary?: Summary;
+  story?: Story;
   savedFiles?: string[];
 }
 
-type BlockType = 'metadata' | 'rawTranscript' | 'cleanedTranscript' | 'chunks' | 'longread' | 'summary';
+type BlockType = 'metadata' | 'rawTranscript' | 'cleanedTranscript' | 'chunks' | 'longread' | 'summary' | 'story';
 
 export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: StepByStepProps) {
   const [currentStep, setCurrentStep] = useState<PipelineStep>('parse');
@@ -94,7 +98,12 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
   const stepChunk = useStepChunk();
   const stepLongread = useStepLongread();
   const stepSummarize = useStepSummarize();
+  const stepStory = useStepStory();
   const stepSave = useStepSave();
+
+  // Determine pipeline steps based on content type
+  const contentType = data.metadata?.content_type || 'educational';
+  const pipelineSteps = contentType === 'leadership' ? LEADERSHIP_STEPS : EDUCATIONAL_STEPS;
 
   const isLoading =
     stepParse.isPending ||
@@ -103,6 +112,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
     stepChunk.isPending ||
     stepLongread.isPending ||
     stepSummarize.isPending ||
+    stepStory.isPending ||
     stepSave.isPending;
 
   // Get current progress from active hook
@@ -148,6 +158,13 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           estimatedSeconds: stepSummarize.estimatedSeconds,
           elapsedSeconds: stepSummarize.elapsedSeconds,
         };
+      case 'story':
+        return {
+          progress: stepStory.progress,
+          message: stepStory.message,
+          estimatedSeconds: stepStory.estimatedSeconds,
+          elapsedSeconds: stepStory.elapsedSeconds,
+        };
       default:
         return { progress: null, message: null, estimatedSeconds: null, elapsedSeconds: null };
     }
@@ -155,7 +172,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
 
   const { progress, message, estimatedSeconds, elapsedSeconds } = getCurrentProgress();
 
-  const currentStepIndex = PIPELINE_STEPS.indexOf(currentStep);
+  const currentStepIndex = pipelineSteps.indexOf(currentStep);
   const isComplete = data.savedFiles !== undefined;
 
   // Helper: check if we have required data for step
@@ -167,7 +184,13 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
       case 'chunk': return !!data.cleanedTranscript && !!data.metadata;
       case 'longread': return !!data.chunks && !!data.metadata;
       case 'summarize': return !!data.longread && !!data.metadata;
-      case 'save': return !!data.metadata && !!data.rawTranscript && !!data.cleanedTranscript && !!data.chunks && !!data.longread && !!data.summary;
+      case 'story': return !!data.cleanedTranscript && !!data.metadata;
+      case 'save':
+        // Different requirements based on content type
+        if (contentType === 'leadership') {
+          return !!data.metadata && !!data.rawTranscript && !!data.cleanedTranscript && !!data.chunks && !!data.story;
+        }
+        return !!data.metadata && !!data.rawTranscript && !!data.cleanedTranscript && !!data.chunks && !!data.longread && !!data.summary;
     }
   };
 
@@ -241,7 +264,8 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           });
           setData((prev) => ({ ...prev, chunks }));
           expandOnlyBlock('chunks');
-          setCurrentStep('longread');
+          // Next step depends on content type
+          setCurrentStep(contentType === 'leadership' ? 'story' : 'longread');
           break;
 
         case 'longread':
@@ -268,26 +292,45 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           setCurrentStep('save');
           break;
 
-        case 'save':
-          if (
-            !data.metadata ||
-            !data.rawTranscript ||
-            !data.cleanedTranscript ||
-            !data.chunks ||
-            !data.longread ||
-            !data.summary
-          )
-            return;
-          const savedFiles = await stepSave.mutateAsync({
-            metadata: data.metadata,
-            raw_transcript: data.rawTranscript,
+        case 'story':
+          if (!data.cleanedTranscript || !data.metadata) return;
+          const story = await stepStory.mutate({
             cleaned_transcript: data.cleanedTranscript,
-            chunks: data.chunks,
-            longread: data.longread,
-            summary: data.summary,
-            audio_path: data.audioPath,
+            metadata: data.metadata,
+            model: models.summarize,
           });
-          setData((prev) => ({ ...prev, savedFiles }));
+          setData((prev) => ({ ...prev, story }));
+          expandOnlyBlock('story');
+          setCurrentStep('save');
+          break;
+
+        case 'save':
+          // Different validation based on content type
+          if (contentType === 'leadership') {
+            if (!data.metadata || !data.rawTranscript || !data.cleanedTranscript || !data.chunks || !data.story) return;
+            const savedFilesLeadership = await stepSave.mutateAsync({
+              metadata: data.metadata,
+              raw_transcript: data.rawTranscript,
+              cleaned_transcript: data.cleanedTranscript,
+              chunks: data.chunks,
+              // @ts-expect-error - backend handles story instead of longread+summary
+              story: data.story,
+              audio_path: data.audioPath,
+            });
+            setData((prev) => ({ ...prev, savedFiles: savedFilesLeadership }));
+          } else {
+            if (!data.metadata || !data.rawTranscript || !data.cleanedTranscript || !data.chunks || !data.longread || !data.summary) return;
+            const savedFiles = await stepSave.mutateAsync({
+              metadata: data.metadata,
+              raw_transcript: data.rawTranscript,
+              cleaned_transcript: data.cleanedTranscript,
+              chunks: data.chunks,
+              longread: data.longread,
+              summary: data.summary,
+              audio_path: data.audioPath,
+            });
+            setData((prev) => ({ ...prev, savedFiles }));
+          }
           // Collapse all blocks after save
           setExpandedBlocks(new Set());
           break;
@@ -298,7 +341,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
   };
 
   const getStepStatus = (step: PipelineStep): 'pending' | 'completed' | 'current' => {
-    const stepIndex = PIPELINE_STEPS.indexOf(step);
+    const stepIndex = pipelineSteps.indexOf(step);
     if (stepIndex < currentStepIndex) return 'completed';
     if (stepIndex === currentStepIndex) return 'current';
     return 'pending';
@@ -310,13 +353,14 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
       <div>
         <h3 className="text-sm font-medium text-gray-500 mb-1">
           {autoRun ? 'Автоматическая обработка' : 'Пошаговая обработка'}
+          {contentType === 'leadership' && ' (Лидерская история)'}
         </h3>
         <p className="text-sm text-gray-900 truncate">{filename}</p>
       </div>
 
       {/* Steps indicator */}
       <div className="flex items-center gap-2">
-        {PIPELINE_STEPS.map((step, index) => {
+        {pipelineSteps.map((step, index) => {
           const status = getStepStatus(step);
           return (
             <div key={step} className="flex items-center gap-2">
@@ -331,7 +375,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
               ) : (
                 <Circle className="w-5 h-5 text-gray-300" />
               )}
-              {index < PIPELINE_STEPS.length - 1 && (
+              {index < pipelineSteps.length - 1 && (
                 <div
                   className={`w-8 h-0.5 ${
                     status === 'completed' ? 'bg-green-600' : 'bg-gray-200'
@@ -517,6 +561,23 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
               <SummaryView summary={data.summary} />
             </CollapsibleCard>
           )}
+
+          {data.story && (
+            <CollapsibleCard
+              title="Лидерская история"
+              icon={FileText}
+              stats={
+                <>
+                  <span>{data.story.total_blocks} блоков</span>
+                  <span>{data.story.speed}</span>
+                </>
+              }
+              expanded={expandedBlocks.has('story')}
+              onToggle={() => toggleBlock('story')}
+            >
+              <StoryView story={data.story} />
+            </CollapsibleCard>
+          )}
         </div>
       )}
 
@@ -563,6 +624,8 @@ function getStepDescription(step: PipelineStep): string {
       return 'Генерация лонгрида из чанков (структурированный документ)';
     case 'summarize':
       return 'Генерация конспекта из лонгрида (краткое изложение)';
+    case 'story':
+      return 'Генерация лидерской истории (8 блоков)';
     case 'save':
       return 'Сохранение результатов в архив';
   }

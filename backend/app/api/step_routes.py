@@ -29,7 +29,9 @@ from app.models.schemas import (
     StepLongreadRequest,
     StepParseRequest,
     StepSaveRequest,
+    StepStoryRequest,
     StepSummarizeRequest,
+    Story,
     Summary,
     TranscriptChunks,
     VideoMetadata,
@@ -448,16 +450,53 @@ async def step_summarize(request: StepSummarizeRequest) -> StreamingResponse:
     )
 
 
+@router.post("/story")
+async def step_story(request: StepStoryRequest) -> StreamingResponse:
+    """
+    Generate leadership story (8 blocks) from cleaned transcript with SSE progress.
+
+    For content_type=LEADERSHIP only. Creates a structured story with 8 fixed blocks.
+
+    Args:
+        request: StepStoryRequest with cleaned_transcript and metadata
+
+    Returns:
+        StreamingResponse with SSE events -> Story
+    """
+    settings = get_settings()
+    orchestrator = get_orchestrator()
+    estimator = ProgressEstimator(settings)
+
+    # Calculate input size for time estimation
+    input_chars = len(request.cleaned_transcript.text)
+    estimate = estimator.estimate_summarize(input_chars)
+    estimated_seconds = estimate.estimated_seconds * 1.2  # Story is slightly longer
+
+    return create_sse_response(
+        run_with_sse_progress(
+            stage=ProcessingStatus.STORY,
+            estimator=estimator,
+            estimated_seconds=estimated_seconds,
+            message=f"Generating story from {input_chars:,} chars",
+            operation=lambda: orchestrator.story(
+                cleaned_transcript=request.cleaned_transcript,
+                metadata=request.metadata,
+                model=request.model,
+            ),
+        )
+    )
+
+
 @router.post("/save", response_model=list[str])
 async def step_save(request: StepSaveRequest) -> list[str]:
     """
     Save all processing results to archive.
 
-    Updated in v0.13: Now takes Longread + Summary instead of VideoSummary.
+    Updated in v0.23: Supports both educational (longread+summary) and leadership (story).
     Fast operation - no SSE needed.
 
     Args:
-        request: StepSaveRequest with all pipeline outputs (including longread, summary)
+        request: StepSaveRequest with all pipeline outputs
 
     Returns:
         List of created file names
@@ -478,6 +517,7 @@ async def step_save(request: StepSaveRequest) -> list[str]:
             chunks=request.chunks,
             longread=request.longread,
             summary=request.summary,
+            story=request.story,
             audio_path=audio_path,
         )
         return files

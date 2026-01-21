@@ -13,8 +13,10 @@ from pathlib import Path
 from app.config import Settings, get_settings, load_events_config
 from app.models.schemas import (
     CleanedTranscript,
+    ContentType,
     Longread,
     RawTranscript,
+    Story,
     Summary,
     TranscriptChunks,
     VideoMetadata,
@@ -73,6 +75,25 @@ class FileSaver:
     ) -> list[str]:
         """
         Save all processing results to archive.
+        Backwards compatibility wrapper - calls save_educational.
+        """
+        return await self.save_educational(
+            metadata, raw_transcript, cleaned_transcript,
+            chunks, longread, summary, audio_path
+        )
+
+    async def save_educational(
+        self,
+        metadata: VideoMetadata,
+        raw_transcript: RawTranscript,
+        cleaned_transcript: CleanedTranscript,
+        chunks: TranscriptChunks,
+        longread: Longread,
+        summary: Summary,
+        audio_path: Path | None = None,
+    ) -> list[str]:
+        """
+        Save educational content results to archive.
 
         Creates archive directory structure and saves:
         - pipeline_results.json (full results for archive viewing)
@@ -98,7 +119,7 @@ class FileSaver:
         """
         archive_path = metadata.archive_path
 
-        logger.info(f"Saving results to: {archive_path}")
+        logger.info(f"Saving educational results to: {archive_path}")
 
         # Create archive directory
         archive_path.mkdir(parents=True, exist_ok=True)
@@ -106,7 +127,7 @@ class FileSaver:
         created_files = []
 
         # Save pipeline results JSON (for archive viewing)
-        pipeline_path = self._save_pipeline_results(
+        pipeline_path = self._save_pipeline_results_educational(
             archive_path, metadata, raw_transcript, cleaned_transcript,
             chunks, longread, summary
         )
@@ -147,7 +168,86 @@ class FileSaver:
 
         return created_files
 
-    def _save_pipeline_results(
+    async def save_leadership(
+        self,
+        metadata: VideoMetadata,
+        raw_transcript: RawTranscript,
+        cleaned_transcript: CleanedTranscript,
+        chunks: TranscriptChunks,
+        story: Story,
+        audio_path: Path | None = None,
+    ) -> list[str]:
+        """
+        Save leadership content results to archive.
+
+        Creates archive directory structure and saves:
+        - pipeline_results.json (full results for archive viewing)
+        - transcript_chunks.json
+        - story.md (8-block leadership story)
+        - transcript_raw.txt
+        - transcript_cleaned.txt
+        - audio.mp3 (if provided)
+        - moves video file
+
+        Args:
+            metadata: Video metadata
+            raw_transcript: Raw transcript from Whisper
+            cleaned_transcript: Cleaned transcript after LLM processing
+            chunks: Semantic chunks
+            story: Leadership story (8 blocks)
+            audio_path: Path to extracted audio file (optional)
+
+        Returns:
+            List of created file names
+        """
+        archive_path = metadata.archive_path
+
+        logger.info(f"Saving leadership results to: {archive_path}")
+
+        # Create archive directory
+        archive_path.mkdir(parents=True, exist_ok=True)
+
+        created_files = []
+
+        # Save pipeline results JSON (for archive viewing)
+        pipeline_path = self._save_pipeline_results_leadership(
+            archive_path, metadata, raw_transcript, cleaned_transcript,
+            chunks, story
+        )
+        created_files.append(pipeline_path.name)
+
+        # Save transcript chunks JSON
+        chunks_path = self._save_chunks_json(
+            archive_path, metadata, raw_transcript, chunks
+        )
+        created_files.append(chunks_path.name)
+
+        # Save story markdown
+        story_path = self._save_story_md(archive_path, story)
+        created_files.append(story_path.name)
+
+        # Save raw transcript
+        raw_path = self._save_raw_transcript(archive_path, raw_transcript)
+        created_files.append(raw_path.name)
+
+        # Save cleaned transcript
+        cleaned_path = self._save_cleaned_transcript(archive_path, cleaned_transcript)
+        created_files.append(cleaned_path.name)
+
+        # Copy audio file if provided
+        if audio_path and audio_path.exists():
+            audio_dest = self._copy_audio(audio_path, archive_path)
+            created_files.append(audio_dest.name)
+
+        # Move video file
+        video_path = self._move_video(metadata.source_path, archive_path)
+        created_files.append(video_path.name)
+
+        logger.info(f"Save complete: {len(created_files)} files created")
+
+        return created_files
+
+    def _save_pipeline_results_educational(
         self,
         archive_path: Path,
         metadata: VideoMetadata,
@@ -158,7 +258,7 @@ class FileSaver:
         summary: Summary,
     ) -> Path:
         """
-        Save complete pipeline results for archive viewing.
+        Save complete pipeline results for educational content.
 
         This JSON contains all data needed to display processing results
         without re-parsing other files.
@@ -241,6 +341,7 @@ class FileSaver:
             "longread": {
                 "video_id": longread.video_id,
                 "title": longread.title,
+                "speaker_status": longread.speaker_status,
                 "introduction": longread.introduction,
                 "sections": [
                     {
@@ -255,8 +356,7 @@ class FileSaver:
                 "conclusion": longread.conclusion,
                 "total_sections": longread.total_sections,
                 "total_word_count": longread.total_word_count,
-                "section": longread.section,
-                "subsection": longread.subsection,
+                "topic_area": longread.topic_area,
                 "tags": longread.tags,
                 "access_level": longread.access_level,
                 "model_name": longread.model_name,
@@ -269,8 +369,7 @@ class FileSaver:
                 "quotes": summary.quotes,
                 "insight": summary.insight,
                 "actions": summary.actions,
-                "section": summary.section,
-                "subsection": summary.subsection,
+                "topic_area": summary.topic_area,
                 "tags": summary.tags,
                 "access_level": summary.access_level,
                 "model_name": summary.model_name,
@@ -283,6 +382,134 @@ class FileSaver:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
         logger.debug(f"Saved pipeline results: {file_path}")
+
+        return file_path
+
+    def _save_pipeline_results_leadership(
+        self,
+        archive_path: Path,
+        metadata: VideoMetadata,
+        raw_transcript: RawTranscript,
+        cleaned_transcript: CleanedTranscript,
+        chunks: TranscriptChunks,
+        story: Story,
+    ) -> Path:
+        """
+        Save complete pipeline results for leadership content.
+
+        Args:
+            archive_path: Archive directory path
+            metadata: Video metadata
+            raw_transcript: Raw transcript from Whisper
+            cleaned_transcript: Cleaned transcript after LLM processing
+            chunks: Semantic chunks
+            story: Leadership story (8 blocks)
+
+        Returns:
+            Path to created file
+        """
+        # Choose display format based on settings
+        display_text = (
+            raw_transcript.text_with_timestamps
+            if self.settings.whisper_include_timestamps
+            else raw_transcript.full_text
+        )
+
+        data = {
+            "version": PIPELINE_VERSION,
+            "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "content_type": "leadership",
+            "metadata": {
+                "date": metadata.date.isoformat(),
+                "event_type": metadata.event_type,
+                "stream": metadata.stream,
+                "title": metadata.title,
+                "speaker": metadata.speaker,
+                "original_filename": metadata.original_filename,
+                "video_id": metadata.video_id,
+                "source_path": str(metadata.source_path),
+                "archive_path": str(metadata.archive_path),
+                "stream_full": metadata.stream_full,
+                "duration_seconds": metadata.duration_seconds,
+                "content_type": metadata.content_type.value,
+                "event_category": metadata.event_category.value,
+                "event_name": metadata.event_name,
+            },
+            "raw_transcript": {
+                "segments": [
+                    {
+                        "start": seg.start,
+                        "end": seg.end,
+                        "text": seg.text,
+                    }
+                    for seg in raw_transcript.segments
+                ],
+                "language": raw_transcript.language,
+                "duration_seconds": raw_transcript.duration_seconds,
+                "whisper_model": raw_transcript.whisper_model,
+                "full_text": raw_transcript.full_text,
+                "text_with_timestamps": raw_transcript.text_with_timestamps,
+            },
+            "display_text": display_text,
+            "cleaned_transcript": {
+                "text": cleaned_transcript.text,
+                "original_length": cleaned_transcript.original_length,
+                "cleaned_length": cleaned_transcript.cleaned_length,
+                "model_name": cleaned_transcript.model_name,
+            },
+            "chunks": {
+                "chunks": [
+                    {
+                        "id": chunk.id,
+                        "index": chunk.index,
+                        "topic": chunk.topic,
+                        "text": chunk.text,
+                        "word_count": chunk.word_count,
+                    }
+                    for chunk in chunks.chunks
+                ],
+                "model_name": chunks.model_name,
+                "total_chunks": chunks.total_chunks,
+                "avg_chunk_size": chunks.avg_chunk_size,
+            },
+            "story": {
+                "video_id": story.video_id,
+                "names": story.names,
+                "current_status": story.current_status,
+                "event_name": story.event_name,
+                "main_insight": story.main_insight,
+                "blocks": [
+                    {
+                        "block_number": b.block_number,
+                        "block_name": b.block_name,
+                        "content": b.content,
+                    }
+                    for b in story.blocks
+                ],
+                "time_in_business": story.time_in_business,
+                "time_to_status": story.time_to_status,
+                "speed": story.speed,
+                "business_format": story.business_format,
+                "is_family": story.is_family,
+                "had_stagnation": story.had_stagnation,
+                "stagnation_years": story.stagnation_years,
+                "had_restart": story.had_restart,
+                "key_pattern": story.key_pattern,
+                "mentor": story.mentor,
+                "tags": story.tags,
+                "access_level": story.access_level,
+                "related": story.related,
+                "total_blocks": story.total_blocks,
+                "model_name": story.model_name,
+            },
+        }
+
+        file_path = archive_path / "pipeline_results.json"
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+        logger.debug(f"Saved pipeline results (leadership): {file_path}")
 
         return file_path
 
@@ -407,6 +634,34 @@ class FileSaver:
             f.write(content)
 
         logger.debug(f"Saved summary MD: {file_path}")
+
+        return file_path
+
+    def _save_story_md(
+        self,
+        archive_path: Path,
+        story: Story,
+    ) -> Path:
+        """
+        Save leadership story as Markdown.
+
+        Uses the Story.to_markdown() method for consistent formatting.
+
+        Args:
+            archive_path: Archive directory path
+            story: Leadership story (8 blocks)
+
+        Returns:
+            Path to created file
+        """
+        file_path = archive_path / "story.md"
+
+        content = story.to_markdown()
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        logger.debug(f"Saved story MD: {file_path}")
 
         return file_path
 

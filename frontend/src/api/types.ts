@@ -3,6 +3,12 @@
  * Source: backend/app/models/schemas.py
  */
 
+// Content type determines pipeline flow
+export type ContentType = 'educational' | 'leadership';
+
+// Event category determines archive structure
+export type EventCategory = 'regular' | 'offsite';
+
 export interface VideoMetadata {
   date: string;
   event_type: string;
@@ -15,6 +21,9 @@ export interface VideoMetadata {
   archive_path: string;
   stream_full: string;
   duration_seconds: number | null;
+  content_type: ContentType;
+  event_category: EventCategory;
+  event_name: string;
 }
 
 export interface TranscriptSegment {
@@ -93,6 +102,7 @@ export interface Longread {
   video_id: string;
   title: string;
   speaker: string;
+  speaker_status: string;
   date: string;
   event_type: string;
   stream: string;
@@ -101,10 +111,9 @@ export interface Longread {
   conclusion: string;
   total_sections: number;
   total_word_count: number;
-  section: string;
-  subsection: string;
+  topic_area: string[];
   tags: string[];
-  access_level: number;
+  access_level: string; // consultant | leader | personal
   model_name: string;
 }
 
@@ -119,10 +128,41 @@ export interface Summary {
   quotes: string[];
   insight: string;
   actions: string[];
-  section: string;
-  subsection: string;
+  topic_area: string[];
   tags: string[];
-  access_level: number;
+  access_level: string; // consultant | leader | personal
+  model_name: string;
+}
+
+// Leadership story (8 blocks structure)
+export interface StoryBlock {
+  block_number: number;
+  block_name: string;
+  content: string;
+}
+
+export interface Story {
+  video_id: string;
+  names: string;
+  current_status: string;
+  event_name: string;
+  date: string;
+  main_insight: string;
+  blocks: StoryBlock[];
+  time_in_business: string;
+  time_to_status: string;
+  speed: string; // быстро | средне | долго | очень долго
+  business_format: string; // клуб | онлайн | гибрид
+  is_family: boolean;
+  had_stagnation: boolean;
+  stagnation_years: number;
+  had_restart: boolean;
+  key_pattern: string;
+  mentor: string;
+  tags: string[];
+  access_level: string; // consultant | leader | personal
+  related: string[];
+  total_blocks: number;
   model_name: string;
 }
 
@@ -178,17 +218,27 @@ export interface StepSummarizeRequest {
   model?: string;
 }
 
+export interface StepStoryRequest {
+  cleaned_transcript: CleanedTranscript;
+  metadata: VideoMetadata;
+  model?: string;
+}
+
 export interface StepSaveRequest {
   metadata: VideoMetadata;
   raw_transcript: RawTranscript;
   cleaned_transcript: CleanedTranscript;
   chunks: TranscriptChunks;
-  longread: Longread;
-  summary: Summary;
+  // Educational content (optional)
+  longread?: Longread;
+  summary?: Summary;
+  // Leadership content (optional)
+  story?: Story;
   audio_path?: string;
 }
 
 // Pipeline step names for UI
+// Note: longread/summarize for educational, story for leadership
 export const PIPELINE_STEPS = [
   'parse',
   'transcribe',
@@ -196,6 +246,7 @@ export const PIPELINE_STEPS = [
   'chunk',
   'longread',
   'summarize',
+  'story',
   'save',
 ] as const;
 
@@ -208,8 +259,19 @@ export const STEP_LABELS: Record<PipelineStep, string> = {
   chunk: 'Разбиение на чанки',
   longread: 'Генерация лонгрида',
   summarize: 'Генерация конспекта',
+  story: 'Генерация истории',
   save: 'Сохранение в архив',
 };
+
+// Steps for educational content
+export const EDUCATIONAL_STEPS: PipelineStep[] = [
+  'parse', 'transcribe', 'clean', 'chunk', 'longread', 'summarize', 'save',
+];
+
+// Steps for leadership content
+export const LEADERSHIP_STEPS: PipelineStep[] = [
+  'parse', 'transcribe', 'clean', 'chunk', 'story', 'save',
+];
 
 // Archive types
 export interface ArchiveItem {
@@ -235,6 +297,7 @@ export interface ArchiveItemWithPath extends ArchiveItem {
 export interface PipelineResults {
   version: string;
   created_at: string;
+  content_type?: ContentType; // leadership results have this at top level
   metadata: VideoMetadata;
   raw_transcript?: RawTranscript;
   display_text?: string;
@@ -243,8 +306,10 @@ export interface PipelineResults {
   // Old pipeline: VideoSummary, New pipeline: Summary
   // We treat both as generic object and render as text
   summary?: Record<string, unknown>;
-  // New pipeline only
+  // Educational content
   longread?: Record<string, unknown>;
+  // Leadership content
+  story?: Story;
 }
 
 // Response from /archive/results endpoint

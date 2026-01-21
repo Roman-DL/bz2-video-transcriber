@@ -19,6 +19,7 @@ class ProcessingStatus(str, Enum):
     CHUNKING = "chunking"
     LONGREAD = "longread"
     SUMMARIZING = "summarizing"
+    STORY = "story"
     SAVING = "saving"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -314,6 +315,143 @@ class LongreadSection(BaseModel):
     word_count: int = Field(..., ge=0, description="Word count in content")
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Story Models for Leadership Content (v0.23+)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class StoryBlock(BaseModel):
+    """Single block of a leadership story (1 of 8 blocks).
+
+    Each block represents a thematic section of a leader's story.
+    """
+
+    block_number: int = Field(..., ge=1, le=8, description="Block number (1-8)")
+    block_name: str = Field(..., description="Block name (e.g., 'Кто они', 'Путь в бизнес')")
+    content: str = Field(..., description="Block content in markdown")
+
+
+class Story(BaseModel):
+    """Leadership story document (8 blocks structure).
+
+    A story is a structured analysis of a leader's journey for those
+    who didn't attend the event. It follows a fixed 8-block template.
+
+    Blocks:
+    1. Кто они — basic info about the leader(s)
+    2. Путь в бизнес — how they started
+    3. Рост и вызовы — growth timeline, stagnations
+    4. Ключ к статусу — breakthrough to current status
+    5. Как устроен бизнес — business structure
+    6. Принципы и советы — philosophy, rules
+    7. Итоги — summary, key metrics
+    8. Заметки аналитика — analyst notes for RAG
+    """
+
+    video_id: str = Field(..., description="Video identifier")
+    names: str = Field(..., description="Leader name(s)")
+    current_status: str = Field(default="", description="Current Herbalife status")
+    event_name: str = Field(default="", description="Event name")
+    date: dt.date = Field(..., description="Event date")
+
+    main_insight: str = Field(default="", description="Main insight (1 sentence)")
+    blocks: list[StoryBlock] = Field(default_factory=list, description="8 content blocks")
+
+    # Journey metadata
+    time_in_business: str = Field(default="", description="Years in business")
+    time_to_status: str = Field(default="", description="Years to current status")
+    speed: str = Field(
+        default="средне",
+        description="Speed to status: быстро (<3) | средне (3-7) | долго (7-15) | очень долго (15+)",
+    )
+
+    # Business format
+    business_format: str = Field(
+        default="гибрид", description="Business format: клуб | онлайн | гибрид"
+    )
+
+    # Story characteristics
+    is_family: bool = Field(default=False, description="Family business")
+    had_stagnation: bool = Field(default=False, description="Had stagnation period")
+    stagnation_years: int = Field(default=0, description="Years of stagnation")
+    had_restart: bool = Field(default=False, description="Had to restart")
+    key_pattern: str = Field(default="", description="Key pattern identifier")
+    mentor: str = Field(default="", description="Mentor name")
+
+    # Classification
+    tags: list[str] = Field(default_factory=list, description="Tags for search")
+    access_level: str = Field(
+        default="consultant", description="Access level: consultant | leader | personal"
+    )
+    related: list[str] = Field(default_factory=list, description="Related stories")
+
+    model_name: str = Field(default="", description="LLM model used")
+
+    @computed_field
+    @property
+    def total_blocks(self) -> int:
+        """Total number of filled blocks."""
+        return len(self.blocks)
+
+    def to_markdown(self) -> str:
+        """Convert story to markdown format with YAML frontmatter.
+
+        Returns:
+            Full markdown document.
+        """
+        lines = [
+            "---",
+            'type: "leadership-story"',
+            f'names: "{self.names}"',
+            f'current_status: "{self.current_status}"',
+            f'event: "{self.event_name}"',
+            f'date: "{self.date.isoformat()}"',
+            "",
+            f'time_in_business: "{self.time_in_business}"',
+            f'time_to_status: "{self.time_to_status}"',
+            f"speed: {self.speed}",
+            "",
+            f"business_format: {self.business_format}",
+            "",
+            f"is_family: {str(self.is_family).lower()}",
+            f"had_stagnation: {str(self.had_stagnation).lower()}",
+            f"stagnation_years: {self.stagnation_years}",
+            f"had_restart: {str(self.had_restart).lower()}",
+            f'key_pattern: "{self.key_pattern}"',
+            f'mentor: "{self.mentor}"',
+            "",
+            f"access_level: {self.access_level}",
+            "tags:",
+        ]
+        for tag in self.tags:
+            lines.append(f'  - "{tag}"')
+        lines.append("related:")
+        for rel in self.related:
+            lines.append(f'  - "{rel}"')
+        lines.append("---")
+        lines.append("")
+        lines.append(f"# История {self.current_status}: {self.names}")
+        lines.append("")
+
+        if self.main_insight:
+            lines.append("> [!abstract] Главный инсайт")
+            lines.append("> ")
+            lines.append(f"> {self.main_insight}")
+            lines.append("")
+            lines.append("---")
+            lines.append("")
+
+        for block in self.blocks:
+            lines.append(f"## {block.block_number}️⃣ {block.block_name}")
+            lines.append("")
+            lines.append(block.content)
+            lines.append("")
+            lines.append("---")
+            lines.append("")
+
+        return "\n".join(lines)
+
+
 class Longread(BaseModel):
     """Full longread document generated from transcript chunks.
 
@@ -324,6 +462,7 @@ class Longread(BaseModel):
     video_id: str = Field(..., description="Video identifier")
     title: str = Field(..., description="Video title")
     speaker: str = Field(..., description="Speaker name")
+    speaker_status: str = Field(default="", description="Speaker status (v0.23+)")
     date: dt.date = Field(..., description="Video date")
     event_type: str = Field(..., description="Event type code")
     stream: str = Field(default="", description="Stream code")
@@ -334,11 +473,20 @@ class Longread(BaseModel):
     )
     conclusion: str = Field(default="", description="Conclusion text")
 
-    # Classification (same as VideoSummary)
-    section: str = Field(default="Обучение", description="BZ 2.0 section")
-    subsection: str = Field(default="", description="BZ 2.0 subsection")
+    # Classification (v0.23+: topic_area replaces section)
+    topic_area: list[str] = Field(
+        default_factory=list,
+        description="Topic areas: продажи | спонсорство | лидерство | мотивация | инструменты | маркетинг-план",
+    )
     tags: list[str] = Field(default_factory=list, description="Tags for search")
-    access_level: int = Field(ge=1, le=4, default=1, description="Access level 1-4")
+    access_level: str = Field(
+        default="consultant", description="Access level: consultant | leader | personal"
+    )
+
+    # Publication metadata (v0.23+)
+    publish_gdocs: bool = Field(default=False, description="Publish to Google Docs")
+    gdocs_url: str = Field(default="", description="Google Docs URL if published")
+    related: list[str] = Field(default_factory=list, description="Related longreads")
 
     model_name: str = Field(default="", description="LLM model used")
 
@@ -365,20 +513,29 @@ class Longread(BaseModel):
         """
         lines = [
             "---",
-            f'type: "лонгрид"',
+            'type: "лонгрид"',
             f'video_id: "{self.video_id}"',
             f'title: "{self.title}"',
             f'speaker: "{self.speaker}"',
+            f'speaker_status: "{self.speaker_status}"',
+            f'event: "{self.event_type}"',
             f'date: "{self.date.isoformat()}"',
-            f'event_type: "{self.event_type}"',
-            f'stream: "{self.stream}"',
-            f'section: "{self.section}"',
-            f'subsection: "{self.subsection}"',
-            f"access_level: {self.access_level}",
-            "tags:",
+            "",
+            "topic_area:",
         ]
+        for area in self.topic_area:
+            lines.append(f"  - {area}")
+        lines.append("")
+        lines.append(f"access_level: {self.access_level}")
+        lines.append(f"publish_gdocs: {str(self.publish_gdocs).lower()}")
+        lines.append(f'gdocs_url: "{self.gdocs_url}"')
+        lines.append("")
+        lines.append("tags:")
         for tag in self.tags:
             lines.append(f'  - "{tag}"')
+        lines.append("related:")
+        for rel in self.related:
+            lines.append(f'  - "{rel}"')
         lines.append("---")
         lines.append("")
         lines.append(f"# {self.title}")
@@ -432,11 +589,16 @@ class Summary(BaseModel):
         default_factory=list, description="Concrete actions to take"
     )
 
-    # Classification (copied from Longread)
-    section: str = Field(default="Обучение", description="BZ 2.0 section")
-    subsection: str = Field(default="", description="BZ 2.0 subsection")
+    # Classification (v0.23+: topic_area replaces section)
+    topic_area: list[str] = Field(
+        default_factory=list,
+        description="Topic areas: продажи | спонсорство | лидерство | мотивация | инструменты | маркетинг-план",
+    )
     tags: list[str] = Field(default_factory=list, description="Tags for search")
-    access_level: int = Field(ge=1, le=4, default=1, description="Access level 1-4")
+    access_level: str = Field(
+        default="consultant", description="Access level: consultant | leader | personal"
+    )
+    related: list[str] = Field(default_factory=list, description="Related documents")
 
     model_name: str = Field(default="", description="LLM model used")
 
@@ -448,19 +610,26 @@ class Summary(BaseModel):
         """
         lines = [
             "---",
-            f'type: "конспект"',
+            'type: "конспект"',
             f'video_id: "{self.video_id}"',
             f'title: "{self.title}"',
             f'speaker: "{self.speaker}"',
             f'date: "{self.date.isoformat()}"',
-            f'section: "{self.section}"',
-            f'subsection: "{self.subsection}"',
-            f"access_level: {self.access_level}",
-            "tags:",
+            "",
+            "topic_area:",
         ]
+        for area in self.topic_area:
+            lines.append(f"  - {area}")
+        lines.append("")
+        lines.append(f"access_level: {self.access_level}")
+        lines.append("")
+        lines.append("tags:")
         for tag in self.tags:
             lines.append(f'  - "{tag}"')
         lines.append("related:")
+        for rel in self.related:
+            lines.append(f'  - "{rel}"')
+        # Link to longread
         lines.append(f'  - "[[{self.speaker} — {self.title}]]"')
         lines.append("---")
         lines.append("")
@@ -640,18 +809,44 @@ class StepSummarizeRequest(BaseModel):
     )
 
 
+class StepStoryRequest(BaseModel):
+    """Request for /step/story endpoint.
+
+    For content_type=LEADERSHIP only. Generates 8-block story.
+    """
+
+    cleaned_transcript: CleanedTranscript
+    metadata: VideoMetadata
+    model: str | None = Field(
+        default=None,
+        description="Override LLM model for story generation",
+    )
+
+
 class StepSaveRequest(BaseModel):
     """Request for /step/save endpoint.
 
-    Updated in v0.13: Now takes Longread + Summary instead of VideoSummary.
+    Updated in v0.23: Supports both educational (longread+summary) and leadership (story).
     """
 
     metadata: VideoMetadata
     raw_transcript: RawTranscript
     cleaned_transcript: CleanedTranscript
     chunks: TranscriptChunks
-    longread: Longread
-    summary: Summary
+    # Educational content
+    longread: Longread | None = Field(
+        default=None,
+        description="Longread document (for educational content)",
+    )
+    summary: Summary | None = Field(
+        default=None,
+        description="Summary document (for educational content)",
+    )
+    # Leadership content
+    story: Story | None = Field(
+        default=None,
+        description="Story document (for leadership content)",
+    )
     audio_path: str | None = Field(
         default=None,
         description="Path to extracted audio file (from transcribe step)",

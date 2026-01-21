@@ -8,6 +8,7 @@ import logging
 
 from app.config import Settings
 from app.models.schemas import (
+    ContentType,
     Longread,
     ProcessingStatus,
     Summary,
@@ -53,6 +54,23 @@ class SummarizeStage(BaseStage):
         self.ai_client = ai_client
         self.settings = settings
         self.generator = SummaryGenerator(ai_client, settings)
+
+    def should_skip(self, context: StageContext) -> bool:
+        """Check if stage should be skipped.
+
+        Returns True for leadership content (use StoryStage instead).
+
+        Args:
+            context: Stage context with parse results
+
+        Returns:
+            True if content_type is LEADERSHIP
+        """
+        metadata: VideoMetadata | None = context.get_result("parse")
+        if metadata is None:
+            return False
+
+        return metadata.content_type == ContentType.LEADERSHIP
 
     async def execute(self, context: StageContext) -> Summary:
         """Generate summary from longread.
@@ -102,8 +120,7 @@ class SummarizeStage(BaseStage):
             quotes=[],
             insight="Конспект недоступен из-за технической ошибки",
             actions=[],
-            section=longread.section,
-            subsection=longread.subsection,
+            topic_area=longread.topic_area,
             tags=longread.tags,
             access_level=longread.access_level,
             model_name=self.settings.summarizer_model,

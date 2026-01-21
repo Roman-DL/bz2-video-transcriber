@@ -8,12 +8,14 @@ import type {
   TranscriptChunks,
   Longread,
   Summary,
+  Story,
   TranscribeResult,
   StepParseRequest,
   StepCleanRequest,
   StepChunkRequest,
   StepLongreadRequest,
   StepSummarizeRequest,
+  StepStoryRequest,
   StepSaveRequest,
 } from '../types';
 
@@ -197,6 +199,15 @@ export const useStepLongread = createStepWithProgress<Longread, StepLongreadRequ
  */
 export const useStepSummarize = createStepWithProgress<Summary, StepSummarizeRequest>(
   '/api/step/summarize'
+);
+
+/**
+ * Generate leadership story (8 blocks) from cleaned transcript.
+ * Uses SSE with progress.
+ * For content_type=LEADERSHIP only.
+ */
+export const useStepStory = createStepWithProgress<Story, StepStoryRequest>(
+  '/api/step/story'
 );
 
 /**

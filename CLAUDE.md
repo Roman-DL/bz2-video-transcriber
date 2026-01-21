@@ -34,7 +34,8 @@ http://100.64.0.1:8801      # Backend API
 ## Архитектура
 
 ```
-Video → Parse → Whisper → Clean → Chunk → Longread → Summary → Save
+Video → Parse → Whisper → Clean → Chunk ─┬─→ Longread → Summary → Save (educational)
+                                         └─→ Story → Save (leadership)
 ```
 
 ## Документация
@@ -138,7 +139,7 @@ result = await cache.load(archive_path, CacheStageName.CLEANING, version=1)
 
 Подробнее: [docs/adr/005-result-caching.md](docs/adr/005-result-caching.md)
 
-## Content Types и Archive Structure (v0.21+)
+## Content Types и Archive Structure (v0.21+, updated v0.23)
 
 Система поддерживает два типа контента с разными pipeline и выходными документами:
 
@@ -178,7 +179,7 @@ metadata.event_name     # Для offsite: "Форум TABTeam (Москва)"
 metadata.is_offsite     # computed: True если event_category == OFFSITE
 ```
 
-## Stage Abstraction (v0.14+)
+## Stage Abstraction (v0.14+, updated v0.23)
 
 Система абстракций для этапов обработки. Позволяет добавлять новые шаги без изменения оркестратора.
 
@@ -189,9 +190,21 @@ backend/app/services/stages/
 ├── transcribe_stage.py  # Транскрипция через Whisper
 ├── clean_stage.py       # Очистка транскрипта
 ├── chunk_stage.py       # Семантическое чанкирование
-├── longread_stage.py    # Генерация лонгрида
-├── summarize_stage.py   # Генерация конспекта
+├── longread_stage.py    # Генерация лонгрида (EDUCATIONAL)
+├── summarize_stage.py   # Генерация конспекта (EDUCATIONAL)
+├── story_stage.py       # Генерация истории 8 блоков (LEADERSHIP, v0.23+)
 └── save_stage.py        # Сохранение результатов
+```
+
+**Условное выполнение (v0.23+):**
+```python
+class StoryStage(BaseStage):
+    name = "story"
+    depends_on = ["clean", "parse"]
+
+    def should_skip(self, context: StageContext) -> bool:
+        metadata = context.get_result("parse")
+        return metadata.content_type != ContentType.LEADERSHIP
 ```
 
 **Добавление нового этапа:**

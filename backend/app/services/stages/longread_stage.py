@@ -8,6 +8,7 @@ import logging
 
 from app.config import Settings
 from app.models.schemas import (
+    ContentType,
     Longread,
     LongreadSection,
     ProcessingStatus,
@@ -55,6 +56,23 @@ class LongreadStage(BaseStage):
         self.ai_client = ai_client
         self.settings = settings
         self.generator = LongreadGenerator(ai_client, settings)
+
+    def should_skip(self, context: StageContext) -> bool:
+        """Check if stage should be skipped.
+
+        Returns True for leadership content (use StoryStage instead).
+
+        Args:
+            context: Stage context with parse results
+
+        Returns:
+            True if content_type is LEADERSHIP
+        """
+        metadata: VideoMetadata | None = context.get_result("parse")
+        if metadata is None:
+            return False
+
+        return metadata.content_type == ContentType.LEADERSHIP
 
     async def execute(self, context: StageContext) -> Longread:
         """Generate longread from transcript chunks.
@@ -116,10 +134,9 @@ class LongreadStage(BaseStage):
             introduction="",
             sections=sections,
             conclusion="",
-            section="Обучение",
-            subsection="",
+            topic_area=["мотивация"],
             tags=[metadata.event_type, metadata.stream] if metadata.stream else [metadata.event_type],
-            access_level=1,
+            access_level="consultant",
             model_name=self.settings.summarizer_model,
         )
 

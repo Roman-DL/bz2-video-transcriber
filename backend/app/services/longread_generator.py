@@ -3,6 +3,8 @@ Longread generator service.
 
 Creates longread documents from transcript chunks using Map-Reduce approach.
 Each section is generated in parallel with outline as shared context.
+
+v0.23+: New prompt architecture (system + instructions + template).
 """
 
 import asyncio
@@ -25,8 +27,14 @@ from app.services.ai_clients import BaseAIClient, OllamaClient
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
 
-# Valid section values for classification
-VALID_SECTIONS = ["Обучение", "Продукты", "Бизнес", "Мотивация"]
+# Valid topic_area values for classification
+VALID_TOPIC_AREAS = [
+    "продажи", "спонсорство", "лидерство",
+    "мотивация", "инструменты", "маркетинг-план"
+]
+
+# Valid access_level values
+VALID_ACCESS_LEVELS = ["consultant", "leader", "personal"]
 
 # Russian month names for date formatting
 RUSSIAN_MONTHS = [
@@ -50,6 +58,8 @@ class LongreadGenerator:
     Each section receives the full outline as context, making it aware of
     the overall structure while processing only its assigned chunks.
 
+    v0.23+: Uses new prompt architecture with system + instructions + template.
+
     Example:
         async with OllamaClient.from_settings(settings) as client:
             generator = LongreadGenerator(client, settings)
@@ -67,11 +77,16 @@ class LongreadGenerator:
         """
         self.ai_client = ai_client
         self.settings = settings
-        self.section_prompt = load_prompt(
-            "longread_section", settings.summarizer_model, settings
+
+        # Load new prompt architecture
+        self.system_prompt = load_prompt(
+            "longread_system", settings.summarizer_model, settings
         )
-        self.combine_prompt = load_prompt(
-            "longread_combine", settings.summarizer_model, settings
+        self.instructions = load_prompt(
+            "longread_instructions", settings.summarizer_model, settings
+        )
+        self.template = load_prompt(
+            "longread_template", settings.summarizer_model, settings
         )
 
         # Get model-specific config
@@ -126,20 +141,32 @@ class LongreadGenerator:
 
         elapsed = time.time() - start_time
 
+        # Validate and normalize classification
+        topic_area = classification.get("topic_area", [])
+        if isinstance(topic_area, str):
+            topic_area = [topic_area]
+        topic_area = [t for t in topic_area if t in VALID_TOPIC_AREAS]
+        if not topic_area:
+            topic_area = ["мотивация"]  # Default
+
+        access_level = classification.get("access_level", "consultant")
+        if access_level not in VALID_ACCESS_LEVELS:
+            access_level = "consultant"
+
         longread = Longread(
             video_id=metadata.video_id,
             title=metadata.title,
             speaker=metadata.speaker,
+            speaker_status=getattr(metadata, 'speaker_status', ''),
             date=metadata.date,
             event_type=metadata.event_type,
             stream=metadata.stream,
             introduction=intro,
             sections=sections,
             conclusion=conclusion,
-            section=classification.get("section", "Обучение"),
-            subsection=classification.get("subsection", ""),
+            topic_area=topic_area,
             tags=classification.get("tags", []),
-            access_level=classification.get("access_level", 1),
+            access_level=access_level,
             model_name=self.settings.summarizer_model,
         )
 
@@ -265,14 +292,10 @@ class LongreadGenerator:
         # Format chunks for prompt
         chunks_text = self._format_chunks(chunks)
 
-        # Build prompt
-        prompt = self.section_prompt
-        prompt = prompt.replace("{speaker}", metadata.speaker)
-        prompt = prompt.replace("{title}", metadata.title)
-        prompt = prompt.replace("{section_index}", str(section_idx))
-        prompt = prompt.replace("{total_sections}", str(total_sections))
-        prompt = prompt.replace("{outline}", outline_context)
-        prompt = prompt.replace("{chunks}", chunks_text)
+        # Build prompt with new architecture
+        prompt = self._build_section_prompt(
+            section_idx, total_sections, chunks_text, metadata, outline_context
+        )
 
         # Call LLM
         response = await self.ai_client.generate(
@@ -291,6 +314,64 @@ class LongreadGenerator:
             source_chunks=source_indices,
             word_count=section_data.get("word_count", 0),
         )
+
+    def _build_section_prompt(
+        self,
+        section_idx: int,
+        total_sections: int,
+        chunks_text: str,
+        metadata: VideoMetadata,
+        outline_context: str,
+    ) -> str:
+        """
+        Build section generation prompt with system + instructions + template.
+
+        Args:
+            section_idx: Section number
+            total_sections: Total sections count
+            chunks_text: Formatted chunks content
+            metadata: Video metadata
+            outline_context: Outline for context
+
+        Returns:
+            Combined prompt string
+        """
+        prompt_parts = [
+            self.system_prompt,
+            "",
+            "---",
+            "",
+            self.instructions,
+            "",
+            "---",
+            "",
+            "## Задание",
+            "",
+            f"Создай раздел {section_idx} из {total_sections} для лонгрида.",
+            "",
+            f"**Спикер:** {metadata.speaker}",
+            f"**Тема:** {metadata.title}",
+            "",
+            "### Контекст (outline)",
+            "",
+            outline_context,
+            "",
+            "### Чанки для обработки",
+            "",
+            chunks_text,
+            "",
+            "### Формат ответа",
+            "",
+            "Верни JSON:",
+            '```json',
+            '{',
+            '  "title": "Название раздела по содержанию",',
+            '  "content": "Текст раздела от первого лица...",',
+            '  "word_count": 150',
+            '}',
+            '```',
+        ]
+        return "\n".join(prompt_parts)
 
     def _format_chunks(self, chunks: list[dict]) -> str:
         """
@@ -333,13 +414,8 @@ class LongreadGenerator:
         # Format date
         date_formatted = f"{metadata.date.day} {RUSSIAN_MONTHS[metadata.date.month]} {metadata.date.year}"
 
-        # Build prompt
-        prompt = self.combine_prompt
-        prompt = prompt.replace("{speaker}", metadata.speaker)
-        prompt = prompt.replace("{title}", metadata.title)
-        prompt = prompt.replace("{date}", date_formatted)
-        prompt = prompt.replace("{event_type}", metadata.event_type)
-        prompt = prompt.replace("{sections_summary}", sections_summary)
+        # Build prompt with new architecture
+        prompt = self._build_frame_prompt(sections_summary, metadata, date_formatted)
 
         # Call LLM
         response = await self.ai_client.generate(
@@ -349,17 +425,10 @@ class LongreadGenerator:
         # Parse response
         data = self._parse_json_response(response)
 
-        # Validate section
-        section = data.get("section", "")
-        if section not in VALID_SECTIONS:
-            logger.warning(f"Invalid section '{section}', using default 'Обучение'")
-            section = "Обучение"
-
         classification = {
-            "section": section,
-            "subsection": data.get("subsection", ""),
+            "topic_area": data.get("topic_area", ["мотивация"]),
             "tags": data.get("tags", []),
-            "access_level": data.get("access_level", 1),
+            "access_level": data.get("access_level", "consultant"),
         }
 
         return (
@@ -367,6 +436,51 @@ class LongreadGenerator:
             data.get("conclusion", ""),
             classification,
         )
+
+    def _build_frame_prompt(
+        self,
+        sections_summary: str,
+        metadata: VideoMetadata,
+        date_formatted: str,
+    ) -> str:
+        """
+        Build frame generation prompt (intro + conclusion).
+
+        Args:
+            sections_summary: Summary of all sections
+            metadata: Video metadata
+            date_formatted: Formatted date string
+
+        Returns:
+            Combined prompt string
+        """
+        prompt_parts = [
+            self.system_prompt,
+            "",
+            "---",
+            "",
+            self.instructions,
+            "",
+            "---",
+            "",
+            "## Задание",
+            "",
+            "Создай вступление, заключение и классификацию для лонгрида.",
+            "",
+            f"**Спикер:** {metadata.speaker}",
+            f"**Тема:** {metadata.title}",
+            f"**Дата:** {date_formatted}",
+            f"**Событие:** {metadata.event_type}",
+            "",
+            "### Разделы лонгрида",
+            "",
+            sections_summary,
+            "",
+            "### Формат ответа",
+            "",
+            self.template,
+        ]
+        return "\n".join(prompt_parts)
 
     def _build_sections_summary(self, sections: list[LongreadSection]) -> str:
         """
@@ -382,7 +496,7 @@ class LongreadGenerator:
         for section in sections:
             lines.append(f"### {section.index}. {section.title}")
             lines.append("")
-            # Take first 200 chars of content as preview
+            # Take first 300 chars of content as preview
             preview = section.content[:300].rsplit(" ", 1)[0] + "..."
             lines.append(preview)
             lines.append("")
@@ -424,14 +538,15 @@ if __name__ == "__main__":
 
         settings = get_settings()
 
-        # Test 1: Load prompts
-        print("Test 1: Load prompts...", end=" ")
+        # Test 1: Load prompts (new architecture)
+        print("Test 1: Load prompts (new architecture)...", end=" ")
         try:
-            section_prompt = load_prompt("longread_section", settings.summarizer_model, settings)
-            combine_prompt = load_prompt("longread_combine", settings.summarizer_model, settings)
-            assert "{speaker}" in section_prompt
-            assert "{chunks}" in section_prompt
-            assert "{sections_summary}" in combine_prompt
+            system_prompt = load_prompt("longread_system", settings.summarizer_model, settings)
+            instructions = load_prompt("longread_instructions", settings.summarizer_model, settings)
+            template = load_prompt("longread_template", settings.summarizer_model, settings)
+            assert "Longread Generator" in system_prompt
+            assert "Принципы" in instructions
+            assert "JSON" in template
             print("OK")
         except Exception as e:
             print(f"FAILED: {e}")
@@ -534,12 +649,14 @@ if __name__ == "__main__":
 
                     assert longread.total_sections > 0
                     assert longread.total_word_count > 0
-                    assert longread.section in VALID_SECTIONS
+                    assert isinstance(longread.topic_area, list)
+                    assert longread.access_level in VALID_ACCESS_LEVELS
 
                     print("OK")
                     print(f"  Sections: {longread.total_sections}")
                     print(f"  Words: {longread.total_word_count}")
-                    print(f"  Classification: {longread.section}/{longread.subsection}")
+                    print(f"  Topic areas: {longread.topic_area}")
+                    print(f"  Access level: {longread.access_level}")
 
                 except Exception as e:
                     print(f"FAILED: {e}")

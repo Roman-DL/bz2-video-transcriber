@@ -15,10 +15,12 @@ from app.config import Settings, get_settings
 from app.services.progress_estimator import ProgressEstimator
 from app.models.schemas import (
     CleanedTranscript,
+    ContentType,
     Longread,
     ProcessingResult,
     ProcessingStatus,
     RawTranscript,
+    Story,
     Summary,
     TextPart,
     TranscriptChunks,
@@ -31,6 +33,7 @@ from app.services.chunker import DEFAULT_LARGE_TEXT_THRESHOLD, SemanticChunker
 from app.services.cleaner import TranscriptCleaner
 from app.services.longread_generator import LongreadGenerator
 from app.services.outline_extractor import OutlineExtractor
+from app.services.story_generator import StoryGenerator
 from app.services.summary_generator import SummaryGenerator
 from app.services.text_splitter import TextSplitter
 from app.services.parser import FilenameParseError, parse_filename
@@ -212,6 +215,7 @@ class PipelineOrchestrator:
             chunker = SemanticChunker(ai_client, self.settings)
             longread_gen = LongreadGenerator(ai_client, self.settings)
             summary_gen = SummaryGenerator(ai_client, self.settings)
+            story_gen = StoryGenerator(ai_client, self.settings)
             saver = FileSaver(self.settings)
 
             # Stage 2: Transcribe (extracts audio first, then sends to Whisper)
@@ -224,29 +228,51 @@ class PipelineOrchestrator:
                 cleaner, raw_transcript, metadata, progress_callback
             )
 
-            # Stage 4-6: Chunk -> Longread -> Summary (sequential with shared outline)
-            chunks, longread, summary = await self._do_chunk_longread_summarize(
-                chunker,
-                longread_gen,
-                summary_gen,
-                cleaned_transcript,
-                metadata,
-                progress_callback,
-                ai_client,
-            )
-
-            # Stage 7: Save (includes audio.mp3, longread.md, summary.md)
-            files_created = await self._do_save(
-                saver,
-                metadata,
-                raw_transcript,
-                cleaned_transcript,
-                chunks,
-                longread,
-                summary,
-                audio_path,
-                progress_callback,
-            )
+            # Stage 4-6: Content-type specific pipeline
+            if metadata.content_type == ContentType.LEADERSHIP:
+                # Leadership: Chunk -> Story (no longread/summary)
+                chunks, story = await self._do_leadership_pipeline(
+                    chunker,
+                    story_gen,
+                    cleaned_transcript,
+                    metadata,
+                    progress_callback,
+                    ai_client,
+                )
+                # Stage 7: Save leadership content
+                files_created = await self._do_save_leadership(
+                    saver,
+                    metadata,
+                    raw_transcript,
+                    cleaned_transcript,
+                    chunks,
+                    story,
+                    audio_path,
+                    progress_callback,
+                )
+            else:
+                # Educational: Chunk -> Longread -> Summary
+                chunks, longread, summary = await self._do_educational_pipeline(
+                    chunker,
+                    longread_gen,
+                    summary_gen,
+                    cleaned_transcript,
+                    metadata,
+                    progress_callback,
+                    ai_client,
+                )
+                # Stage 7: Save educational content
+                files_created = await self._do_save_educational(
+                    saver,
+                    metadata,
+                    raw_transcript,
+                    cleaned_transcript,
+                    chunks,
+                    longread,
+                    summary,
+                    audio_path,
+                    progress_callback,
+                )
 
         processing_time = (datetime.now() - started_at).total_seconds()
 
@@ -403,6 +429,31 @@ class PipelineOrchestrator:
                 logger.warning(f"Summary generation failed: {e}, using fallback")
                 return self.fallback_factory.create_summary_from_longread(longread, metadata)
 
+    async def story(
+        self,
+        cleaned_transcript: CleanedTranscript,
+        metadata: VideoMetadata,
+        model: str | None = None,
+    ) -> Story:
+        """
+        Generate leadership story (8 blocks) from cleaned transcript.
+
+        For leadership content only (content_type=LEADERSHIP).
+
+        Args:
+            cleaned_transcript: Cleaned transcript
+            metadata: Video metadata
+            model: Optional model override for generation
+
+        Returns:
+            Story with 8 blocks
+        """
+        settings = self.config_resolver.with_model(model, "summarizer")
+        actual_model = model or settings.summarizer_model
+        async with self.processing_strategy.create_client(actual_model) as ai_client:
+            generator = StoryGenerator(ai_client, settings)
+            return await generator.generate(cleaned_transcript, metadata)
+
     async def summarize(
         self,
         cleaned_transcript: CleanedTranscript,
@@ -443,30 +494,44 @@ class PipelineOrchestrator:
         raw_transcript: RawTranscript,
         cleaned_transcript: CleanedTranscript,
         chunks: TranscriptChunks,
-        longread: Longread,
-        summary: Summary,
+        longread: Longread | None = None,
+        summary: Summary | None = None,
+        story: Story | None = None,
         audio_path: Path | None = None,
     ) -> list[str]:
         """
         Save all processing results to archive.
+
+        Supports both educational (longread+summary) and leadership (story) content.
 
         Args:
             metadata: Video metadata
             raw_transcript: Raw transcript
             cleaned_transcript: Cleaned transcript after LLM processing
             chunks: Semantic chunks
-            longread: Longread document
-            summary: Summary (конспект)
+            longread: Longread document (for educational content)
+            summary: Summary (for educational content)
+            story: Story document (for leadership content)
             audio_path: Path to extracted audio file (optional)
 
         Returns:
             List of created file names
         """
         saver = FileSaver(self.settings)
-        return await saver.save(
-            metadata, raw_transcript, cleaned_transcript, chunks,
-            longread, summary, audio_path
-        )
+
+        # Choose save method based on content type
+        if story is not None:
+            return await saver.save_leadership(
+                metadata, raw_transcript, cleaned_transcript, chunks,
+                story, audio_path
+            )
+        elif longread is not None and summary is not None:
+            return await saver.save_educational(
+                metadata, raw_transcript, cleaned_transcript, chunks,
+                longread, summary, audio_path
+            )
+        else:
+            raise ValueError("Either story or longread+summary must be provided")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Internal: Stage Execution with Progress
@@ -606,7 +671,7 @@ class PipelineOrchestrator:
 
         return text_parts, outline
 
-    async def _do_chunk_longread_summarize(
+    async def _do_educational_pipeline(
         self,
         chunker: SemanticChunker,
         longread_gen: LongreadGenerator,
@@ -617,10 +682,11 @@ class PipelineOrchestrator:
         ai_client: OllamaClient,
     ) -> tuple[TranscriptChunks, Longread, Summary]:
         """
-        Execute outline extraction, chunking, longread generation, and summarization.
+        Execute educational content pipeline.
 
         Pipeline: Outline -> Chunk -> Longread -> Summary
 
+        For content_type=EDUCATIONAL only.
         The outline is extracted once and used by both chunker and longread generator.
         """
         input_chars = len(cleaned_transcript.text)
@@ -713,7 +779,90 @@ class PipelineOrchestrator:
 
         return chunks, longread, summary
 
-    async def _do_save(
+    async def _do_leadership_pipeline(
+        self,
+        chunker: SemanticChunker,
+        story_gen: StoryGenerator,
+        cleaned_transcript: CleanedTranscript,
+        metadata: VideoMetadata,
+        callback: ProgressCallback | None,
+        ai_client: OllamaClient,
+    ) -> tuple[TranscriptChunks, Story]:
+        """
+        Execute leadership content pipeline.
+
+        Pipeline: Outline -> Chunk -> Story
+
+        For content_type=LEADERSHIP only.
+        Generates 8-block story instead of longread + summary.
+        """
+        input_chars = len(cleaned_transcript.text)
+
+        # Phase 1: Extract outline for large texts
+        text_parts, outline = await self._extract_outline(
+            cleaned_transcript, ai_client, callback
+        )
+
+        # Phase 2: Chunking (same as educational)
+        chunk_estimate = self.estimator.estimate_chunk(input_chars)
+        ticker = None
+        if callback:
+            ticker = await self.estimator.start_ticker(
+                stage=ProcessingStatus.CHUNKING,
+                estimated_seconds=chunk_estimate.estimated_seconds,
+                message="Chunking transcript",
+                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
+            )
+
+        try:
+            chunks = await chunker.chunk_with_outline(
+                cleaned_transcript, metadata, text_parts, outline
+            )
+        except Exception as e:
+            if ticker:
+                ticker.cancel()
+            logger.warning(f"Chunking failed: {e}, using fallback")
+            chunks = self.fallback_factory.create_chunks(cleaned_transcript, metadata)
+
+        if callback and ticker:
+            await self.estimator.stop_ticker(
+                ticker,
+                ProcessingStatus.CHUNKING,
+                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
+                f"Chunked: {chunks.total_chunks} chunks",
+            )
+
+        # Phase 3: Story generation (instead of longread + summary)
+        story_estimate = self.estimator.estimate_summarize(input_chars) * 1.5
+        if callback:
+            ticker = await self.estimator.start_ticker(
+                stage=ProcessingStatus.LONGREAD,  # Reuse LONGREAD status for story
+                estimated_seconds=story_estimate,
+                message="Generating leadership story",
+                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
+            )
+
+        try:
+            story = await story_gen.generate(cleaned_transcript, metadata)
+        except Exception as e:
+            if ticker:
+                ticker.cancel()
+            logger.error(f"Story generation failed: {e}")
+            raise PipelineError(
+                ProcessingStatus.LONGREAD, f"Story generation failed: {e}", e
+            )
+
+        if callback and ticker:
+            await self.estimator.stop_ticker(
+                ticker,
+                ProcessingStatus.LONGREAD,
+                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
+                f"Story: {story.total_blocks} blocks, speed={story.speed}",
+            )
+
+        return chunks, story
+
+    async def _do_save_educational(
         self,
         saver: FileSaver,
         metadata: VideoMetadata,
@@ -725,7 +874,7 @@ class PipelineOrchestrator:
         audio_path: Path | None,
         callback: ProgressCallback | None,
     ) -> list[str]:
-        """Execute save stage with progress ticker."""
+        """Execute save stage for educational content."""
         estimated = self.estimator.get_fixed_stage_time("save")
 
         # Start progress ticker
@@ -739,9 +888,54 @@ class PipelineOrchestrator:
             )
 
         try:
-            files = await saver.save(
+            files = await saver.save_educational(
                 metadata, raw_transcript, cleaned_transcript, chunks,
                 longread, summary, audio_path
+            )
+        except Exception as e:
+            if ticker:
+                ticker.cancel()
+            raise PipelineError(ProcessingStatus.SAVING, f"Save failed: {e}", e)
+
+        # Stop ticker and send 100%
+        if callback:
+            await self.estimator.stop_ticker(
+                ticker,
+                ProcessingStatus.SAVING,
+                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
+                f"Saved {len(files)} files",
+            )
+
+        return files
+
+    async def _do_save_leadership(
+        self,
+        saver: FileSaver,
+        metadata: VideoMetadata,
+        raw_transcript: RawTranscript,
+        cleaned_transcript: CleanedTranscript,
+        chunks: TranscriptChunks,
+        story: Story,
+        audio_path: Path | None,
+        callback: ProgressCallback | None,
+    ) -> list[str]:
+        """Execute save stage for leadership content."""
+        estimated = self.estimator.get_fixed_stage_time("save")
+
+        # Start progress ticker
+        ticker = None
+        if callback:
+            ticker = await self.estimator.start_ticker(
+                stage=ProcessingStatus.SAVING,
+                estimated_seconds=estimated,
+                message=f"Saving to: {metadata.archive_path}",
+                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
+            )
+
+        try:
+            files = await saver.save_leadership(
+                metadata, raw_transcript, cleaned_transcript, chunks,
+                story, audio_path
             )
         except Exception as e:
             if ticker:
