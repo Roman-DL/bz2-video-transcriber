@@ -6,19 +6,21 @@
 
 Определены в `backend/app/config.py`, передаются через `docker-compose.yml`.
 
-### AI сервисы — локальные (Ollama)
+### AI сервисы (v0.29+)
 
 | Переменная | По умолчанию | Описание |
 |------------|--------------|----------|
 | `OLLAMA_URL` | `http://192.168.1.152:11434` | URL Ollama API |
 | `WHISPER_URL` | `http://192.168.1.152:9000` | URL Whisper API |
-| `SUMMARIZER_MODEL` | `qwen2.5:14b` | Модель для суммаризации |
-| `CLEANER_MODEL` | `gemma2:9b` | Модель для очистки транскрипта |
-| `LONGREAD_MODEL` | `qwen2.5:14b` | Модель для генерации лонгрида |
+| `SUMMARIZER_MODEL` | `claude-sonnet-4-5` | Модель для суммаризации |
+| `CLEANER_MODEL` | `claude-sonnet-4-5` | Модель для очистки транскрипта |
+| `LONGREAD_MODEL` | `claude-sonnet-4-5` | Модель для генерации лонгрида |
 | `WHISPER_MODEL` | `large-v3-turbo` | Имя модели Whisper (для отображения в UI) |
 | `WHISPER_LANGUAGE` | `ru` | Язык транскрипции |
 | `WHISPER_INCLUDE_TIMESTAMPS` | `false` | Включать таймкоды `[HH:MM:SS]` в транскрипт |
 | `LLM_TIMEOUT` | `300` | Таймаут LLM запросов (секунды) |
+
+> **v0.29+:** По умолчанию все LLM операции используют Claude Sonnet. Требуется `ANTHROPIC_API_KEY`.
 
 ### AI сервисы — облачные (Claude API)
 

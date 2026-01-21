@@ -14,8 +14,8 @@ services:
       # AI services
       - OLLAMA_URL=http://192.168.1.152:11434
       - WHISPER_URL=http://192.168.1.152:9000
-      - SUMMARIZER_MODEL=qwen2.5:14b
-      - CLEANER_MODEL=gemma2:9b
+      - SUMMARIZER_MODEL=claude-sonnet-4-5
+      - CLEANER_MODEL=claude-sonnet-4-5
       # Paths
       - DATA_ROOT=/data
       - INBOX_DIR=/data/inbox

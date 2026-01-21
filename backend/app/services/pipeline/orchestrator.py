@@ -38,7 +38,6 @@ from app.utils import estimate_duration_from_size, get_media_duration
 from app.utils.h2_chunker import chunk_by_h2
 
 from .config_resolver import ConfigResolver
-from .fallback_factory import FallbackFactory
 from .processing_strategy import ProcessingStrategy
 from .progress_manager import ProgressCallback, ProgressManager
 
@@ -99,7 +98,6 @@ class PipelineOrchestrator:
         self.settings = settings or get_settings()
         self.estimator = ProgressEstimator(self.settings)
         self.progress_manager = ProgressManager()
-        self.fallback_factory = FallbackFactory(self.settings)
         self.config_resolver = ConfigResolver(self.settings)
         self.processing_strategy = ProcessingStrategy(self.settings)
 
@@ -350,14 +348,10 @@ class PipelineOrchestrator:
             Longread document with sections
         """
         settings = self.config_resolver.with_model(model, "longread")
-        actual_model = model or settings.summarizer_model
+        actual_model = model or settings.longread_model
         async with self.processing_strategy.create_client(actual_model) as ai_client:
             generator = LongreadGenerator(ai_client, settings)
-            try:
-                return await generator.generate(cleaned_transcript, metadata)
-            except Exception as e:
-                logger.warning(f"Longread generation failed: {e}, using fallback")
-                return self.fallback_factory.create_longread_from_cleaned(metadata, cleaned_transcript)
+            return await generator.generate(cleaned_transcript, metadata)
 
     async def summarize_from_cleaned(
         self,
@@ -383,11 +377,7 @@ class PipelineOrchestrator:
         actual_model = model or settings.summarizer_model
         async with self.processing_strategy.create_client(actual_model) as ai_client:
             generator = SummaryGenerator(ai_client, settings)
-            try:
-                return await generator.generate(cleaned_transcript, metadata)
-            except Exception as e:
-                logger.warning(f"Summary generation failed: {e}, using fallback")
-                return self.fallback_factory.create_summary_from_cleaned(cleaned_transcript, metadata)
+            return await generator.generate(cleaned_transcript, metadata)
 
     async def story(
         self,
@@ -612,8 +602,9 @@ class PipelineOrchestrator:
         except Exception as e:
             if ticker:
                 ticker.cancel()
-            logger.error(f"Longread generation failed: {e}")
-            longread = self.fallback_factory.create_longread_from_cleaned(metadata, cleaned_transcript)
+            raise PipelineError(
+                ProcessingStatus.LONGREAD, f"Longread generation failed: {e}", e
+            )
 
         if callback and ticker:
             await self.estimator.stop_ticker(
@@ -638,8 +629,9 @@ class PipelineOrchestrator:
         except Exception as e:
             if ticker:
                 ticker.cancel()
-            logger.error(f"Summary generation failed: {e}")
-            summary = self.fallback_factory.create_summary_from_cleaned(cleaned_transcript, metadata)
+            raise PipelineError(
+                ProcessingStatus.SUMMARIZING, f"Summary generation failed: {e}", e
+            )
 
         if callback and ticker:
             await self.estimator.stop_ticker(

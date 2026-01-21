@@ -493,7 +493,7 @@ class StepCleanRequest(BaseModel):
 Вынести промпты на сервер в папку с SMB-доступом:
 
 ```
-/mnt/main/work/bz2/prompts/           # SMB доступ с Mac
+/mnt/main/work/bz2/video/prompts/           # SMB доступ с Mac
 ├── cleaning/
 │   ├── default.md                    # текущий промпт
 │   ├── with_glossary.md              # глоссарий в контексте
@@ -528,7 +528,7 @@ class StepCleanRequest(BaseModel):
 ```yaml
 volumes:
   - /mnt/main/work/bz2/video:/data
-  - /mnt/main/work/bz2/prompts:/prompts  # новый volume
+  - /mnt/main/work/bz2/video/prompts:/prompts  # новый volume
 ```
 
 **Settings:**
@@ -713,7 +713,7 @@ def load_prompt(name: str, model: str = None, variant: str = None):
 
 > Цель: возможность менять промпты без деплоя
 
-20. **Создать внешнюю папку** `/mnt/main/work/bz2/prompts/` со структурой по этапам
+20. **Создать внешнюю папку** `/mnt/main/work/bz2/video/prompts/` со структурой по этапам
 21. **Обновить docker-compose.yml** — добавить volume `/prompts`
 22. **Обновить `load_prompt()`** — приоритет внешней папки, fallback на встроенные
 23. **Перенести промпты и glossary.yaml** во внешнюю папку

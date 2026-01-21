@@ -74,7 +74,7 @@ config/glossary.yaml              # Терминология
 docs/adr/                         # Architecture Decision Records
 ```
 
-## Pipeline Package (v0.15+)
+## Pipeline Package (v0.15+, updated v0.29)
 
 Декомпозированный pipeline с чёткими обязанностями:
 
@@ -83,11 +83,12 @@ backend/app/services/pipeline/
 ├── __init__.py              # Экспорт PipelineOrchestrator
 ├── orchestrator.py          # Координация этапов
 ├── progress_manager.py      # STAGE_WEIGHTS, расчёт прогресса
-├── fallback_factory.py      # Fallback при ошибках
 ├── config_resolver.py       # Override моделей для step-by-step
 ├── stage_cache.py           # Версионирование результатов (v0.18+)
 └── processing_strategy.py   # Выбор local/cloud провайдера (v0.19+)
 ```
+
+> **v0.29+:** Fallback механизмы удалены. При ошибках LLM выбрасывается `PipelineError`.
 
 Подробнее: [docs/adr/002-pipeline-decomposition.md](docs/adr/002-pipeline-decomposition.md)
 
@@ -283,21 +284,18 @@ async with ClaudeClient.from_settings(settings) as client:
     response = await client.generate("Analyze this document...")
 ```
 
-**ProcessingStrategy (v0.19+):**
+**ProcessingStrategy (v0.19+, updated v0.29):**
 ```python
 from app.services.pipeline import ProcessingStrategy
 
 strategy = ProcessingStrategy(settings)
 
-# Автоматический выбор по имени модели
+# Автоматический выбор провайдера по имени модели
 async with strategy.create_client("claude-sonnet-4-5") as client:
     response = await client.generate("...")
-
-# С fallback на локальную модель
-client, model = await strategy.get_client_with_fallback(
-    "claude-sonnet-4-5", "qwen2.5:14b"
-)
 ```
+
+> **v0.29+:** Метод `get_client_with_fallback()` удалён. Ошибки теперь пробрасываются вызывающему коду.
 
 **Context Profiles** (в `config/models.yaml`):
 - `small` — для gemma2:9b (< 16K tokens)
@@ -315,14 +313,16 @@ client, model = await strategy.get_client_with_fallback(
 | Ollama | http://100.64.0.1:11434 | см. ниже |
 | Whisper | http://100.64.0.1:9000 | large-v3 |
 
-### Конфигурация моделей
+### Конфигурация моделей (v0.29+)
 
-| Задача | Модель | Почему |
-|--------|--------|--------|
-| Очистка | gemma2:9b | Стабильный JSON, умеренное сжатие |
-| Лонгрид | qwen2.5:14b | Лучшее качество длинного текста |
-| Конспект | qwen2.5:14b | Структурированный вывод |
+| Задача | Модель по умолчанию | Почему |
+|--------|---------------------|--------|
+| Очистка | claude-sonnet-4-5 | Высокое качество очистки текста |
+| Лонгрид | claude-sonnet-4-5 | Отличное качество длинного текста |
+| Конспект | claude-sonnet-4-5 | Структурированный вывод, глубокий анализ |
 | Чанкирование | — | Детерминистический (H2 парсинг, v0.26+) |
+
+> **v0.29+:** По умолчанию все LLM операции используют Claude. Требуется `ANTHROPIC_API_KEY`.
 
 Подробнее: [docs/model-testing.md](docs/model-testing.md)
 

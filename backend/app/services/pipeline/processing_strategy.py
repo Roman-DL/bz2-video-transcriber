@@ -2,7 +2,8 @@
 Processing strategy for selecting between local and cloud AI providers.
 
 Determines which AI client to use based on model name and availability.
-Supports automatic fallback from cloud to local when needed.
+
+v0.29+: Removed fallback support - errors propagate to caller.
 """
 
 import logging
@@ -13,7 +14,6 @@ from typing import AsyncContextManager
 
 from app.config import Settings
 from app.services.ai_clients import (
-    AIClientConnectionError,
     BaseAIClient,
     ClaudeClient,
     OllamaClient,
@@ -50,11 +50,12 @@ class ProcessingStrategy:
     Strategy for selecting AI providers based on model and availability.
 
     Determines whether to use local (Ollama) or cloud (Claude) processing.
-    Supports automatic fallback from cloud to local when cloud is unavailable.
 
     Model naming convention:
     - Models starting with "claude" use Claude API
     - All other models use Ollama
+
+    v0.29+: Removed fallback support - errors propagate to caller.
 
     Example:
         strategy = ProcessingStrategy(settings)
@@ -63,14 +64,7 @@ class ProcessingStrategy:
         await strategy.check_availability()
 
         # Get client for specific model
-        async with strategy.get_client("claude-sonnet-4-5") as client:
-            response = await client.generate("...")
-
-        # Get client with fallback
-        async with strategy.get_client_with_fallback(
-            preferred="claude-sonnet",
-            fallback="qwen2.5:14b"
-        ) as client:
+        async with strategy.create_client("claude-sonnet-4-5") as client:
             response = await client.generate("...")
     """
 
@@ -195,67 +189,6 @@ class ProcessingStrategy:
             return ClaudeClient.from_settings(self.settings)
         else:
             return OllamaClient.from_settings(self.settings)
-
-    async def get_client_with_fallback(
-        self,
-        preferred_model: str,
-        fallback_model: str,
-    ) -> tuple[BaseAIClient, str]:
-        """
-        Get AI client with automatic fallback.
-
-        Tries preferred model first, falls back if unavailable.
-
-        Args:
-            preferred_model: First choice model (e.g., "claude-sonnet")
-            fallback_model: Fallback model (e.g., "qwen2.5:14b")
-
-        Returns:
-            Tuple of (client, actual_model) - client is NOT in context manager,
-            caller must call close() when done
-
-        Example:
-            client, model = await strategy.get_client_with_fallback(
-                "claude-sonnet", "qwen2.5:14b"
-            )
-            try:
-                response = await client.generate("...")
-            finally:
-                await client.close()
-        """
-        preferred_provider = self.get_provider_type(preferred_model)
-
-        # Try preferred provider
-        if preferred_provider == ProviderType.CLOUD:
-            try:
-                client = ClaudeClient.from_settings(self.settings)
-                await client.check_api_key()
-                logger.info(f"Using cloud provider with model: {preferred_model}")
-                return client, preferred_model
-            except (ValueError, AIClientConnectionError) as e:
-                logger.warning(f"Cloud provider unavailable ({e}), falling back to local")
-        else:
-            try:
-                client = OllamaClient.from_settings(self.settings)
-                status = await client.check_services()
-                if status.get("ollama"):
-                    logger.info(f"Using local provider with model: {preferred_model}")
-                    return client, preferred_model
-                await client.close()
-                logger.warning("Local Ollama unavailable, trying fallback")
-            except Exception as e:
-                logger.warning(f"Local provider unavailable ({e}), trying fallback")
-
-        # Use fallback
-        fallback_provider = self.get_provider_type(fallback_model)
-
-        if fallback_provider == ProviderType.CLOUD:
-            client = ClaudeClient.from_settings(self.settings)
-        else:
-            client = OllamaClient.from_settings(self.settings)
-
-        logger.info(f"Using fallback model: {fallback_model}")
-        return client, fallback_model
 
 
 if __name__ == "__main__":

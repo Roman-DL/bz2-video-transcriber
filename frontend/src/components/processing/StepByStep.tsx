@@ -289,7 +289,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           const longread = await stepLongread.mutate({
             cleaned_transcript: data.cleanedTranscript,
             metadata: data.metadata,
-            model: models.summarize,
+            model: models.longread,
           });
           setData((prev) => ({ ...prev, longread }));
           expandOnlyBlock('longread');

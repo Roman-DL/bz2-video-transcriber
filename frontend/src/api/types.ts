@@ -350,6 +350,7 @@ export interface AvailableModelsResponse {
 export interface DefaultModelsResponse {
   transcribe: string;
   clean: string;
+  longread: string;
   summarize: string;
 }
 
@@ -380,5 +381,6 @@ export interface ModelsConfigResponse {
 export interface ModelSettings {
   transcribe?: string;
   clean?: string;
+  longread?: string;
   summarize?: string;
 }

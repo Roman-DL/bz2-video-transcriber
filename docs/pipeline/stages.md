@@ -227,9 +227,9 @@ parse ─────┬──────────────────�
 
 ---
 
-## Обработка ошибок
+## Обработка ошибок (v0.29+)
 
-Стадии должны бросать `StageError` при ошибках:
+Стадии выбрасывают `StageError` при ошибках. Fallback механизмы удалены — ошибки пробрасываются вызывающему коду:
 
 ```python
 from app.services.stages import StageError
@@ -242,16 +242,9 @@ async def execute(self, context: StageContext) -> Result:
         raise StageError(self.name, f"Validation failed: {e}", e)
 ```
 
-Fallback-логика для graceful degradation:
+> **v0.29+:** Fallback логика удалена. При ошибках LLM генерации (longread, summary) выбрасывается `PipelineError`, пользователь видит явное сообщение об ошибке.
 
-```python
-async def execute(self, context: StageContext) -> Result:
-    try:
-        return await self.process(data)
-    except Exception as e:
-        logger.warning(f"Stage {self.name} failed: {e}, using fallback")
-        return self._create_fallback_result()
-```
+См. [ADR-007: Remove Fallback](../adr/007-remove-fallback-use-claude.md)
 
 ---
 

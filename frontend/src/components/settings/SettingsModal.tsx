@@ -7,17 +7,19 @@ import { useAvailableModels, useDefaultModels, useModelsConfig } from '@/api/hoo
 import type { ModelSettings, ModelConfig, WhisperModelConfig, ClaudeModelConfig, ProviderType } from '@/api/types';
 import { ChevronDown, RotateCcw } from 'lucide-react';
 
-type PipelineStage = 'transcribe' | 'clean' | 'summarize';
+type PipelineStage = 'transcribe' | 'clean' | 'longread' | 'summarize';
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
   transcribe: 'Транскрипция',
   clean: 'Очистка',
-  summarize: 'Суммаризация',
+  longread: 'Лонгрид',
+  summarize: 'Конспект',
 };
 
 const STAGE_CONFIG_KEYS: Record<PipelineStage, keyof ModelConfig | null> = {
   transcribe: null, // Whisper doesn't have config in models.yaml
   clean: 'cleaner',
+  longread: null, // Longread doesn't have stage-specific config
   summarize: null, // Summarizer doesn't have stage-specific config
 };
 
@@ -251,6 +253,16 @@ export function SettingsModal() {
             options={llmOptions}
             onChange={(v) => handleChange('clean', v)}
             config={getModelConfig(localModels.clean || defaultModels?.clean)}
+          />
+
+          {/* Longread */}
+          <ModelSelector
+            stage="longread"
+            value={localModels.longread}
+            defaultValue={defaultModels?.longread || ''}
+            options={llmOptions}
+            onChange={(v) => handleChange('longread', v)}
+            config={getModelConfig(localModels.longread || defaultModels?.longread)}
           />
 
           {/* Summarize */}

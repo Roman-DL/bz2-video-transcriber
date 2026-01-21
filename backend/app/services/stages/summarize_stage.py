@@ -4,6 +4,7 @@ Summarize stage for generating summaries from cleaned transcript.
 Creates a condensed summary (конспект) for navigation and quick reference.
 
 v0.24+: Generates from CleanedTranscript (not Longread).
+v0.29+: Removed fallback - raises StageError on failure.
 """
 
 import logging
@@ -80,6 +81,8 @@ class SummarizeStage(BaseStage):
     async def execute(self, context: StageContext) -> Summary:
         """Generate summary from cleaned transcript.
 
+        v0.29+: Removed fallback - raises StageError on failure.
+
         Args:
             context: Context with parse and clean results
 
@@ -87,54 +90,14 @@ class SummarizeStage(BaseStage):
             Summary document
 
         Raises:
-            StageError: If generation fails (with fallback)
+            StageError: If generation fails
         """
         self.validate_context(context)
 
         metadata: VideoMetadata = context.get_result("parse")
         cleaned_transcript: CleanedTranscript = context.get_result("clean")
 
-        try:
-            return await self.generator.generate(cleaned_transcript, metadata)
-        except Exception as e:
-            logger.warning(f"Summary generation failed: {e}, using fallback")
-            return self._create_fallback_summary(cleaned_transcript, metadata)
-
-    def _create_fallback_summary(
-        self,
-        cleaned_transcript: CleanedTranscript,
-        metadata: VideoMetadata,
-    ) -> Summary:
-        """Create fallback summary when generation fails.
-
-        Args:
-            cleaned_transcript: Cleaned transcript
-            metadata: Video metadata
-
-        Returns:
-            Minimal summary with basic information
-        """
-        # Take first 500 chars as essence
-        essence = cleaned_transcript.text[:500]
-        if len(cleaned_transcript.text) > 500:
-            essence = essence.rsplit(" ", 1)[0] + "..."
-
-        return Summary(
-            video_id=metadata.video_id,
-            title=metadata.title,
-            speaker=metadata.speaker,
-            date=metadata.date,
-            essence=essence,
-            key_concepts=[],
-            practical_tools=[],
-            quotes=[],
-            insight="Конспект недоступен из-за технической ошибки",
-            actions=[],
-            topic_area=["мотивация"],  # Default
-            tags=[metadata.event_type, metadata.stream] if metadata.stream else [metadata.event_type],
-            access_level="consultant",
-            model_name=self.settings.summarizer_model,
-        )
+        return await self.generator.generate(cleaned_transcript, metadata)
 
     def estimate_time(self, input_size: int) -> float:
         """Estimate summary generation time.

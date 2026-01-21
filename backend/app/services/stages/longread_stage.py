@@ -4,6 +4,7 @@ Longread stage for generating longread documents from cleaned transcript.
 Creates an edited version of the transcript for those who didn't watch the video.
 
 v0.25+: Now depends on clean instead of chunk (new pipeline order).
+v0.29+: Removed fallback - raises StageError on failure.
 """
 
 import logging
@@ -13,7 +14,6 @@ from app.models.schemas import (
     CleanedTranscript,
     ContentType,
     Longread,
-    LongreadSection,
     ProcessingStatus,
     VideoMetadata,
 )
@@ -81,6 +81,7 @@ class LongreadStage(BaseStage):
         """Generate longread from cleaned transcript.
 
         v0.25+: Now uses clean result instead of chunk.
+        v0.29+: Removed fallback - raises StageError on failure.
 
         Args:
             context: Context with parse and clean results
@@ -89,60 +90,14 @@ class LongreadStage(BaseStage):
             Longread document
 
         Raises:
-            StageError: If generation fails (with fallback)
+            StageError: If generation fails
         """
         self.validate_context(context)
 
         metadata: VideoMetadata = context.get_result("parse")
         cleaned: CleanedTranscript = context.get_result("clean")
 
-        try:
-            return await self.generator.generate(cleaned, metadata)
-        except Exception as e:
-            logger.warning(f"Longread generation failed: {e}, using fallback")
-            return self._create_fallback_longread(metadata, cleaned)
-
-    def _create_fallback_longread(
-        self,
-        metadata: VideoMetadata,
-        cleaned: CleanedTranscript,
-    ) -> Longread:
-        """Create fallback longread when generation fails.
-
-        Creates a single-section longread from cleaned text.
-
-        Args:
-            metadata: Video metadata
-            cleaned: Cleaned transcript
-
-        Returns:
-            Longread with single section
-        """
-        sections = [
-            LongreadSection(
-                index=1,
-                title=metadata.title,
-                content=cleaned.text,
-                source_chunks=[1],
-                word_count=cleaned.word_count,
-            )
-        ]
-
-        return Longread(
-            video_id=metadata.video_id,
-            title=metadata.title,
-            speaker=metadata.speaker,
-            date=metadata.date,
-            event_type=metadata.event_type,
-            stream=metadata.stream,
-            introduction="",
-            sections=sections,
-            conclusion="",
-            topic_area=["мотивация"],
-            tags=[metadata.event_type, metadata.stream] if metadata.stream else [metadata.event_type],
-            access_level="consultant",
-            model_name=self.settings.summarizer_model,
-        )
+        return await self.generator.generate(cleaned, metadata)
 
     def estimate_time(self, input_size: int) -> float:
         """Estimate longread generation time.
