@@ -335,6 +335,7 @@ async def step_clean(request: StepCleanRequest) -> StreamingResponse:
                 raw_transcript=request.raw_transcript,
                 metadata=request.metadata,
                 model=request.model,
+                prompt_overrides=request.prompt_overrides,
             ),
         )
     )
@@ -397,6 +398,7 @@ async def step_longread(request: StepLongreadRequest) -> StreamingResponse:
                 cleaned_transcript=request.cleaned_transcript,
                 metadata=request.metadata,
                 model=request.model,
+                prompt_overrides=request.prompt_overrides,
             ),
         )
     )
@@ -435,6 +437,7 @@ async def step_summarize(request: StepSummarizeRequest) -> StreamingResponse:
                 cleaned_transcript=request.cleaned_transcript,
                 metadata=request.metadata,
                 model=request.model,
+                prompt_overrides=request.prompt_overrides,
             ),
         )
     )
@@ -472,6 +475,7 @@ async def step_story(request: StepStoryRequest) -> StreamingResponse:
                 cleaned_transcript=request.cleaned_transcript,
                 metadata=request.metadata,
                 model=request.model,
+                prompt_overrides=request.prompt_overrides,
             ),
         )
     )

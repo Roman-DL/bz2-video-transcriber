@@ -16,6 +16,7 @@ from app.config import Settings, get_settings, load_prompt, get_model_config
 from app.utils.json_utils import extract_json
 from app.models.schemas import (
     CleanedTranscript,
+    PromptOverrides,
     Story,
     StoryBlock,
     VideoMetadata,
@@ -61,21 +62,28 @@ class StoryGenerator:
             markdown = story.to_markdown()
     """
 
-    def __init__(self, ai_client: BaseAIClient, settings: Settings):
+    def __init__(
+        self,
+        ai_client: BaseAIClient,
+        settings: Settings,
+        prompt_overrides: PromptOverrides | None = None,
+    ):
         """
         Initialize story generator.
 
         Args:
             ai_client: AI client for LLM calls
             settings: Application settings
+            prompt_overrides: Optional prompt file overrides (v0.32+)
         """
         self.ai_client = ai_client
         self.settings = settings
 
-        # Load prompt architecture (v0.31+: simplified signature)
-        self.system_prompt = load_prompt("story", "system", settings)
-        self.instructions = load_prompt("story", "instructions", settings)
-        self.template = load_prompt("story", "template", settings)
+        # Load prompt architecture with optional overrides
+        overrides = prompt_overrides or PromptOverrides()
+        self.system_prompt = load_prompt("story", overrides.system or "system", settings)
+        self.instructions = load_prompt("story", overrides.instructions or "instructions", settings)
+        self.template = load_prompt("story", overrides.template or "template", settings)
 
         logger.debug("StoryGenerator initialized")
 

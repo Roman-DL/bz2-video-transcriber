@@ -20,6 +20,7 @@ from app.models.schemas import (
     CleanedTranscript,
     Longread,
     LongreadSection,
+    PromptOverrides,
     TextPart,
     TranscriptOutline,
     VideoMetadata,
@@ -75,21 +76,28 @@ class LongreadGenerator:
             markdown = longread.to_markdown()
     """
 
-    def __init__(self, ai_client: BaseAIClient, settings: Settings):
+    def __init__(
+        self,
+        ai_client: BaseAIClient,
+        settings: Settings,
+        prompt_overrides: PromptOverrides | None = None,
+    ):
         """
         Initialize longread generator.
 
         Args:
             ai_client: AI client for LLM calls
             settings: Application settings
+            prompt_overrides: Optional prompt file overrides (v0.32+)
         """
         self.ai_client = ai_client
         self.settings = settings
 
-        # Load prompt architecture (v0.31+: simplified signature)
-        self.system_prompt = load_prompt("longread", "system", settings)
-        self.instructions = load_prompt("longread", "instructions", settings)
-        self.template = load_prompt("longread", "template", settings)
+        # Load prompt architecture with optional overrides
+        overrides = prompt_overrides or PromptOverrides()
+        self.system_prompt = load_prompt("longread", overrides.system or "system", settings)
+        self.instructions = load_prompt("longread", overrides.instructions or "instructions", settings)
+        self.template = load_prompt("longread", overrides.template or "template", settings)
 
         # Initialize text processing components
         self.text_splitter = TextSplitter()

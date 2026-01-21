@@ -769,6 +769,10 @@ class StepCleanRequest(BaseModel):
         default=None,
         description="Override LLM model for cleaning",
     )
+    prompt_overrides: "PromptOverrides | None" = Field(
+        default=None,
+        description="Override prompt files for cleaning (v0.32+)",
+    )
 
 
 class StepChunkRequest(BaseModel):
@@ -797,6 +801,10 @@ class StepLongreadRequest(BaseModel):
         default=None,
         description="Override LLM model for longread generation",
     )
+    prompt_overrides: "PromptOverrides | None" = Field(
+        default=None,
+        description="Override prompt files for longread (v0.32+)",
+    )
 
 
 class StepSummarizeRequest(BaseModel):
@@ -813,6 +821,10 @@ class StepSummarizeRequest(BaseModel):
         default=None,
         description="Override LLM model for summary generation",
     )
+    prompt_overrides: "PromptOverrides | None" = Field(
+        default=None,
+        description="Override prompt files for summary (v0.32+)",
+    )
 
 
 class StepStoryRequest(BaseModel):
@@ -826,6 +838,10 @@ class StepStoryRequest(BaseModel):
     model: str | None = Field(
         default=None,
         description="Override LLM model for story generation",
+    )
+    prompt_overrides: "PromptOverrides | None" = Field(
+        default=None,
+        description="Override prompt files for story (v0.32+)",
     )
 
 

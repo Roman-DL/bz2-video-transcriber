@@ -17,6 +17,7 @@ from app.config import Settings, get_settings, load_prompt, get_model_config
 from app.utils.json_utils import extract_json
 from app.models.schemas import (
     CleanedTranscript,
+    PromptOverrides,
     Summary,
     VideoMetadata,
 )
@@ -62,21 +63,28 @@ class SummaryGenerator:
             markdown = summary.to_markdown()
     """
 
-    def __init__(self, ai_client: BaseAIClient, settings: Settings):
+    def __init__(
+        self,
+        ai_client: BaseAIClient,
+        settings: Settings,
+        prompt_overrides: PromptOverrides | None = None,
+    ):
         """
         Initialize summary generator.
 
         Args:
             ai_client: AI client for LLM calls
             settings: Application settings
+            prompt_overrides: Optional prompt file overrides (v0.32+)
         """
         self.ai_client = ai_client
         self.settings = settings
 
-        # Load 3-component prompt architecture (v0.31+: simplified signature)
-        self.system_prompt = load_prompt("summary", "system", settings)
-        self.instructions = load_prompt("summary", "instructions", settings)
-        self.template = load_prompt("summary", "template", settings)
+        # Load 3-component prompt architecture with optional overrides
+        overrides = prompt_overrides or PromptOverrides()
+        self.system_prompt = load_prompt("summary", overrides.system or "system", settings)
+        self.instructions = load_prompt("summary", overrides.instructions or "instructions", settings)
+        self.template = load_prompt("summary", overrides.template or "template", settings)
 
         # Get model-specific config
         model_config = get_model_config(settings.summarizer_model, settings)

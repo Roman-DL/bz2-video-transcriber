@@ -9,7 +9,7 @@ import re
 import time
 
 from app.config import Settings, get_settings, load_glossary_text, load_model_config, load_prompt
-from app.models.schemas import CleanedTranscript, RawTranscript, VideoMetadata
+from app.models.schemas import CleanedTranscript, PromptOverrides, RawTranscript, VideoMetadata
 from app.services.ai_clients import BaseAIClient, OllamaClient
 
 logger = logging.getLogger(__name__)
@@ -38,18 +38,27 @@ class TranscriptCleaner:
             print(cleaned.text)
     """
 
-    def __init__(self, ai_client: BaseAIClient, settings: Settings):
+    def __init__(
+        self,
+        ai_client: BaseAIClient,
+        settings: Settings,
+        prompt_overrides: PromptOverrides | None = None,
+    ):
         """
         Initialize cleaner.
 
         Args:
             ai_client: AI client for LLM calls
             settings: Application settings
+            prompt_overrides: Optional prompt file overrides (v0.32+)
         """
         self.ai_client = ai_client
         self.settings = settings
-        self.system_prompt = load_prompt("cleaning", "system", settings)
-        self.user_template = load_prompt("cleaning", "user", settings)
+
+        # Load prompts with optional overrides
+        overrides = prompt_overrides or PromptOverrides()
+        self.system_prompt = load_prompt("cleaning", overrides.system or "system", settings)
+        self.user_template = load_prompt("cleaning", overrides.user or "user", settings)
         self.glossary_text = load_glossary_text(settings)
 
         # Load model-specific chunking configuration

@@ -18,6 +18,7 @@ from app.models.schemas import (
     Longread,
     ProcessingResult,
     ProcessingStatus,
+    PromptOverrides,
     RawTranscript,
     Story,
     Summary,
@@ -291,6 +292,7 @@ class PipelineOrchestrator:
         raw_transcript: RawTranscript,
         metadata: VideoMetadata,
         model: str | None = None,
+        prompt_overrides: PromptOverrides | None = None,
     ) -> CleanedTranscript:
         """
         Clean raw transcript using glossary and LLM.
@@ -299,6 +301,7 @@ class PipelineOrchestrator:
             raw_transcript: Raw transcript from Whisper
             metadata: Video metadata
             model: Optional model override for cleaning
+            prompt_overrides: Optional prompt file overrides (v0.32+)
 
         Returns:
             CleanedTranscript with cleaned text
@@ -306,7 +309,7 @@ class PipelineOrchestrator:
         settings = self.config_resolver.with_model(model, "cleaner")
         actual_model = model or settings.cleaner_model
         async with self.processing_strategy.create_client(actual_model) as ai_client:
-            cleaner = TranscriptCleaner(ai_client, settings)
+            cleaner = TranscriptCleaner(ai_client, settings, prompt_overrides)
             return await cleaner.clean(raw_transcript, metadata)
 
     def chunk(
@@ -333,6 +336,7 @@ class PipelineOrchestrator:
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
         model: str | None = None,
+        prompt_overrides: PromptOverrides | None = None,
     ) -> Longread:
         """
         Generate longread document from cleaned transcript.
@@ -343,6 +347,7 @@ class PipelineOrchestrator:
             cleaned_transcript: Cleaned transcript
             metadata: Video metadata
             model: Optional model override for generation
+            prompt_overrides: Optional prompt file overrides (v0.32+)
 
         Returns:
             Longread document with sections
@@ -350,7 +355,7 @@ class PipelineOrchestrator:
         settings = self.config_resolver.with_model(model, "longread")
         actual_model = model or settings.longread_model
         async with self.processing_strategy.create_client(actual_model) as ai_client:
-            generator = LongreadGenerator(ai_client, settings)
+            generator = LongreadGenerator(ai_client, settings, prompt_overrides)
             return await generator.generate(cleaned_transcript, metadata)
 
     async def summarize_from_cleaned(
@@ -358,6 +363,7 @@ class PipelineOrchestrator:
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
         model: str | None = None,
+        prompt_overrides: PromptOverrides | None = None,
     ) -> Summary:
         """
         Generate summary (конспект) from cleaned transcript.
@@ -369,6 +375,7 @@ class PipelineOrchestrator:
             cleaned_transcript: Cleaned transcript
             metadata: Video metadata
             model: Optional model override for generation
+            prompt_overrides: Optional prompt file overrides (v0.32+)
 
         Returns:
             Summary with essence, concepts, tools, quotes, topic_area, access_level
@@ -376,7 +383,7 @@ class PipelineOrchestrator:
         settings = self.config_resolver.with_model(model, "summarizer")
         actual_model = model or settings.summarizer_model
         async with self.processing_strategy.create_client(actual_model) as ai_client:
-            generator = SummaryGenerator(ai_client, settings)
+            generator = SummaryGenerator(ai_client, settings, prompt_overrides)
             return await generator.generate(cleaned_transcript, metadata)
 
     async def story(
@@ -384,6 +391,7 @@ class PipelineOrchestrator:
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
         model: str | None = None,
+        prompt_overrides: PromptOverrides | None = None,
     ) -> Story:
         """
         Generate leadership story (8 blocks) from cleaned transcript.
@@ -394,6 +402,7 @@ class PipelineOrchestrator:
             cleaned_transcript: Cleaned transcript
             metadata: Video metadata
             model: Optional model override for generation
+            prompt_overrides: Optional prompt file overrides (v0.32+)
 
         Returns:
             Story with 8 blocks
@@ -401,7 +410,7 @@ class PipelineOrchestrator:
         settings = self.config_resolver.with_model(model, "summarizer")
         actual_model = model or settings.summarizer_model
         async with self.processing_strategy.create_client(actual_model) as ai_client:
-            generator = StoryGenerator(ai_client, settings)
+            generator = StoryGenerator(ai_client, settings, prompt_overrides)
             return await generator.generate(cleaned_transcript, metadata)
 
     async def summarize(
