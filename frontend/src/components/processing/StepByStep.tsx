@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   useStepParse,
   useStepTranscribe,
@@ -10,6 +10,7 @@ import {
   useStepSave,
 } from '@/api/hooks/useSteps';
 import { useStagePrompts } from '@/api/hooks/usePrompts';
+import { useAvailableModels, useDefaultModels } from '@/api/hooks/useModels';
 import type {
   VideoMetadata,
   RawTranscript,
@@ -37,6 +38,8 @@ import { LongreadView } from '@/components/results/LongreadView';
 import { SummaryView } from '@/components/results/SummaryView';
 import { StoryView } from '@/components/results/StoryView';
 import { ComponentPromptSelector } from '@/components/settings/ComponentPromptSelector';
+import { ModelSelector } from '@/components/settings/ModelSelector';
+import { buildLLMOptions } from '@/utils/modelUtils';
 import { useSettings } from '@/contexts/SettingsContext';
 import {
   CheckCircle,
@@ -76,8 +79,14 @@ type BlockType = 'metadata' | 'rawTranscript' | 'cleanedTranscript' | 'chunks' |
 const STAGES_WITH_PROMPTS = ['clean', 'longread', 'summarize', 'story'] as const;
 type StageWithPrompts = (typeof STAGES_WITH_PROMPTS)[number];
 
+// Stages that support model selection (same as prompts)
+type StageWithModels = StageWithPrompts;
+
 // Prompt overrides state per stage
 type StagePromptOverrides = Record<StageWithPrompts, PromptOverrides>;
+
+// Model overrides state per stage
+type StageModelOverrides = Record<StageWithModels, string | undefined>;
 
 export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: StepByStepProps) {
   const [currentStep, setCurrentStep] = useState<PipelineStep>('parse');
@@ -91,6 +100,12 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
     longread: {},
     summarize: {},
     story: {},
+  });
+  const [modelOverrides, setModelOverrides] = useState<StageModelOverrides>({
+    clean: undefined,
+    longread: undefined,
+    summarize: undefined,
+    story: undefined,
   });
   const { models } = useSettings();
 
@@ -119,6 +134,16 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
   const stepSummarize = useStepSummarize();
   const stepStory = useStepStory();
   const stepSave = useStepSave();
+
+  // Model hooks (only in step-by-step mode)
+  const { data: availableModels } = useAvailableModels(!autoRun);
+  const { data: defaultModels } = useDefaultModels(!autoRun);
+
+  // Build LLM options for model selector
+  const llmOptions = useMemo(() => {
+    if (autoRun) return [];
+    return buildLLMOptions(availableModels?.ollama_models, availableModels?.claude_models);
+  }, [availableModels, autoRun]);
 
   // Prompt hooks - fetch variants for each LLM stage (only in step-by-step mode)
   const { data: cleanPrompts } = useStagePrompts('cleaning', !autoRun);
@@ -165,6 +190,13 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
       Object.entries(overrides).filter(([, v]) => v !== undefined)
     );
     return Object.keys(nonEmpty).length > 0 ? nonEmpty : undefined;
+  };
+
+  // Get effective model for a stage (per-step override > global settings > default)
+  // Note: 'story' uses 'summarize' model as there's no separate story model setting
+  const getModelForStage = (stage: StageWithModels): string | undefined => {
+    const settingsKey = stage === 'story' ? 'summarize' : stage;
+    return modelOverrides[stage] || models[settingsKey];
   };
 
   // Auto-parse on mount to determine content_type
@@ -306,6 +338,39 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
     }
   }, [autoRun, currentStep, isLoading, isComplete, error, data, isInitializing]);
 
+  // Reset data from a specific step onwards (for re-running)
+  const resetDataFromStep = (step: PipelineStep) => {
+    const stepIndex = pipelineSteps.indexOf(step);
+    const fieldsToReset: Record<PipelineStep, (keyof StepData)[]> = {
+      parse: ['metadata'],
+      transcribe: ['rawTranscript', 'displayText', 'audioPath'],
+      clean: ['cleanedTranscript'],
+      longread: ['longread'],
+      summarize: ['summary'],
+      story: ['story'],
+      chunk: ['chunks'],
+      save: ['savedFiles'],
+    };
+
+    setData((prev) => {
+      const next = { ...prev };
+      for (let i = stepIndex; i < pipelineSteps.length; i++) {
+        fieldsToReset[pipelineSteps[i]]?.forEach((field) => {
+          next[field] = undefined;
+        });
+      }
+      return next;
+    });
+    setExpandedBlocks(new Set());
+    setError(null);
+  };
+
+  // Handle click on completed step (re-run from that step)
+  const handleStepClick = (step: PipelineStep) => {
+    resetDataFromStep(step);
+    setCurrentStep(step);
+  };
+
   const runStep = async (step: PipelineStep) => {
     setError(null);
 
@@ -341,7 +406,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           const cleanedTranscript = await stepClean.mutate({
             raw_transcript: data.rawTranscript,
             metadata: data.metadata,
-            model: models.clean,
+            model: getModelForStage('clean'),
             prompt_overrides: getPromptOverridesForApi('clean'),
           });
           setData((prev) => ({ ...prev, cleanedTranscript }));
@@ -354,7 +419,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           const longread = await stepLongread.mutate({
             cleaned_transcript: data.cleanedTranscript,
             metadata: data.metadata,
-            model: models.longread,
+            model: getModelForStage('longread'),
             prompt_overrides: getPromptOverridesForApi('longread'),
           });
           setData((prev) => ({ ...prev, longread }));
@@ -367,7 +432,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           const summary = await stepSummarize.mutate({
             cleaned_transcript: data.cleanedTranscript,
             metadata: data.metadata,
-            model: models.summarize,
+            model: getModelForStage('summarize'),
             prompt_overrides: getPromptOverridesForApi('summarize'),
           });
           setData((prev) => ({ ...prev, summary }));
@@ -380,7 +445,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           const story = await stepStory.mutate({
             cleaned_transcript: data.cleanedTranscript,
             metadata: data.metadata,
-            model: models.summarize,
+            model: getModelForStage('story'),
             prompt_overrides: getPromptOverridesForApi('story'),
           });
           setData((prev) => ({ ...prev, story }));
@@ -453,6 +518,11 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
     return 'pending';
   };
 
+  // Check if step supports model/prompt selection
+  const isLLMStep = (step: PipelineStep): step is StageWithPrompts => {
+    return STAGES_WITH_PROMPTS.includes(step as StageWithPrompts);
+  };
+
   // Loading state during auto-parse
   if (isInitializing) {
     return (
@@ -519,10 +589,20 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
       <div className="flex items-center gap-2">
         {pipelineSteps.map((step, index) => {
           const status = getStepStatus(step);
+          const isClickable = status === 'completed' && !isLoading && !autoRun;
           return (
             <div key={step} className="flex items-center gap-2">
               {status === 'completed' ? (
-                <CheckCircle className="w-5 h-5 text-green-600" />
+                <button
+                  onClick={() => isClickable && handleStepClick(step)}
+                  disabled={!isClickable}
+                  className={`p-0 border-0 bg-transparent ${
+                    isClickable ? 'cursor-pointer hover:opacity-70' : 'cursor-default'
+                  }`}
+                  title={isClickable ? `Перезапустить с шага "${STEP_LABELS[step]}"` : undefined}
+                >
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                </button>
               ) : status === 'current' ? (
                 <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center">
                   <span className="text-xs text-white font-medium">
@@ -592,28 +672,46 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
             </div>
           )}
 
-          {/* Prompt selectors for LLM stages (step-by-step mode only) */}
-          {!autoRun && !isLoading && hasSelectablePrompts(getPromptsForStep(currentStep)) && (
+          {/* Model and prompt selectors for LLM stages (step-by-step mode only) */}
+          {!autoRun && !isLoading && isLLMStep(currentStep) && (
             <div className="mt-3 pt-3 border-t border-blue-200">
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-medium text-blue-800">Варианты промптов:</span>
+                <span className="text-xs font-medium text-blue-800">Настройки:</span>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                {getPromptsForStep(currentStep)?.components.map((comp) => (
-                  <ComponentPromptSelector
-                    key={comp.component}
-                    label={comp.component}
-                    componentData={comp}
-                    value={promptOverrides[currentStep as StageWithPrompts]?.[comp.component as keyof PromptOverrides]}
-                    onChange={(value) =>
-                      updatePromptOverride(
-                        currentStep as StageWithPrompts,
-                        comp.component as keyof PromptOverrides,
-                        value
-                      )
-                    }
-                  />
-                ))}
+                {/* Model selector - compact mode */}
+                {llmOptions.length > 0 && (() => {
+                  // 'story' uses 'summarize' model setting (no separate story model)
+                  const settingsKey = currentStep === 'story' ? 'summarize' : currentStep;
+                  return (
+                    <ModelSelector
+                      label="Модель"
+                      value={modelOverrides[currentStep]}
+                      defaultValue={defaultModels?.[settingsKey] || models[settingsKey] || ''}
+                      options={llmOptions}
+                      onChange={(value) => setModelOverrides((prev) => ({ ...prev, [currentStep]: value }))}
+                      compact
+                    />
+                  );
+                })()}
+
+                {/* Prompt selectors */}
+                {hasSelectablePrompts(getPromptsForStep(currentStep)) &&
+                  getPromptsForStep(currentStep)?.components.map((comp) => (
+                    <ComponentPromptSelector
+                      key={comp.component}
+                      label={comp.component}
+                      componentData={comp}
+                      value={promptOverrides[currentStep]?.[comp.component as keyof PromptOverrides]}
+                      onChange={(value) =>
+                        updatePromptOverride(
+                          currentStep,
+                          comp.component as keyof PromptOverrides,
+                          value
+                        )
+                      }
+                    />
+                  ))}
               </div>
             </div>
           )}

@@ -69,6 +69,7 @@ backend/app/utils/                # Shared utilities (v0.16+)
 backend/app/models/               # Pydantic models (schemas.py, cache.py)
 backend/app/api/                  # FastAPI endpoints
 frontend/src/                     # React + Vite + Tailwind
+frontend/src/utils/               # Shared utilities (modelUtils.ts, v0.35+)
 config/prompts/                   # LLM промпты
 config/glossary.yaml              # Терминология
 docs/adr/                         # Architecture Decision Records

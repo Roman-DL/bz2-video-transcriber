@@ -4,8 +4,9 @@ import type { AvailableModelsResponse, DefaultModelsResponse, ModelsConfigRespon
 
 /**
  * Fetch available models from Ollama and Whisper services.
+ * @param enabled - Whether to enable the query (default: true)
  */
-export function useAvailableModels() {
+export function useAvailableModels(enabled = true) {
   return useQuery({
     queryKey: ['models', 'available'],
     queryFn: async () => {
@@ -13,13 +14,15 @@ export function useAvailableModels() {
       return data;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled,
   });
 }
 
 /**
  * Fetch default models from server settings.
+ * @param enabled - Whether to enable the query (default: true)
  */
-export function useDefaultModels() {
+export function useDefaultModels(enabled = true) {
   return useQuery({
     queryKey: ['models', 'default'],
     queryFn: async () => {
@@ -27,6 +30,7 @@ export function useDefaultModels() {
       return data;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled,
   });
 }
 
