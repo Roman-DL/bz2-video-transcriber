@@ -81,6 +81,20 @@ OFFSITE_FOLDER_PATTERN = re.compile(
     re.UNICODE
 )
 
+# Regex pattern for dated offsite events (v0.28+)
+# Leadership (история): "2026.01 Форум Табтим. # Антоновы (Дмитрий и Юлия).mp3"
+# Educational (тема): "2026.01 Форум Табтим. Тестовая тема (Светлана Дмитрук).mp3"
+# Groups: (1) date YYYY.MM, (2) event name, (3) # marker (optional), (4) content, (5) names
+DATED_OFFSITE_PATTERN = re.compile(
+    r'^(\d{4}\.\d{2})\s+'           # Date: 2026.01
+    r'([^.]+)\.\s*'                 # Event: "Форум Табтим."
+    r'(#\s*)?'                      # Optional # marker for leadership
+    r'(.+?)\s*'                     # Content: "Антоновы" or "Тестовая тема"
+    r'\(([^)]+)\)'                  # Names: "(Дмитрий и Юлия)" or "(Светлана Дмитрук)"
+    r'(?:\.\w+)?$',                 # Extension
+    re.UNICODE
+)
+
 # Keep old name for backwards compatibility in tests
 FILENAME_PATTERN = REGULAR_EVENT_PATTERN
 
@@ -244,22 +258,58 @@ def detect_content_type_from_filename(filename: str) -> tuple[ContentType, str, 
     return None
 
 
+def parse_dated_offsite_filename(
+    filename: str,
+) -> tuple[str, str, ContentType, str, str] | None:
+    """
+    Parse dated offsite filename with YYYY.MM prefix.
+
+    Format:
+    - Leadership: "2026.01 Форум Табтим. # Антоновы (Дмитрий и Юлия).mp3"
+    - Educational: "2026.01 Форум Табтим. Тестовая тема (Светлана Дмитрук).mp3"
+
+    The '#' marker after the dot indicates leadership (story) content.
+
+    Args:
+        filename: Filename to parse
+
+    Returns:
+        Tuple of (date_prefix, event_name, content_type, title, speaker) if matched,
+        None otherwise
+    """
+    match = DATED_OFFSITE_PATTERN.match(filename)
+    if not match:
+        return None
+
+    date_prefix, event_name, hash_marker, content, names = match.groups()
+    event_name = event_name.strip()
+
+    if hash_marker:
+        # Leadership: content is surname, names are first names
+        # Example: "# Антоновы (Дмитрий и Юлия)" → title="Антоновы", speaker="Дмитрий и Юлия"
+        return date_prefix, event_name, ContentType.LEADERSHIP, content.strip(), names.strip()
+    else:
+        # Educational: content is topic title, names is speaker
+        # Example: "Тестовая тема (Светлана Дмитрук)" → title="Тестовая тема", speaker="Светлана Дмитрук"
+        return date_prefix, event_name, ContentType.EDUCATIONAL, content.strip(), names.strip()
+
+
 def parse_filename(
     filename: str,
     source_path: Path | None = None,
     event_name: str | None = None,
 ) -> VideoMetadata:
     """
-    Parse video filename and return metadata.
+    Parse media filename and return metadata.
 
-    Supports two formats:
+    Supports multiple formats:
     1. Regular events (ПШ): "{date} {type}[.{stream}] {title} ({speaker}).mp4"
-    2. Offsite events: "{Фамилия} ({Имя}).mp4" or "{Фамилия} — {Название}.mp4"
-
-    For offsite events, event_name should be provided (from parent folder or config).
+    2. Dated offsite: "YYYY.MM Event. # Title (Speaker).mp3" (leadership with #)
+    3. Dated offsite: "YYYY.MM Event. Title (Speaker).mp3" (educational without #)
+    4. Offsite folder: "{Фамилия} ({Имя}).mp4" or "{Фамилия} — {Название}.mp4"
 
     Args:
-        filename: Video filename to parse
+        filename: Media filename to parse
         source_path: Optional source path (defaults to inbox_dir/filename)
         event_name: For offsite events, the event name (e.g., "Форум TABTeam (Москва)")
 
@@ -275,12 +325,21 @@ def parse_filename(
     if source_path is None:
         source_path = settings.inbox_dir / filename
 
-    # Try regular event pattern first (has date prefix)
+    # Try regular event pattern first (has full date YYYY.MM.DD)
     match = REGULAR_EVENT_PATTERN.match(filename)
     if match:
         return _parse_regular_event(match, filename, source_path, settings)
 
-    # Try offsite patterns (no date prefix)
+    # Try dated offsite pattern (YYYY.MM with event name, v0.28+)
+    dated_result = parse_dated_offsite_filename(filename)
+    if dated_result:
+        date_prefix, parsed_event_name, content_type, title, speaker = dated_result
+        return _parse_dated_offsite_event(
+            filename, source_path, settings, date_prefix, parsed_event_name,
+            content_type, title, speaker
+        )
+
+    # Try offsite folder patterns (no date prefix in filename)
     offsite_result = detect_content_type_from_filename(filename)
     if offsite_result:
         content_type, title, speaker = offsite_result
@@ -294,8 +353,10 @@ def parse_filename(
         f"Filename '{filename}' doesn't match any expected pattern.\n"
         f"Expected formats:\n"
         f"  - Regular: '{{date}} {{type}}[.{{stream}}] {{title}} ({{speaker}}).mp4'\n"
-        f"  - Offsite leadership: '{{Фамилия}} ({{Имя}}).mp4'\n"
-        f"  - Offsite educational: '{{Фамилия}} — {{Название}}.mp4'"
+        f"  - Dated offsite: 'YYYY.MM Event. # Title (Speaker).mp3' (leadership)\n"
+        f"  - Dated offsite: 'YYYY.MM Event. Title (Speaker).mp3' (educational)\n"
+        f"  - Offsite folder: '{{Фамилия}} ({{Имя}}).mp4' (leadership)\n"
+        f"  - Offsite folder: '{{Фамилия}} — {{Название}}.mp4' (educational)"
     )
 
 
@@ -360,6 +421,60 @@ def _parse_regular_event(
         archive_path=archive_path,
         content_type=ContentType.EDUCATIONAL,  # Regular events are always educational
         event_category=event_category,
+    )
+
+
+def _parse_dated_offsite_event(
+    filename: str,
+    source_path: Path,
+    settings,
+    date_prefix: str,
+    event_name: str,
+    content_type: ContentType,
+    title: str,
+    speaker: str,
+) -> VideoMetadata:
+    """Parse dated offsite event filename (v0.28+).
+
+    Format: "YYYY.MM Event. [#] Title (Speaker).ext"
+    """
+    # Parse year and month from date prefix
+    year, month = date_prefix.split(".")
+    year = int(year)
+    month = int(month)
+
+    # Use first day of month as date
+    video_date = date(year, month, 1)
+
+    # Generate video ID
+    event_slug = slugify(event_name)
+    video_id = f"{video_date.isoformat()}_{event_slug}_{slugify(title)}"
+
+    # For leadership: folder is "Фамилия (Имя)"
+    # For educational: folder is "Тема (Спикер)"
+    topic_folder = f"{title} ({speaker})"
+
+    archive_path = (
+        settings.archive_dir
+        / str(year)
+        / "Выездные"
+        / event_name
+        / topic_folder
+    )
+
+    return VideoMetadata(
+        date=video_date,
+        event_type="ВЫЕЗД",
+        stream="",
+        title=title,
+        speaker=speaker,
+        original_filename=filename,
+        video_id=video_id,
+        source_path=source_path,
+        archive_path=archive_path,
+        content_type=content_type,
+        event_category=EventCategory.OFFSITE,
+        event_name=event_name,
     )
 
 
@@ -616,6 +731,77 @@ if __name__ == "__main__":
 
         print("OK")
 
+    def test_dated_offsite_leadership():
+        """Test 14: Dated offsite leadership pattern with # marker."""
+        print("Test 14: Dated offsite leadership (# marker)...", end=" ")
+
+        filename = "2026.01 Форум Табтим. # Антоновы (Дмитрий и Юлия).mp3"
+        metadata = parse_filename(filename)
+
+        assert metadata.content_type == ContentType.LEADERSHIP, \
+            f"Expected leadership, got {metadata.content_type}"
+        assert metadata.event_category == EventCategory.OFFSITE, \
+            f"Expected offsite, got {metadata.event_category}"
+        assert metadata.event_name == "Форум Табтим", \
+            f"Event name mismatch: {metadata.event_name}"
+        assert metadata.title == "Антоновы", f"Title mismatch: {metadata.title}"
+        assert metadata.speaker == "Дмитрий и Юлия", f"Speaker mismatch: {metadata.speaker}"
+        assert metadata.date == date(2026, 1, 1), f"Date mismatch: {metadata.date}"
+
+        # Check archive path
+        path_str = str(metadata.archive_path)
+        assert "2026" in path_str, f"Year not in path: {path_str}"
+        assert "Выездные" in path_str, f"Выездные not in path: {path_str}"
+        assert "Форум Табтим" in path_str, f"Event name not in path: {path_str}"
+
+        print("OK")
+
+    def test_dated_offsite_educational():
+        """Test 15: Dated offsite educational pattern without # marker."""
+        print("Test 15: Dated offsite educational (no marker)...", end=" ")
+
+        filename = "2026.01 Форум Табтим. Тестовая тема (Светлана Дмитрук).mp3"
+        metadata = parse_filename(filename)
+
+        assert metadata.content_type == ContentType.EDUCATIONAL, \
+            f"Expected educational, got {metadata.content_type}"
+        assert metadata.event_category == EventCategory.OFFSITE, \
+            f"Expected offsite, got {metadata.event_category}"
+        assert metadata.event_name == "Форум Табтим", \
+            f"Event name mismatch: {metadata.event_name}"
+        assert metadata.title == "Тестовая тема", f"Title mismatch: {metadata.title}"
+        assert metadata.speaker == "Светлана Дмитрук", f"Speaker mismatch: {metadata.speaker}"
+
+        print("OK")
+
+    def test_parse_dated_offsite_filename():
+        """Test 16: parse_dated_offsite_filename function."""
+        print("Test 16: parse_dated_offsite_filename...", end=" ")
+
+        # Leadership with # marker
+        result = parse_dated_offsite_filename("2026.01 Форум Табтим. # Антоновы (Дмитрий и Юлия).mp3")
+        assert result is not None, "Should match dated offsite pattern"
+        date_prefix, event_name, content_type, title, speaker = result
+        assert date_prefix == "2026.01", f"Date prefix mismatch: {date_prefix}"
+        assert event_name == "Форум Табтим", f"Event name mismatch: {event_name}"
+        assert content_type == ContentType.LEADERSHIP, f"Content type mismatch: {content_type}"
+        assert title == "Антоновы", f"Title mismatch: {title}"
+        assert speaker == "Дмитрий и Юлия", f"Speaker mismatch: {speaker}"
+
+        # Educational without # marker
+        result2 = parse_dated_offsite_filename("2026.01 Форум Табтим. Тестовая тема (Светлана Дмитрук).mp3")
+        assert result2 is not None, "Should match dated offsite pattern"
+        _, _, content_type2, title2, speaker2 = result2
+        assert content_type2 == ContentType.EDUCATIONAL, f"Content type mismatch: {content_type2}"
+        assert title2 == "Тестовая тема", f"Title mismatch: {title2}"
+        assert speaker2 == "Светлана Дмитрук", f"Speaker mismatch: {speaker2}"
+
+        # Should not match regular event pattern
+        result3 = parse_dated_offsite_filename("2025.01.13 ПШ.SV Закрытие ПО (Кухаренко).mp4")
+        assert result3 is None, "Should not match regular event pattern"
+
+        print("OK")
+
     # Run all tests
     print("\nRunning parser tests...\n")
 
@@ -633,6 +819,9 @@ if __name__ == "__main__":
         test_offsite_leadership_pattern,
         test_offsite_educational_pattern,
         test_offsite_folder_pattern,
+        test_dated_offsite_leadership,
+        test_dated_offsite_educational,
+        test_parse_dated_offsite_filename,
     ]
 
     failed = 0

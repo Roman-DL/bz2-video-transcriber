@@ -7,7 +7,6 @@ Supports both full pipeline execution and step-by-step mode for testing.
 
 import asyncio
 import logging
-import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -35,6 +34,7 @@ from app.services.parser import FilenameParseError, parse_filename
 from app.services.saver import FileSaver
 from app.services.summarizer import VideoSummarizer
 from app.services.transcriber import WhisperTranscriber
+from app.utils import estimate_duration_from_size, get_media_duration
 from app.utils.h2_chunker import chunk_by_h2
 
 from .config_resolver import ConfigResolver
@@ -43,40 +43,6 @@ from .processing_strategy import ProcessingStrategy
 from .progress_manager import ProgressCallback, ProgressManager
 
 logger = logging.getLogger(__name__)
-
-
-def get_video_duration(video_path: Path) -> float | None:
-    """
-    Get video duration using ffprobe.
-
-    Args:
-        video_path: Path to video file
-
-    Returns:
-        Duration in seconds, or None if ffprobe fails
-    """
-    try:
-        result = subprocess.run(
-            [
-                "ffprobe",
-                "-v",
-                "quiet",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "csv=p=0",
-                str(video_path),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return float(result.stdout.strip())
-    except Exception as e:
-        logger.warning(f"ffprobe failed for {video_path.name}: {e}")
-
-    return None
 
 
 class PipelineError(Exception):
@@ -186,11 +152,11 @@ class PipelineOrchestrator:
         except FilenameParseError as e:
             raise PipelineError(ProcessingStatus.PARSING, str(e), e)
 
-        # Get video duration for progress estimation
-        metadata.duration_seconds = get_video_duration(video_path)
+        # Get media duration for progress estimation
+        metadata.duration_seconds = get_media_duration(video_path)
         if metadata.duration_seconds is None:
-            # Fallback: estimate from file size (~5MB per minute)
-            metadata.duration_seconds = video_path.stat().st_size / 83333
+            # Fallback: estimate from file size (different rates for audio/video)
+            metadata.duration_seconds = estimate_duration_from_size(video_path)
             logger.info(
                 f"Using estimated duration: {metadata.duration_seconds:.0f}s "
                 f"(from file size {video_path.stat().st_size / 1024 / 1024:.1f}MB)"

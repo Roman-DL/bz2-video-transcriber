@@ -21,7 +21,7 @@ export function InboxList({ onProcessVideo }: InboxListProps) {
             <h2 className="text-lg font-medium text-gray-900">Inbox</h2>
             {files && (
               <span className="text-sm text-gray-500">
-                ({files.length} видео)
+                ({files.length} файлов)
               </span>
             )}
           </div>

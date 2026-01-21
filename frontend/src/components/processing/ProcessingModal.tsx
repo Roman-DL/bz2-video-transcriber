@@ -77,7 +77,7 @@ function ModeSelector({ filename, onSelectMode, onCancel }: ModeSelectorProps) {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h3 className="text-lg font-medium text-gray-900">Обработка видео</h3>
+        <h3 className="text-lg font-medium text-gray-900">Обработка</h3>
         <p className="text-sm text-gray-500 mt-1 truncate">{filename}</p>
       </div>
 

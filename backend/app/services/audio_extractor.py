@@ -2,14 +2,17 @@
 Audio extraction service using ffmpeg.
 
 Extracts audio from video files for Whisper transcription.
+Supports both video files (extraction) and audio files (copy/passthrough).
 """
 
 import asyncio
 import logging
+import shutil
 import subprocess
 from pathlib import Path
 
 from app.config import Settings
+from app.utils import is_audio_file
 
 logger = logging.getLogger(__name__)
 
@@ -34,49 +37,67 @@ class AudioExtractor:
 
     async def extract(
         self,
-        video_path: Path,
+        media_path: Path,
         output_dir: Path | None = None,
     ) -> Path:
         """
-        Extract audio from video file.
+        Extract audio from media file.
+
+        For video files: extracts audio track using ffmpeg.
+        For audio files (MP3, etc.): copies file directly (no re-encoding).
 
         Args:
-            video_path: Path to input video file
+            media_path: Path to input media file (video or audio)
             output_dir: Output directory (default: settings.temp_dir)
 
         Returns:
-            Path to extracted audio file (MP3)
+            Path to audio file (MP3)
 
         Raises:
             RuntimeError: If ffmpeg fails
-            FileNotFoundError: If video file doesn't exist
+            FileNotFoundError: If media file doesn't exist
         """
-        video_path = Path(video_path)
+        media_path = Path(media_path)
 
-        if not video_path.exists():
-            raise FileNotFoundError(f"Video file not found: {video_path}")
+        if not media_path.exists():
+            raise FileNotFoundError(f"Media file not found: {media_path}")
 
         if output_dir is None:
             output_dir = self.settings.temp_dir
 
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Use video stem + _audio.mp3 extension
-        audio_path = output_dir / f"{video_path.stem}_audio.mp3"
+        media_size_mb = media_path.stat().st_size / 1024 / 1024
 
-        video_size_mb = video_path.stat().st_size / 1024 / 1024
-        logger.info(
-            f"Extracting audio: {video_path.name} ({video_size_mb:.1f} MB) -> {audio_path.name}"
-        )
-
-        # Run ffmpeg in thread pool to not block event loop
-        await asyncio.to_thread(self._run_ffmpeg, video_path, audio_path)
+        # Optimization: if input is already an audio file, copy instead of re-encode
+        if is_audio_file(media_path):
+            # For MP3: copy directly, for other formats: convert to MP3
+            if media_path.suffix.lower() == ".mp3":
+                audio_path = output_dir / f"{media_path.stem}_audio.mp3"
+                logger.info(
+                    f"Copying audio: {media_path.name} ({media_size_mb:.1f} MB) -> {audio_path.name}"
+                )
+                await asyncio.to_thread(shutil.copy2, media_path, audio_path)
+            else:
+                # Convert other audio formats to MP3
+                audio_path = output_dir / f"{media_path.stem}_audio.mp3"
+                logger.info(
+                    f"Converting audio: {media_path.name} ({media_size_mb:.1f} MB) -> {audio_path.name}"
+                )
+                await asyncio.to_thread(self._run_ffmpeg, media_path, audio_path)
+        else:
+            # Video file: extract audio track
+            audio_path = output_dir / f"{media_path.stem}_audio.mp3"
+            logger.info(
+                f"Extracting audio: {media_path.name} ({media_size_mb:.1f} MB) -> {audio_path.name}"
+            )
+            await asyncio.to_thread(self._run_ffmpeg, media_path, audio_path)
 
         if not audio_path.exists():
             raise RuntimeError("Audio extraction failed: output file not created")
 
         audio_size_mb = audio_path.stat().st_size / 1024 / 1024
-        logger.info(f"Audio extracted: {audio_path.name} ({audio_size_mb:.1f} MB)")
+        logger.info(f"Audio ready: {audio_path.name} ({audio_size_mb:.1f} MB)")
 
         return audio_path
 

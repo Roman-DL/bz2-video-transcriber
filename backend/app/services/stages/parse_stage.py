@@ -1,48 +1,17 @@
 """
-Parse stage for video filename parsing.
+Parse stage for media filename parsing.
 
-Extracts metadata from video filename: date, event type, stream, title, speaker.
+Extracts metadata from media filename: date, event type, stream, title, speaker.
+Supports both video and audio files.
 """
 
-import subprocess
 from pathlib import Path
 
 from app.config import Settings
 from app.models.schemas import ProcessingStatus, VideoMetadata
 from app.services.parser import FilenameParseError, parse_filename
 from app.services.stages.base import BaseStage, StageContext, StageError
-
-
-def get_video_duration(video_path: Path) -> float | None:
-    """Get video duration using ffprobe.
-
-    Args:
-        video_path: Path to video file
-
-    Returns:
-        Duration in seconds, or None if ffprobe fails
-    """
-    try:
-        result = subprocess.run(
-            [
-                "ffprobe",
-                "-v",
-                "quiet",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "csv=p=0",
-                str(video_path),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return float(result.stdout.strip())
-    except Exception:
-        pass
-    return None
+from app.utils import estimate_duration_from_size, get_media_duration
 
 
 class ParseStage(BaseStage):
@@ -97,11 +66,11 @@ class ParseStage(BaseStage):
         except FilenameParseError as e:
             raise StageError(self.name, str(e), e)
 
-        # Get video duration
-        metadata.duration_seconds = get_video_duration(video_path)
+        # Get media duration
+        metadata.duration_seconds = get_media_duration(video_path)
         if metadata.duration_seconds is None:
-            # Fallback: estimate from file size (~5MB per minute)
-            metadata.duration_seconds = video_path.stat().st_size / 83333
+            # Fallback: estimate from file size (different rates for audio/video)
+            metadata.duration_seconds = estimate_duration_from_size(video_path)
 
         return metadata
 

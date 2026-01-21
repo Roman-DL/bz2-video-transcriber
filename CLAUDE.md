@@ -163,10 +163,16 @@ result = await cache.load(archive_path, CacheStageName.CLEANING, version=1)
 # Regular events (ПШ): дата + тип в имени → content_type = educational
 "2025.01.13 ПШ.SV Закрытие ПО (Кухаренко).mp4"
 
-# Offsite leadership: Фамилия (Имя) → content_type = leadership
+# Dated offsite leadership (v0.28+): маркер # → content_type = leadership
+"2026.01 Форум Табтим. # Антоновы (Дмитрий и Юлия).mp3"
+
+# Dated offsite educational (v0.28+): без # → content_type = educational
+"2026.01 Форум Табтим. Тестовая тема (Светлана Дмитрук).mp3"
+
+# Offsite folder leadership: Фамилия (Имя) → content_type = leadership
 "Антоновы (Дмитрий и Юлия).mp4"
 
-# Offsite educational: Фамилия — Название → content_type = educational
+# Offsite folder educational: Фамилия — Название → content_type = educational
 "Мекибель — Модели работы с МП.mp4"
 ```
 
@@ -223,7 +229,7 @@ class TelegramSummaryStage(BaseStage):
 
 Подробнее: [docs/pipeline/stages.md](docs/pipeline/stages.md)
 
-## Shared Utils (v0.16+)
+## Shared Utils (v0.16+, updated v0.28)
 
 Общие утилиты для LLM сервисов, извлечённые из дублированного кода:
 
@@ -232,15 +238,17 @@ backend/app/utils/
 ├── __init__.py          # Экспорт публичных функций
 ├── json_utils.py        # extract_json(), parse_json_safe()
 ├── token_utils.py       # estimate_tokens(), calculate_num_predict()
-└── chunk_utils.py       # validate_cyrillic_ratio(), generate_chunk_id()
+├── chunk_utils.py       # validate_cyrillic_ratio(), generate_chunk_id()
+└── media_utils.py       # get_media_duration(), is_audio_file() (v0.28+)
 ```
 
 **Использование:**
 ```python
-from app.utils import extract_json, calculate_num_predict
+from app.utils import extract_json, get_media_duration, is_audio_file
 
 json_str = extract_json(response, json_type="array")
-num_predict = calculate_num_predict(tokens, task="chunker")
+duration = get_media_duration(Path("video.mp4"))  # via ffprobe
+is_audio = is_audio_file(Path("recording.mp3"))   # True
 ```
 
 Подробнее: [docs/adr/003-shared-utils.md](docs/adr/003-shared-utils.md)
@@ -362,6 +370,8 @@ python -m uvicorn app.main:app --reload --port 8801
 
 ### Локальное тестирование
 
+> **ВАЖНО:** Перед запуском тестов читай [docs/testing.md](docs/testing.md) — там описаны изолированные тесты без Settings для локальной разработки.
+
 Многие модули содержат встроенные тесты в `if __name__ == "__main__"`:
 
 ```bash
@@ -375,7 +385,15 @@ python -m app.services.parser
 python -m app.services.saver
 ```
 
-Подробнее: [docs/testing.md](docs/testing.md) — настройка окружения, изолированные тесты, шаблоны
+**Если нет `.env`** — используй изолированные тесты (без `get_settings()`):
+
+```bash
+python3 -c "
+from app.services.parser import parse_dated_offsite_filename
+result = parse_dated_offsite_filename('2026.01 Event. # Title (Name).mp3')
+print('OK' if result else 'FAIL')
+"
+```
 
 ### Backend
 
