@@ -49,13 +49,14 @@ export function LongreadView({ longread }: LongreadViewProps) {
       {/* Metadata footer */}
       <div className="pt-4 border-t border-gray-100">
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <div>
-            <span className="text-gray-500">Раздел:</span>{' '}
-            <span className="text-gray-900">
-              {longread.section}
-              {longread.subsection && ` / ${longread.subsection}`}
-            </span>
-          </div>
+          {longread.topic_area.length > 0 && (
+            <div>
+              <span className="text-gray-500">Область:</span>{' '}
+              <span className="text-gray-900">
+                {longread.topic_area.join(' / ')}
+              </span>
+            </div>
+          )}
           {longread.tags.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-gray-500">Теги:</span>

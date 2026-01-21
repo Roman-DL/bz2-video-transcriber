@@ -81,13 +81,14 @@ export function SummaryView({ summary }: SummaryViewProps) {
       {/* Metadata footer */}
       <div className="pt-4 border-t border-gray-100">
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <div>
-            <span className="text-gray-500">Раздел:</span>{' '}
-            <span className="text-gray-900">
-              {summary.section}
-              {summary.subsection && ` / ${summary.subsection}`}
-            </span>
-          </div>
+          {summary.topic_area.length > 0 && (
+            <div>
+              <span className="text-gray-500">Область:</span>{' '}
+              <span className="text-gray-900">
+                {summary.topic_area.join(' / ')}
+              </span>
+            </div>
+          )}
 
           {summary.tags.length > 0 && (
             <div className="flex items-center gap-2">

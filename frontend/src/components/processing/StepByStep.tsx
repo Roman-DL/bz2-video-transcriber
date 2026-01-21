@@ -320,7 +320,6 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
               raw_transcript: data.rawTranscript,
               cleaned_transcript: data.cleanedTranscript,
               chunks: data.chunks,
-              // @ts-expect-error - backend handles story instead of longread+summary
               story: data.story,
               audio_path: data.audioPath,
             });
