@@ -26,7 +26,6 @@ from app.models.schemas import (
     ProcessingStatus,
     RawTranscript,
     Summary,
-    TranscriptChunks,
 )
 from app.services.pipeline import PipelineOrchestrator, StageResultCache
 from app.services.progress_estimator import ProgressEstimator
@@ -180,9 +179,9 @@ async def rerun_stage(request: RerunRequest) -> StreamingResponse:
     )
 
     # Map stage to ProcessingStatus and estimate
+    # Note: CHUNKING removed in v0.26 - chunking is now deterministic (H2 parsing)
     stage_mapping = {
         CacheStageName.CLEANING: (ProcessingStatus.CLEANING, "clean"),
-        CacheStageName.CHUNKING: (ProcessingStatus.CHUNKING, "chunk"),
         CacheStageName.LONGREAD: (ProcessingStatus.LONGREAD, "longread"),
         CacheStageName.SUMMARY: (ProcessingStatus.SUMMARIZING, "summarize"),
     }
@@ -217,8 +216,8 @@ async def rerun_stage(request: RerunRequest) -> StreamingResponse:
 
             model_name = request.model or settings.cleaner_model
 
-        elif request.stage == CacheStageName.CHUNKING:
-            # Input: CleanedTranscript
+        elif request.stage == CacheStageName.LONGREAD:
+            # Input: CleanedTranscript (v0.25+: pipeline Clean → Longread → Summary → Chunk)
             cleaned_data = pipeline_data.get("cleaned_transcript")
             if not cleaned_data:
                 raise ValueError("Cleaned transcript not found in pipeline results")
@@ -226,25 +225,8 @@ async def rerun_stage(request: RerunRequest) -> StreamingResponse:
             cleaned_transcript = CleanedTranscript.model_validate(cleaned_data)
             input_hash = cache.compute_hash(cleaned_transcript)
 
-            result = await orchestrator.chunk(
-                cleaned_transcript=cleaned_transcript,
-                metadata=metadata,
-                model=request.model,
-            )
-
-            model_name = request.model or settings.chunker_model
-
-        elif request.stage == CacheStageName.LONGREAD:
-            # Input: TranscriptChunks
-            chunks_data = pipeline_data.get("chunks")
-            if not chunks_data:
-                raise ValueError("Chunks not found in pipeline results")
-
-            chunks = TranscriptChunks.model_validate(chunks_data)
-            input_hash = cache.compute_hash(chunks)
-
             result = await orchestrator.longread(
-                chunks=chunks,
+                cleaned_transcript=cleaned_transcript,
                 metadata=metadata,
                 model=request.model,
             )
@@ -293,8 +275,8 @@ async def rerun_stage(request: RerunRequest) -> StreamingResponse:
 
     if request.stage == CacheStageName.CLEANING:
         estimate = estimator.estimate_clean(input_chars)
-    elif request.stage == CacheStageName.CHUNKING:
-        estimate = estimator.estimate_chunk(input_chars)
+    elif request.stage == CacheStageName.LONGREAD:
+        estimate = estimator.estimate_longread(input_chars)
     else:
         estimate = estimator.estimate_summarize(input_chars)
 

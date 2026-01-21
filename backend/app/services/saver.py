@@ -928,7 +928,7 @@ if __name__ == "__main__":
                             word_count=5,
                         ),
                     ],
-                    model_name=settings.chunker_model,
+                    model_name="deterministic",  # v0.26+: H2-based chunking
                 )
 
                 # Create mock cleaned transcript

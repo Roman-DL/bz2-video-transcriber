@@ -18,7 +18,6 @@ class Settings(BaseSettings):
     summarizer_model: str = "qwen2.5:14b"  # Model for summarization (конспект)
     longread_model: str = "qwen2.5:14b"  # Model for longread generation
     cleaner_model: str = "gemma2:9b"  # Stable model for transcript cleaning
-    chunker_model: str = "gemma2:9b"  # Better chunk distribution than qwen
     whisper_model: str = "large-v3-turbo"  # Display name for Whisper model
     whisper_language: str = "ru"
     whisper_include_timestamps: bool = False  # Include [HH:MM:SS] in transcript_raw.txt
@@ -40,7 +39,6 @@ class Settings(BaseSettings):
     log_level_pipeline: str | None = None
     log_level_transcriber: str | None = None
     log_level_cleaner: str | None = None
-    log_level_chunker: str | None = None
     log_level_summarizer: str | None = None
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}

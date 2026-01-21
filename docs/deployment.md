@@ -240,7 +240,6 @@ sudo docker compose up -d --build
 | `WHISPER_URL` | `http://192.168.1.152:9000` | URL Whisper API |
 | `SUMMARIZER_MODEL` | `qwen2.5:14b` | Модель для суммаризации |
 | `CLEANER_MODEL` | `gemma2:9b` | Модель для очистки транскрипта |
-| `CHUNKER_MODEL` | `gemma2:9b` | Модель для чанкирования |
 | `LLM_TIMEOUT` | `300` | Таймаут запросов к Ollama (сек) |
 | `WHISPER_LANGUAGE` | `ru` | Язык транскрипции |
 | `ANTHROPIC_API_KEY` | — | API ключ для Claude (опционально) |

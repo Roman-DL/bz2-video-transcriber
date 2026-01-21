@@ -308,9 +308,9 @@ client, model = await strategy.get_client_with_fallback(
 | Задача | Модель | Почему |
 |--------|--------|--------|
 | Очистка | gemma2:9b | Стабильный JSON, умеренное сжатие |
-| Чанкирование | gemma2:9b | Оптимальное количество чанков |
 | Лонгрид | qwen2.5:14b | Лучшее качество длинного текста |
 | Конспект | qwen2.5:14b | Структурированный вывод |
+| Чанкирование | — | Детерминистический (H2 парсинг, v0.26+) |
 
 Подробнее: [docs/model-testing.md](docs/model-testing.md)
 
@@ -319,7 +319,6 @@ client, model = await strategy.get_client_with_fallback(
 | Настройка | Где менять | Эффект |
 |-----------|------------|--------|
 | `CLEANER_MODEL` | docker-compose.yml | Модель для очистки транскрипта |
-| `CHUNKER_MODEL` | docker-compose.yml | Модель для чанкирования |
 | `LONGREAD_MODEL` | docker-compose.yml | Модель для генерации лонгрида |
 | `SUMMARY_MODEL` | docker-compose.yml | Модель для генерации конспекта |
 | `WHISPER_INCLUDE_TIMESTAMPS` | docker-compose.yml | `true` — таймкоды в транскрипте и файле |

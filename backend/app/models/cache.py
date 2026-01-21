@@ -22,11 +22,13 @@ from pydantic import BaseModel, Field
 
 
 class CacheStageName(str, Enum):
-    """Valid stage names for caching."""
+    """Valid stage names for caching.
+
+    Note: CHUNKING removed in v0.26 - chunking is now deterministic (H2 parsing).
+    """
 
     TRANSCRIPTION = "transcription"
     CLEANING = "cleaning"
-    CHUNKING = "chunking"
     LONGREAD = "longread"
     SUMMARY = "summary"
 
@@ -389,21 +391,21 @@ if __name__ == "__main__":
         for v in range(1, 4):
             manifest.add_entry(CacheEntry(
                 version=v,
-                stage=CacheStageName.CHUNKING,
+                stage=CacheStageName.LONGREAD,
                 model_name=f"model-v{v}",
-                file_path=f"chunking/v{v}.json",
+                file_path=f"longread/v{v}.json",
             ))
 
         # Set version 1 as current
-        result = manifest.set_current_version(CacheStageName.CHUNKING, 1)
+        result = manifest.set_current_version(CacheStageName.LONGREAD, 1)
         assert result is True
 
-        current = manifest.get_current_entry(CacheStageName.CHUNKING)
+        current = manifest.get_current_entry(CacheStageName.LONGREAD)
         assert current is not None
         assert current.version == 1
 
         # Non-existent version
-        result = manifest.set_current_version(CacheStageName.CHUNKING, 99)
+        result = manifest.set_current_version(CacheStageName.LONGREAD, 99)
         assert result is False
 
         print("OK")

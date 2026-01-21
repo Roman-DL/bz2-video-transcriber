@@ -14,7 +14,6 @@
 | `WHISPER_URL` | `http://192.168.1.152:9000` | URL Whisper API |
 | `SUMMARIZER_MODEL` | `qwen2.5:14b` | Модель для суммаризации |
 | `CLEANER_MODEL` | `gemma2:9b` | Модель для очистки транскрипта |
-| `CHUNKER_MODEL` | `gemma2:9b` | Модель для семантического чанкирования |
 | `LONGREAD_MODEL` | `qwen2.5:14b` | Модель для генерации лонгрида |
 | `WHISPER_MODEL` | `large-v3-turbo` | Имя модели Whisper (для отображения в UI) |
 | `WHISPER_LANGUAGE` | `ru` | Язык транскрипции |

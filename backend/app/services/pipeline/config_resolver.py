@@ -11,7 +11,7 @@ from app.config import Settings
 
 logger = logging.getLogger(__name__)
 
-StageType = Literal["cleaner", "chunker", "summarizer", "longread"]
+StageType = Literal["cleaner", "summarizer", "longread"]
 
 
 class ConfigResolver:
@@ -73,7 +73,6 @@ class ConfigResolver:
             "whisper_url": self.settings.whisper_url,
             "summarizer_model": self.settings.summarizer_model,
             "cleaner_model": self.settings.cleaner_model,
-            "chunker_model": self.settings.chunker_model,
             "longread_model": self.settings.longread_model,
             "whisper_model": self.settings.whisper_model,
             "whisper_language": self.settings.whisper_language,
@@ -106,7 +105,6 @@ class ConfigResolver:
         """
         field_map = {
             "cleaner": "cleaner_model",
-            "chunker": "chunker_model",
             "summarizer": "summarizer_model",
             "longread": "longread_model",
         }
@@ -124,7 +122,6 @@ class ConfigResolver:
         """
         model_map = {
             "cleaner": self.settings.cleaner_model,
-            "chunker": self.settings.chunker_model,
             "summarizer": self.settings.summarizer_model,
             "longread": self.settings.longread_model,
         }
@@ -151,36 +148,29 @@ if __name__ == "__main__":
     result = resolver.with_model("test-model:7b", "cleaner")
     assert result is not settings, "Expected new settings instance"
     assert result.cleaner_model == "test-model:7b"
-    assert result.chunker_model == settings.chunker_model  # Unchanged
+    assert result.summarizer_model == settings.summarizer_model  # Unchanged
     print("OK")
 
-    # Test 3: Override chunker model
-    print("Test 3: Override chunker model...", end=" ")
-    result = resolver.with_model("another-model:14b", "chunker")
-    assert result.chunker_model == "another-model:14b"
-    assert result.cleaner_model == settings.cleaner_model  # Unchanged
-    print("OK")
-
-    # Test 4: Override summarizer model
-    print("Test 4: Override summarizer model...", end=" ")
+    # Test 3: Override summarizer model
+    print("Test 3: Override summarizer model...", end=" ")
     result = resolver.with_model("summary-model:32b", "summarizer")
     assert result.summarizer_model == "summary-model:32b"
     print("OK")
 
-    # Test 5: Override longread model
-    print("Test 5: Override longread model...", end=" ")
+    # Test 4: Override longread model
+    print("Test 4: Override longread model...", end=" ")
     result = resolver.with_model("longread-model:14b", "longread")
     assert result.longread_model == "longread-model:14b"
     print("OK")
 
-    # Test 6: Get model for stage
-    print("Test 6: Get model for stage...", end=" ")
+    # Test 5: Get model for stage
+    print("Test 5: Get model for stage...", end=" ")
     cleaner_model = resolver.get_model_for_stage("cleaner")
     assert cleaner_model == settings.cleaner_model
     print("OK")
 
-    # Test 7: All other settings preserved
-    print("Test 7: All other settings preserved...", end=" ")
+    # Test 6: All other settings preserved
+    print("Test 6: All other settings preserved...", end=" ")
     result = resolver.with_model("test:1b", "cleaner")
     assert result.ollama_url == settings.ollama_url
     assert result.whisper_url == settings.whisper_url

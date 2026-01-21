@@ -42,10 +42,6 @@ context_profiles:
       chunk_size: 3000
       chunk_overlap: 200
       small_text_threshold: 3500
-    chunker:
-      large_text_threshold: 10000
-      min_chunk_words: 100
-      target_chunk_words: 250
     text_splitter:
       part_size: 6000
       overlap_size: 1500
@@ -64,10 +60,6 @@ context_profiles:
       chunk_size: 8000
       chunk_overlap: 500
       small_text_threshold: 9000
-    chunker:
-      large_text_threshold: 25000
-      min_chunk_words: 100
-      target_chunk_words: 250
     text_splitter:
       part_size: 15000
       overlap_size: 3000
@@ -87,10 +79,6 @@ context_profiles:
       chunk_size: 100000
       chunk_overlap: 10000
       small_text_threshold: 150000
-    chunker:
-      large_text_threshold: 200000  # Almost never triggers outline extraction
-      min_chunk_words: 200
-      target_chunk_words: 500
     text_splitter:
       part_size: 80000
       overlap_size: 10000
@@ -150,8 +138,6 @@ models:
       chunk_size: 10000
       chunk_overlap: 600
       small_text_threshold: 11000
-    chunker:
-      large_text_threshold: 30000
     text_splitter:
       part_size: 20000
       overlap_size: 4000
@@ -205,10 +191,6 @@ defaults:
     chunk_size: 3000
     chunk_overlap: 200
     small_text_threshold: 3500
-  chunker:
-    large_text_threshold: 10000
-    min_chunk_words: 100
-    target_chunk_words: 250
   text_splitter:
     part_size: 6000
     overlap_size: 1500
