@@ -596,7 +596,6 @@ curl "http://100.64.0.1:8801/api/cache/2025-01-09_ПШ-SV_topic/cleaning?version
   "text": "Очищенный транскрипт...",
   "original_length": 15000,
   "cleaned_length": 14500,
-  "corrections_made": ["Коррекция 1", "Коррекция 2"],
   "model_name": "gemma2:9b"
 }
 ```

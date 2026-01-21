@@ -221,7 +221,6 @@ class FileSaver:
                 "text": cleaned_transcript.text,
                 "original_length": cleaned_transcript.original_length,
                 "cleaned_length": cleaned_transcript.cleaned_length,
-                "corrections_made": cleaned_transcript.corrections_made,
                 "model_name": cleaned_transcript.model_name,
             },
             "chunks": {
@@ -682,7 +681,6 @@ if __name__ == "__main__":
                     text="First segment. Second segment.",
                     original_length=100,
                     cleaned_length=90,
-                    corrections_made=["Corrected word1 -> word2"],
                     model_name=settings.cleaner_model,
                 )
 

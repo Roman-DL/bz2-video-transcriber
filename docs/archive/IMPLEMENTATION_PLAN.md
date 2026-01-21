@@ -168,7 +168,7 @@ tree backend/
    - text: str
    - original_length: int
    - cleaned_length: int
-   - corrections_made: list[str]
+   - model_name: str
 
 5. TranscriptChunk:
    - id: str (video_id + "_chunk_" + index)

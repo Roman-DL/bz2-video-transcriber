@@ -220,7 +220,6 @@ if __name__ == "__main__":
         text=" ".join(["word"] * 650),  # 650 words -> 3 chunks
         original_length=1000,
         cleaned_length=650 * 5,
-        corrections_made=[],
     )
 
     mock_metadata = VideoMetadata(

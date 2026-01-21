@@ -48,7 +48,6 @@ export interface CleanedTranscript {
   text: string;
   original_length: number;
   cleaned_length: number;
-  corrections_made: string[];
   model_name: string;
 }
 

@@ -1,14 +1,14 @@
 """
 Transcript cleaner service.
 
-Cleans raw transcripts using glossary term replacement and Ollama LLM.
+Cleans raw transcripts using LLM with glossary context.
 """
 
 import logging
 import re
 import time
 
-from app.config import Settings, get_settings, load_glossary, load_model_config, load_prompt
+from app.config import Settings, get_settings, load_model_config, load_prompt
 from app.models.schemas import CleanedTranscript, RawTranscript, VideoMetadata
 from app.services.ai_clients import BaseAIClient, OllamaClient
 
@@ -23,11 +23,13 @@ DEFAULT_SMALL_TEXT_THRESHOLD = 3500
 
 class TranscriptCleaner:
     """
-    Transcript cleaning service using glossary and Ollama LLM.
+    Transcript cleaning service using LLM with glossary context.
 
-    Two-step cleaning process:
-    1. Glossary: Replace term variations with canonical forms
-    2. LLM: Remove filler words, fix speech errors, clean formatting
+    Single-step cleaning process:
+    - LLM receives glossary.yaml as context and performs:
+      - Terminology correction (recognizes variations by sound/meaning)
+      - Filler words removal
+      - Speech error fixes
 
     Example:
         async with OllamaClient.from_settings(settings) as client:
@@ -48,7 +50,7 @@ class TranscriptCleaner:
         self.settings = settings
         self.system_prompt = load_prompt("cleaner_system", settings.cleaner_model, settings)
         self.user_template = load_prompt("cleaner_user", settings.cleaner_model, settings)
-        self.glossary = load_glossary(settings)
+        self.glossary_text = self._load_glossary_text(settings)
 
         # Load model-specific chunking configuration
         config = load_model_config(settings.cleaner_model, "cleaner", settings)
@@ -56,16 +58,30 @@ class TranscriptCleaner:
         self.chunk_overlap = config.get("chunk_overlap", DEFAULT_CHUNK_OVERLAP)
         self.small_text_threshold = config.get("small_text_threshold", DEFAULT_SMALL_TEXT_THRESHOLD)
 
+    def _load_glossary_text(self, settings: Settings) -> str:
+        """
+        Load glossary.yaml as text for LLM context.
+
+        Args:
+            settings: Application settings
+
+        Returns:
+            Glossary content as YAML text
+        """
+        glossary_path = settings.config_dir / "glossary.yaml"
+        return glossary_path.read_text(encoding="utf-8")
+
     async def clean(
         self,
         raw_transcript: RawTranscript,
         metadata: VideoMetadata,
     ) -> CleanedTranscript:
         """
-        Clean raw transcript.
+        Clean raw transcript using LLM with glossary context.
 
         For large texts (>10KB), uses chunked processing to avoid LLM
-        summarizing instead of cleaning.
+        summarizing instead of cleaning. LLM receives glossary.yaml as
+        context and performs terminology correction and filler removal.
 
         Args:
             raw_transcript: Raw transcript from Whisper
@@ -85,23 +101,22 @@ class TranscriptCleaner:
 
         start_time = time.time()
 
-        # Step 1: Apply glossary replacements
-        text_after_glossary, corrections = self._apply_glossary(original_text)
-        logger.debug(f"Glossary applied: {len(corrections)} corrections")
-
-        # Step 2: Split into chunks if text is large
-        chunks = self._split_into_chunks(text_after_glossary)
+        # Split into chunks if text is large
+        chunks = self._split_into_chunks(original_text)
 
         if len(chunks) > 1:
             logger.info(f"Large text detected, processing in {len(chunks)} chunks")
 
-        # Step 3: Process each chunk with LLM using chat API
+        # Process each chunk with LLM using chat API (with glossary context)
         cleaned_chunks = []
         total_input_chars = 0
         total_output_chars = 0
 
         for i, chunk in enumerate(chunks):
-            user_content = self.user_template.format(transcript=chunk)
+            user_content = self.user_template.format(
+                glossary=self.glossary_text,
+                transcript=chunk,
+            )
 
             messages = [
                 {"role": "system", "content": self.system_prompt},
@@ -230,62 +245,8 @@ class TranscriptCleaner:
             text=cleaned_text,
             original_length=original_length,
             cleaned_length=cleaned_length,
-            corrections_made=corrections,
             model_name=self.settings.cleaner_model,
         )
-
-    def _apply_glossary(self, text: str) -> tuple[str, list[str]]:
-        """
-        Apply glossary term replacements.
-
-        Replaces term variations with their canonical forms.
-        Uses case-insensitive matching with word boundaries.
-
-        Args:
-            text: Input text
-
-        Returns:
-            Tuple of (processed text, list of corrections made)
-        """
-        corrections = []
-        replacements = []
-
-        # Collect all replacements from all categories
-        # Skip metadata keys (version, date, total_terms)
-        for category_name, terms in self.glossary.items():
-            if not isinstance(terms, list):
-                continue
-
-            for term in terms:
-                canonical = term.get("canonical")
-                variations = term.get("variations", [])
-
-                if not canonical or not variations:
-                    continue
-
-                for variation in variations:
-                    # Skip if variation is the same as canonical
-                    if variation.lower() == canonical.lower():
-                        continue
-                    replacements.append((variation, canonical))
-
-        # Sort by length (longest first) to avoid partial replacements
-        replacements.sort(key=lambda x: len(x[0]), reverse=True)
-
-        # Apply replacements
-        for variation, canonical in replacements:
-            # Build regex pattern with word boundaries
-            # Escape special regex characters in variation
-            pattern = rf"\b{re.escape(variation)}\b"
-
-            # Find matches before replacing
-            matches = re.findall(pattern, text, flags=re.IGNORECASE)
-            if matches:
-                text = re.sub(pattern, canonical, text, flags=re.IGNORECASE)
-                for match in matches:
-                    corrections.append(f"{match} -> {canonical}")
-
-        return text, corrections
 
     def _split_into_chunks(self, text: str) -> list[str]:
         """
@@ -419,54 +380,31 @@ if __name__ == "__main__":
 
         settings = get_settings()
 
-        # Test 1: Load glossary
-        print("Test 1: Load glossary...", end=" ")
-        try:
-            glossary = load_glossary(settings)
-            total_terms = 0
-            categories = []
-            for key, value in glossary.items():
-                if isinstance(value, list):
-                    total_terms += len(value)
-                    categories.append(key)
-
-            assert total_terms > 0, "Glossary is empty"
-            print("OK")
-            print(f"  Categories: {', '.join(categories)}")
-            print(f"  Total terms: {total_terms}")
-        except Exception as e:
-            print(f"FAILED: {e}")
-            return 1
-
-        # Test 2: Apply glossary
-        print("\nTest 2: Apply glossary...", end=" ")
+        # Test 1: Load glossary text
+        print("Test 1: Load glossary text...", end=" ")
         try:
             cleaner = TranscriptCleaner(None, settings)  # type: ignore
-
-            # Test with exact variations from glossary (case-insensitive)
-            test_text = "Сегодня поговорим о гербалайф и формула один. Также расскажу про СВ и гет тим."
-            processed, corrections = cleaner._apply_glossary(test_text)
-
-            assert "Herbalife" in processed, f"Expected 'Herbalife' in: {processed}"
-            assert "Формула 1" in processed, f"Expected 'Формула 1' in: {processed}"
-            assert "Супервайзер" in processed, f"Expected 'Супервайзер' in: {processed}"
-            assert len(corrections) > 0, "Expected some corrections"
-
+            assert len(cleaner.glossary_text) > 1000, "Glossary text too short"
+            assert "canonical:" in cleaner.glossary_text, "Missing canonical field"
+            assert "variations:" in cleaner.glossary_text, "Missing variations field"
             print("OK")
-            print(f"  Input: {test_text}")
-            print(f"  Output: {processed}")
-            print(f"  Corrections: {corrections}")
+            print(f"  Glossary text: {len(cleaner.glossary_text)} chars")
         except Exception as e:
             print(f"FAILED: {e}")
             return 1
 
-        # Test 3: Load prompts (system + user)
-        print("\nTest 3: Load prompts...", end=" ")
+        # Test 2: Load prompts (system + user)
+        print("\nTest 2: Load prompts...", end=" ")
         try:
             assert len(cleaner.system_prompt) > 100, "System prompt too short"
-            assert "{transcript}" in cleaner.user_template, "User template missing placeholder"
-            user_content = cleaner.user_template.format(transcript="Test text")
+            assert "{transcript}" in cleaner.user_template, "User template missing transcript placeholder"
+            assert "{glossary}" in cleaner.user_template, "User template missing glossary placeholder"
+            user_content = cleaner.user_template.format(
+                glossary="test glossary",
+                transcript="Test text",
+            )
             assert "Test text" in user_content, "User template not working"
+            assert "test glossary" in user_content, "Glossary not included"
             print("OK")
             print(f"  System prompt: {len(cleaner.system_prompt)} chars")
             print(f"  User template: {len(cleaner.user_template)} chars")
@@ -474,37 +412,8 @@ if __name__ == "__main__":
             print(f"FAILED: {e}")
             return 1
 
-        # Test 4: Mock clean (without LLM)
-        print("\nTest 4: Mock transcript parsing...", end=" ")
-        try:
-            from app.models.schemas import TranscriptSegment
-
-            # Use exact glossary variations (nominative case)
-            mock_segments = [
-                TranscriptSegment(start=0.0, end=5.0, text="Ну вот, значит, сегодня поговорим о гербалайф."),
-                TranscriptSegment(start=5.0, end=10.0, text="Формула один — это основной продукт. Также есть Ф2."),
-            ]
-            raw_transcript = RawTranscript(
-                segments=mock_segments,
-                language="ru",
-                duration_seconds=10.0,
-                whisper_model="large-v3",
-            )
-
-            # Just test glossary application on full_text
-            processed, corrections = cleaner._apply_glossary(raw_transcript.full_text)
-            assert "Herbalife" in processed, f"Expected 'Herbalife' in: {processed}"
-            assert "Формула 1" in processed, f"Expected 'Формула 1' in: {processed}"
-            assert "Формула 2" in processed, f"Expected 'Формула 2' in: {processed}"
-            print("OK")
-            print(f"  Original: {raw_transcript.full_text}")
-            print(f"  After glossary: {processed}")
-        except Exception as e:
-            print(f"FAILED: {e}")
-            return 1
-
-        # Test 5: Full clean with LLM (if available)
-        print("\nTest 5: Full clean with LLM...", end=" ")
+        # Test 3: Full clean with LLM (if available)
+        print("\nTest 3: Full clean with LLM...", end=" ")
         async with OllamaClient.from_settings(settings) as client:
             status = await client.check_services()
 
@@ -512,6 +421,8 @@ if __name__ == "__main__":
                 print("SKIPPED (Ollama unavailable)")
             else:
                 try:
+                    from app.models.schemas import TranscriptSegment
+
                     cleaner = TranscriptCleaner(client, settings)
 
                     mock_metadata = VideoMetadata(
@@ -526,6 +437,7 @@ if __name__ == "__main__":
                         archive_path=Path("/archive/test"),
                     )
 
+                    # Test with terminology variations that LLM should recognize
                     mock_segments = [
                         TranscriptSegment(
                             start=0.0,
@@ -555,11 +467,13 @@ if __name__ == "__main__":
                     assert cleaned.text, "Cleaned text is empty"
                     assert cleaned.original_length > 0
                     assert cleaned.cleaned_length > 0
+                    # LLM should have corrected terms
+                    assert "Herbalife" in cleaned.text or "гербалайф" not in cleaned.text.lower(), \
+                        "Expected Herbalife correction"
 
                     print("OK")
                     print(f"  Original length: {cleaned.original_length}")
                     print(f"  Cleaned length: {cleaned.cleaned_length}")
-                    print(f"  Corrections: {len(cleaned.corrections_made)}")
                     print(f"  Cleaned text preview: {cleaned.text[:200]}...")
                 except Exception as e:
                     print(f"FAILED: {e}")

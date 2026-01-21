@@ -456,7 +456,6 @@ type: summary
     "text": "Очищенный текст транскрипции...",
     "original_length": 15000,
     "cleaned_length": 12500,
-    "corrections_made": ["Herbalife → Herbalife", "формула 1 → Формула 1"],
     "model_name": "gemma2:9b"
   },
 

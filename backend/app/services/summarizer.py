@@ -413,7 +413,6 @@ if __name__ == "__main__":
                         text=mock_text.strip(),
                         original_length=len(mock_text),
                         cleaned_length=len(mock_text.strip()),
-                        corrections_made=[],
                         model_name=settings.cleaner_model,
                     )
 

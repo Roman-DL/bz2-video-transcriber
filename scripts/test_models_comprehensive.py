@@ -760,7 +760,6 @@ async def run_chunker_tests(
         text=cleaned_text,
         original_length=len(cleaned_text),
         cleaned_length=len(cleaned_text),
-        corrections_made=[],
         model_name="test",
     )
 
@@ -832,7 +831,6 @@ async def run_summarizer_tests(
         text=cleaned_text,
         original_length=len(cleaned_text),
         cleaned_length=len(cleaned_text),
-        corrections_made=[],
         model_name="test",
     )
 
@@ -967,8 +965,7 @@ async def run_pipeline_tests(
                             text=cleaned_text,
                             original_length=len(cleaned_text),
                             cleaned_length=len(cleaned_text),
-                            corrections_made=[],
-                            model_name=model,
+                                                model_name=model,
                         )
 
                         chunker = SemanticChunker(ai_client, settings)
@@ -1011,8 +1008,7 @@ async def run_pipeline_tests(
                             text=cleaned_text,
                             original_length=len(cleaned_text),
                             cleaned_length=len(cleaned_text),
-                            corrections_made=[],
-                            model_name=model,
+                                                model_name=model,
                         )
 
                         summarizer = VideoSummarizer(ai_client, settings)

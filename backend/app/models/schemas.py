@@ -133,7 +133,6 @@ class CleanedTranscript(BaseModel):
     text: str
     original_length: int
     cleaned_length: int
-    corrections_made: list[str] = Field(default_factory=list)
     model_name: str
 
 
