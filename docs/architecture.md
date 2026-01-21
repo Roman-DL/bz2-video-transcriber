@@ -317,21 +317,30 @@ Manager   Factory   Resolver    Registry      (AI client)
 │                    (управление этапами)                        │
 └────────────┬───────────────────────────────────────────────────┘
              │
-    ┌────────┼────────┬────────┬────────┬────────┬────────┐
-    ▼        ▼        ▼        ▼        ▼        ▼        ▼
-  Parse  Transcribe  Clean   Chunk  Longread Summarize  Save
-  Stage    Stage    Stage   Stage   Stage    Stage    Stage
-    │        │        │        │        │        │        │
-    └────────┴────────┴────────┴────────┴────────┴────────┘
-                              │
-                     ┌────────┴────────┐
-                     ▼                 ▼
-               StageContext       BaseStage
-          (передача данных)   (абстрактный класс)
+    ┌────────┼────────┬────────┬────────┬───────────────────┐
+    ▼        ▼        ▼        ▼        ▼                   ▼
+  Parse  Transcribe  Clean   Chunk  ┌───┴───┐             Save
+  Stage    Stage    Stage   Stage   │       │             Stage
+                                    ▼       ▼
+                               Longread  Story     (v0.23+)
+                                Stage    Stage
+                                    │       │
+                               Summarize    │
+                                Stage       │
+                                    │       │
+                     ┌──────────────┴───────┘
+                     ▼
+               StageContext
+          (передача данных)
 ```
+
+**Ветвление по content_type (v0.23+):**
+- `EDUCATIONAL` → LongreadStage → SummarizeStage → longread.md + summary.md
+- `LEADERSHIP` → StoryStage → story.md (8 блоков)
 
 **Основные классы:**
 - `BaseStage` — абстрактный базовый класс для этапов
+- `BaseStage.should_skip()` — условное выполнение по content_type
 - `StageContext` — immutable контекст для передачи данных между этапами
 - `StageRegistry` — реестр для управления этапами и построения pipeline
 
