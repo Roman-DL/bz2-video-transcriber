@@ -23,10 +23,9 @@
 ```
 prompts/
 ├── cleaning/
-│   ├── system.md
-│   ├── system_gemma2.md      # model-specific
-│   ├── user.md
-│   └── user_gemma2.md
+│   ├── system.md             # default
+│   ├── system_v2.md          # вариант (опционально)
+│   └── user.md
 ├── longread/
 │   ├── system.md
 │   ├── instructions.md
@@ -46,23 +45,20 @@ prompts/
 └── glossary.yaml
 ```
 
-### Новая сигнатура load_prompt()
+### Новая сигнатура load_prompt() (v0.31+)
 
 ```python
 def load_prompt(
     stage: str,           # "cleaning", "longread", "summary", "story", "outline"
-    component: str,       # "system", "instructions", "template", "user", "map"
-    model: str | None = None,
+    name: str,            # "system", "system_v2", "instructions", "template", "user", "map"
     settings: Settings | None = None
 ) -> str:
 ```
 
 ### Приоритет загрузки (первый найденный)
 
-1. `prompts_dir/{stage}/{component}_{model_family}.md` (внешняя, model-specific)
-2. `prompts_dir/{stage}/{component}.md` (внешняя, generic)
-3. `config_dir/prompts/{stage}/{component}_{model_family}.md` (встроенная, model-specific)
-4. `config_dir/prompts/{stage}/{component}.md` (встроенная, generic)
+1. `prompts_dir/{stage}/{name}.md` (внешняя папка)
+2. `config_dir/prompts/{stage}/{name}.md` (встроенная)
 
 ### Конфигурация
 
@@ -85,10 +81,10 @@ environment:
 ┌─────────────────────────────────────────────────────────┐
 │                    load_prompt()                         │
 ├─────────────────────────────────────────────────────────┤
-│  1. Проверить prompts_dir/{stage}/{component}.md        │
+│  1. Проверить prompts_dir/{stage}/{name}.md             │
 │     └─ Есть? → Использовать                             │
 │                                                          │
-│  2. Fallback: config_dir/prompts/{stage}/{component}.md │
+│  2. Fallback: config_dir/prompts/{stage}/{name}.md      │
 │     └─ Использовать встроенный из образа                │
 └─────────────────────────────────────────────────────────┘
 ```

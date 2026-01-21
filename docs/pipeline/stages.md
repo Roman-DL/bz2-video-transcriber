@@ -203,6 +203,35 @@ stages = registry.build_pipeline([
 
 ---
 
+## Генераторы и PromptOverrides (v0.32+)
+
+Генераторы (`TranscriptCleaner`, `LongreadGenerator`, `SummaryGenerator`, `StoryGenerator`) поддерживают выбор вариантов промптов через `PromptOverrides`:
+
+```python
+from app.models.schemas import PromptOverrides
+from app.services.cleaner import TranscriptCleaner
+
+# Использование с override промптов
+overrides = PromptOverrides(system="system_v2")
+cleaner = TranscriptCleaner(ai_client, settings, prompt_overrides=overrides)
+result = await cleaner.clean(raw_transcript, metadata)
+```
+
+**Доступные компоненты по этапам:**
+
+| Генератор | Компоненты |
+|-----------|------------|
+| `TranscriptCleaner` | `system`, `user` |
+| `LongreadGenerator` | `system`, `instructions`, `template` |
+| `SummaryGenerator` | `system`, `instructions`, `template` |
+| `StoryGenerator` | `system`, `instructions`, `template` |
+
+**Логика:**
+- `prompt_overrides=None` → используются default промпты
+- `prompt_overrides.system="system_v2"` → загружается `config/prompts/{stage}/system_v2.md`
+
+---
+
 ## Граф зависимостей
 
 ```

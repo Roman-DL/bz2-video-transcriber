@@ -262,17 +262,16 @@ stages:
     min_seconds: 30
 ```
 
-### prompts/ (v0.30+)
+### prompts/ (v0.31+)
 
 Промпты организованы в иерархическую структуру по этапам pipeline:
 
 ```
 config/prompts/
 ├── cleaning/
-│   ├── system.md
-│   ├── system_gemma2.md      # model-specific
-│   ├── user.md
-│   └── user_gemma2.md
+│   ├── system.md             # default
+│   ├── system_v2.md          # вариант (опционально)
+│   └── user.md
 ├── longread/
 │   ├── system.md
 │   ├── instructions.md
@@ -292,10 +291,8 @@ config/prompts/
 ```
 
 **Приоритет загрузки** (первый найденный):
-1. `prompts_dir/{stage}/{component}_{model_family}.md` (внешняя, model-specific)
-2. `prompts_dir/{stage}/{component}.md` (внешняя, generic)
-3. `config_dir/prompts/{stage}/{component}_{model_family}.md` (встроенная, model-specific)
-4. `config_dir/prompts/{stage}/{component}.md` (встроенная, generic)
+1. `prompts_dir/{stage}/{name}.md` (внешняя папка)
+2. `config_dir/prompts/{stage}/{name}.md` (встроенная)
 
 ## Внешние промпты (v0.30+)
 
@@ -339,6 +336,81 @@ rm /mnt/main/work/bz2/video/prompts/cleaning/system.md
 ```
 
 Подробнее: [ADR-008: Внешние промпты](adr/008-external-prompts.md)
+
+## Варианты промптов (v0.31+)
+
+Система поддерживает создание альтернативных версий промптов для A/B тестирования и экспериментов.
+
+### Создание варианта
+
+Вариант — это файл с тем же компонентом в имени, но другим суффиксом:
+
+```
+config/prompts/cleaning/
+├── system.md        # default
+├── system_v2.md     # вариант "system_v2"
+└── system_для_тестов.md  # вариант "system_для_тестов"
+```
+
+**Правила именования:**
+- Имя файла без `.md` = имя варианта
+- Компонент определяется по ключевому слову в имени (`system`, `user`, `instructions`, `template`)
+
+### Получение доступных вариантов (API)
+
+```bash
+curl http://100.64.0.1:8801/api/prompts/cleaning
+```
+
+**Ответ:**
+```json
+{
+  "stage": "cleaning",
+  "components": [
+    {
+      "component": "system",
+      "default": "system",
+      "variants": [
+        {"name": "system", "source": "builtin", "filename": "system.md"},
+        {"name": "system_v2", "source": "external", "filename": "system_v2.md"}
+      ]
+    },
+    {
+      "component": "user",
+      "default": "user",
+      "variants": [
+        {"name": "user", "source": "builtin", "filename": "user.md"}
+      ]
+    }
+  ]
+}
+```
+
+### Выбор варианта через API
+
+```bash
+curl -X POST http://100.64.0.1:8801/api/step/clean \
+  -H "Content-Type: application/json" \
+  -d '{
+    "raw_transcript": {...},
+    "metadata": {...},
+    "prompt_overrides": {
+      "system": "system_v2"
+    }
+  }'
+```
+
+### Выбор в UI
+
+В пошаговом режиме (step-by-step) селекторы промптов показываются автоматически, если для компонента есть несколько вариантов. Варианты из внешней папки отмечены звёздочкой (*).
+
+### Workflow эксперимента
+
+1. Создать вариант промпта в `/data/prompts/{stage}/{component}_v2.md`
+2. Перезагрузить страницу — вариант появится в селекторе
+3. Запустить обработку с новым вариантом
+4. Сравнить результаты с default
+5. При успехе — оставить как вариант или заменить default
 
 ## Где что менять
 

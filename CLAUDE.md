@@ -142,6 +142,31 @@ result = await cache.load(archive_path, CacheStageName.CLEANING, version=1)
 
 Подробнее: [docs/adr/005-result-caching.md](docs/adr/005-result-caching.md)
 
+## Prompts API (v0.31+)
+
+API для получения доступных вариантов промптов и их использования при обработке.
+
+**Endpoints:**
+- `GET /api/prompts/{stage}` — список вариантов промптов для этапа
+
+**Step API с prompt_overrides (v0.32+):**
+```python
+# POST /api/step/clean, /api/step/longread, /api/step/summarize, /api/step/story
+{
+    "raw_transcript": {...},
+    "metadata": {...},
+    "model": "claude-sonnet-4-5",       # опционально
+    "prompt_overrides": {                # опционально
+        "system": "system_v2",           # использовать system_v2.md
+        "user": "user"                   # default
+    }
+}
+```
+
+**UI (v0.33+):** В пошаговом режиме (step-by-step) показываются селекторы промптов, если для компонента есть несколько вариантов.
+
+Подробнее: [docs/api-reference.md](docs/api-reference.md)
+
 ## Content Types и Archive Structure (v0.21+, updated v0.23)
 
 Система поддерживает два типа контента с разными pipeline и выходными документами:
@@ -347,15 +372,15 @@ async with strategy.create_client("claude-sonnet-4-5") as client:
 | `config/prompts/{stage}/` | Промпты для LLM (v0.30+: иерархическая структура) |
 | `config/events.yaml` | Типы событий для парсинга имён |
 
-### Структура промптов (v0.30+)
+### Структура промптов (v0.31+)
 
 Промпты организованы по этапам pipeline:
 
 ```
 config/prompts/
 ├── cleaning/            # Очистка транскрипта
-│   ├── system.md
-│   ├── system_gemma2.md # model-specific
+│   ├── system.md        # default
+│   ├── system_v2.md     # вариант (опционально)
 │   └── user.md
 ├── longread/            # Генерация лонгрида
 │   ├── system.md
@@ -371,9 +396,20 @@ config/prompts/
 ```python
 from app.config import load_prompt
 
-# Новая сигнатура: load_prompt(stage, component, model, settings)
-system = load_prompt("cleaning", "system", model, settings)
-user = load_prompt("cleaning", "user", model, settings)
+# Сигнатура: load_prompt(stage, name, settings)
+system = load_prompt("cleaning", "system", settings)         # default
+system_v2 = load_prompt("cleaning", "system_v2", settings)   # вариант
+```
+
+**API промптов (v0.31+):**
+```bash
+# Получить доступные варианты для этапа
+curl http://100.64.0.1:8801/api/prompts/cleaning
+
+# Response: {"stage":"cleaning","components":[
+#   {"component":"system","default":"system","variants":[...]},
+#   {"component":"user",...}
+# ]}
 ```
 
 **Внешние промпты (без деплоя):**

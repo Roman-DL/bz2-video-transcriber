@@ -570,8 +570,120 @@ archive/2025/01.09 ПШ/Video Title/
 
 ---
 
+## Prompts API (v0.31+)
+
+API для получения доступных вариантов промптов.
+
+### GET /api/prompts/{stage}
+
+Получить список вариантов промптов для этапа.
+
+**Параметры:**
+- `stage` (path) — название этапа (`cleaning`, `longread`, `summary`, `story`)
+
+**curl пример:**
+```bash
+curl http://100.64.0.1:8801/api/prompts/cleaning
+```
+
+**Response:**
+```json
+{
+  "stage": "cleaning",
+  "components": [
+    {
+      "component": "system",
+      "default": "system",
+      "variants": [
+        {
+          "name": "system",
+          "source": "builtin",
+          "filename": "system.md"
+        },
+        {
+          "name": "system_v2",
+          "source": "external",
+          "filename": "system_v2.md"
+        }
+      ]
+    },
+    {
+      "component": "user",
+      "default": "user",
+      "variants": [
+        {
+          "name": "user",
+          "source": "builtin",
+          "filename": "user.md"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Поля:**
+- `component` — тип компонента (`system`, `user`, `instructions`, `template`)
+- `default` — имя варианта по умолчанию
+- `source` — источник: `builtin` (встроенный) или `external` (внешняя папка)
+
+---
+
+## Step API (v0.32+)
+
+API для пошаговой обработки с возможностью override модели и промптов.
+
+### POST /api/step/clean
+
+**Request:**
+```json
+{
+  "raw_transcript": {
+    "text": "Сырой транскрипт..."
+  },
+  "metadata": {
+    "title": "...",
+    "speaker": "...",
+    "content_type": "educational"
+  },
+  "model": "claude-sonnet-4-5",
+  "prompt_overrides": {
+    "system": "system_v2",
+    "user": "user"
+  }
+}
+```
+
+**Параметры:**
+- `model` (optional) — override модели для обработки
+- `prompt_overrides` (optional) — override промптов для компонентов
+
+**Response (SSE):**
+```json
+{"type": "progress", "status": "cleaning", "progress": 45.5, "message": "..."}
+{"type": "result", "data": {...}}
+```
+
+### POST /api/step/longread
+
+Аналогично `/step/clean`, но `prompt_overrides` может содержать:
+- `system` — системный промпт
+- `instructions` — инструкции
+- `template` — шаблон
+
+### POST /api/step/summarize
+
+Аналогично `/step/longread`.
+
+### POST /api/step/story
+
+Аналогично `/step/longread`.
+
+---
+
 ## Связанные документы
 
 - [architecture.md](architecture.md) — схема системы
 - [pipeline.md](pipeline.md) — этапы обработки
 - [adr/005-result-caching.md](adr/005-result-caching.md) — решение по кэшированию
+- [configuration.md](configuration.md) — настройка промптов
