@@ -988,7 +988,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
                 const status = getStepStatus(step);
                 const Icon = STEP_ICONS[step];
                 const isExpanded = expandedSettings === step;
-                const isCurrent = status === 'completed' && getTabForStep(step) === activeTab;
+                const isCurrent = status === 'completed' && getTabForStep(step) === activeTab && !isLoading;
                 const hasSettings = isLLMStep(step) && isCurrent;
 
                 return (

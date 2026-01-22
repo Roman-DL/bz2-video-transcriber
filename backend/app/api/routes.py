@@ -50,10 +50,13 @@ async def list_archive() -> dict:
     """
     List archive folder structure.
 
-    Archive structure: archive/{year}/{MM.DD event_type}/{[stream] title (speaker)}/
+    Archive structure (4 levels):
+    - Regular: archive/{year}/{event_type}/{MM.DD}/{topic_folder}/
+    - Offsite: archive/{year}/Выездные/{event_name}/{topic_folder}/
 
     Returns:
         Tree structure: year -> event_folder -> items
+        Each item contains: title, speaker, event_type, mid_folder
     """
     settings = get_settings()
     archive_dir = settings.archive_dir
@@ -64,7 +67,7 @@ async def list_archive() -> dict:
     tree: dict = {}
     total = 0
 
-    # Scan: archive/{year}/{event_folder}/{topic_folder}/
+    # Scan 4 levels: archive/{year}/{event_type}/{mid_folder}/{topic_folder}/
     for year_dir in sorted(archive_dir.iterdir(), reverse=True):
         if not year_dir.is_dir() or not year_dir.name.isdigit():
             continue
@@ -72,53 +75,71 @@ async def list_archive() -> dict:
         year = year_dir.name
         tree[year] = {}
 
-        for event_dir in sorted(year_dir.iterdir(), reverse=True):
-            if not event_dir.is_dir():
+        for event_type_dir in sorted(year_dir.iterdir(), reverse=True):
+            if not event_type_dir.is_dir():
                 continue
 
-            event_folder = event_dir.name  # e.g., "12.22 ПШ"
-            tree[year][event_folder] = []
+            event_type = event_type_dir.name  # "ПШ", "Выездные"
 
-            for topic_dir in sorted(event_dir.iterdir()):
-                if not topic_dir.is_dir():
+            for mid_dir in sorted(event_type_dir.iterdir(), reverse=True):
+                if not mid_dir.is_dir():
                     continue
 
-                # Parse topic folder: "[stream] title (speaker)" or "title (speaker)"
-                folder_name = topic_dir.name
-                speaker = None
-                title = folder_name
+                mid_folder = mid_dir.name  # "01.22" or "Форум Табтим"
+                # Display key: "01.22 ПШ" or "Форум Табтим"
+                event_folder = f"{mid_folder} {event_type}" if event_type != "Выездные" else mid_folder
+                tree[year][event_folder] = []
 
-                # Extract speaker from parentheses at the end
-                if "(" in folder_name and folder_name.endswith(")"):
-                    idx = folder_name.rfind("(")
-                    speaker = folder_name[idx + 1 : -1]
-                    title = folder_name[:idx].strip()
+                for topic_dir in sorted(mid_dir.iterdir()):
+                    if not topic_dir.is_dir():
+                        continue
 
-                tree[year][event_folder].append({"title": title, "speaker": speaker})
-                total += 1
+                    # Parse topic folder: "[stream] title (speaker)" or "title (speaker)"
+                    folder_name = topic_dir.name
+                    speaker = None
+                    title = folder_name
+
+                    # Extract speaker from parentheses at the end
+                    if "(" in folder_name and folder_name.endswith(")"):
+                        idx = folder_name.rfind("(")
+                        speaker = folder_name[idx + 1 : -1]
+                        title = folder_name[:idx].strip()
+
+                    tree[year][event_folder].append({
+                        "title": title,
+                        "speaker": speaker,
+                        "event_type": event_type,
+                        "mid_folder": mid_folder,
+                    })
+                    total += 1
 
     return {"tree": tree, "total": total}
 
 
 @router.get("/archive/results")
-async def get_archive_results(year: str, event_folder: str, topic_folder: str) -> dict:
+async def get_archive_results(
+    year: str,
+    event_type: str,
+    mid_folder: str,
+    topic_folder: str,
+) -> dict:
     """
     Get pipeline results for archived video.
 
-    Reads pipeline_results.json from the archive folder if it exists
-    and the version is compatible.
+    Reads pipeline_results.json from the archive folder if it exists.
 
     Args:
-        year: Year folder (e.g., "2025")
-        event_folder: Event folder (e.g., "12.22 ПШ")
-        topic_folder: Topic folder (e.g., "SV Закрытие ПО (Кухаренко Женя)")
+        year: Year folder (e.g., "2026")
+        event_type: Event type folder (e.g., "ПШ", "Выездные")
+        mid_folder: Date or event name folder (e.g., "01.22", "Форум Табтим")
+        topic_folder: Topic folder (e.g., "SV Тестовая запись (Тест)")
 
     Returns:
-        - {"available": true, "data": {...}} if file exists and version compatible
-        - {"available": false, "message": "..."} if file missing or version incompatible
+        - {"available": true, "data": {...}} if file exists
+        - {"available": false, "message": "..."} if file missing or read error
     """
     settings = get_settings()
-    archive_path = settings.archive_dir / year / event_folder / topic_folder
+    archive_path = settings.archive_dir / year / event_type / mid_folder / topic_folder
     results_file = archive_path / "pipeline_results.json"
 
     if not results_file.exists():

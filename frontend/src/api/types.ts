@@ -327,6 +327,8 @@ export const LEADERSHIP_STEPS: PipelineStep[] = [
 export interface ArchiveItem {
   title: string;
   speaker: string | null;
+  event_type: string;
+  mid_folder: string;
 }
 
 // Tree structure: year -> event_folder -> items[]
@@ -353,11 +355,9 @@ export interface PipelineResults {
   display_text?: string;
   cleaned_transcript?: CleanedTranscript;
   chunks?: TranscriptChunks;
-  // Old pipeline: VideoSummary, New pipeline: Summary
-  // We treat both as generic object and render as text
-  summary?: Record<string, unknown>;
   // Educational content
-  longread?: Record<string, unknown>;
+  longread?: Longread;
+  summary?: Summary;
   // Leadership content
   story?: Story;
 }

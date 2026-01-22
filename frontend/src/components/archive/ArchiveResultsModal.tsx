@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '@/components/common/Modal';
-import { CollapsibleCard } from '@/components/common/CollapsibleCard';
 import { Spinner } from '@/components/common/Spinner';
 import { Button } from '@/components/common/Button';
 import { MetadataView } from '@/components/results/MetadataView';
@@ -10,9 +9,22 @@ import {
 } from '@/components/results/TranscriptView';
 import { ChunksView } from '@/components/results/ChunksView';
 import { StoryView } from '@/components/results/StoryView';
+import { LongreadView } from '@/components/results/LongreadView';
+import { SummaryView } from '@/components/results/SummaryView';
 import { useArchiveResults } from '@/api/hooks/useArchive';
-import { AlertCircle, FileText, Zap, Layers, Clock, BookOpen, Users } from 'lucide-react';
-import type { ArchiveItemWithPath } from '@/api/types';
+import { formatTime } from '@/utils/formatUtils';
+import {
+  AlertCircle,
+  FileText,
+  FileAudio,
+  Sparkles,
+  Layers,
+  Clock,
+  BookOpen,
+  Heart,
+  ListChecks,
+} from 'lucide-react';
+import type { ArchiveItemWithPath, PipelineResults } from '@/api/types';
 
 interface ArchiveResultsModalProps {
   isOpen: boolean;
@@ -20,14 +32,34 @@ interface ArchiveResultsModalProps {
   item: ArchiveItemWithPath | null;
 }
 
-type BlockType =
+type ResultTab =
   | 'metadata'
   | 'rawTranscript'
   | 'cleanedTranscript'
-  | 'chunks'
   | 'longread'
   | 'summary'
-  | 'story';
+  | 'story'
+  | 'chunks';
+
+const TAB_ICONS: Record<ResultTab, React.ComponentType<{ className?: string }>> = {
+  metadata: FileText,
+  rawTranscript: FileAudio,
+  cleanedTranscript: Sparkles,
+  longread: BookOpen,
+  summary: ListChecks,
+  story: Heart,
+  chunks: Layers,
+};
+
+const TAB_LABELS: Record<ResultTab, string> = {
+  metadata: 'Метаданные',
+  rawTranscript: 'Транскрипт',
+  cleanedTranscript: 'Очистка',
+  longread: 'Лонгрид',
+  summary: 'Конспект',
+  story: 'История',
+  chunks: 'Чанки',
+};
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -38,102 +70,16 @@ function formatDuration(seconds: number): string {
     : `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-/**
- * Format any object as readable text.
- * Handles arrays, nested objects, and primitives.
- */
-function formatObjectAsText(obj: Record<string, unknown>, indent = 0): string {
-  const lines: string[] = [];
-  const prefix = '  '.repeat(indent);
-
-  for (const [key, value] of Object.entries(obj)) {
-    // Skip internal fields
-    if (['video_id', 'model_name', 'access_level'].includes(key)) continue;
-
-    const label = formatLabel(key);
-
-    if (value === null || value === undefined || value === '') {
-      continue;
-    } else if (Array.isArray(value)) {
-      if (value.length === 0) continue;
-      // Check if array contains objects (like sections)
-      if (typeof value[0] === 'object' && value[0] !== null) {
-        lines.push(`${prefix}## ${label}`);
-        lines.push('');
-        for (const item of value) {
-          if (typeof item === 'object' && item !== null) {
-            const itemObj = item as Record<string, unknown>;
-            // Handle section-like objects
-            if ('title' in itemObj && 'content' in itemObj) {
-              lines.push(`${prefix}### ${itemObj.title}`);
-              lines.push('');
-              lines.push(`${prefix}${itemObj.content}`);
-              lines.push('');
-            } else {
-              lines.push(formatObjectAsText(itemObj, indent + 1));
-            }
-          }
-        }
-      } else {
-        // Simple array of strings
-        lines.push(`${prefix}## ${label}`);
-        lines.push('');
-        for (const item of value) {
-          lines.push(`${prefix}• ${item}`);
-        }
-        lines.push('');
-      }
-    } else if (typeof value === 'object') {
-      lines.push(`${prefix}## ${label}`);
-      lines.push('');
-      lines.push(formatObjectAsText(value as Record<string, unknown>, indent + 1));
-    } else {
-      // String or number - main content
-      if (key === 'introduction' || key === 'conclusion' || key === 'essence' ||
-          key === 'summary' || key === 'insight' || key === 'content') {
-        if (label && key !== 'content') {
-          lines.push(`${prefix}## ${label}`);
-          lines.push('');
-        }
-        lines.push(`${prefix}${value}`);
-        lines.push('');
-      } else if (key === 'title' || key === 'speaker' || key === 'date') {
-        // Skip metadata fields shown elsewhere
-        continue;
-      } else {
-        lines.push(`${prefix}**${label}:** ${value}`);
-        lines.push('');
-      }
-    }
-  }
-
-  return lines.join('\n');
-}
-
-/**
- * Convert snake_case key to readable label.
- */
-function formatLabel(key: string): string {
-  const labels: Record<string, string> = {
-    introduction: 'Вступление',
-    sections: 'Разделы',
-    conclusion: 'Заключение',
-    essence: 'Суть темы',
-    key_concepts: 'Ключевые концепции',
-    practical_tools: 'Инструменты и методы',
-    quotes: 'Ключевые цитаты',
-    insight: 'Главный инсайт',
-    actions: 'Что сделать',
-    summary: 'Краткое содержание',
-    key_points: 'Ключевые тезисы',
-    recommendations: 'Рекомендации',
-    target_audience: 'Целевая аудитория',
-    questions_answered: 'На какие вопросы отвечает',
-    section: 'Раздел',
-    subsection: 'Подраздел',
-    tags: 'Теги',
-  };
-  return labels[key] || key.replace(/_/g, ' ');
+function getAvailableTabs(results: PipelineResults): ResultTab[] {
+  const tabs: ResultTab[] = [];
+  if (results.metadata) tabs.push('metadata');
+  if (results.raw_transcript) tabs.push('rawTranscript');
+  if (results.cleaned_transcript) tabs.push('cleanedTranscript');
+  if (results.longread) tabs.push('longread');
+  if (results.summary) tabs.push('summary');
+  if (results.story) tabs.push('story');
+  if (results.chunks) tabs.push('chunks');
+  return tabs;
 }
 
 export function ArchiveResultsModal({
@@ -141,30 +87,39 @@ export function ArchiveResultsModal({
   onClose,
   item,
 }: ArchiveResultsModalProps) {
-  const [expandedBlocks, setExpandedBlocks] = useState<Set<BlockType>>(
-    new Set(['summary', 'longread', 'story'])
-  );
+  const [activeTab, setActiveTab] = useState<ResultTab>('metadata');
+  const [showCleanedDiff, setShowCleanedDiff] = useState(false);
+  const [showLongreadDiff, setShowLongreadDiff] = useState(false);
 
   const { data, isLoading, isError } = useArchiveResults(
     item?.year ?? null,
-    item?.eventFolder ?? null,
+    item?.event_type ?? null,
+    item?.mid_folder ?? null,
     item?.topicFolder ?? null
   );
 
-  const toggleBlock = (block: BlockType) => {
-    setExpandedBlocks((prev) => {
-      const next = new Set(prev);
-      if (next.has(block)) {
-        next.delete(block);
-      } else {
-        next.add(block);
-      }
-      return next;
-    });
-  };
-
   const title = item?.title || 'Результаты обработки';
   const results = data?.data;
+
+  // Get available tabs
+  const availableTabs = results ? getAvailableTabs(results) : [];
+
+  // Auto-select first available tab when data loads
+  useEffect(() => {
+    if (availableTabs.length > 0 && !availableTabs.includes(activeTab)) {
+      // Select summary/longread/story if available, otherwise first tab
+      const preferredTab = availableTabs.find(t =>
+        t === 'summary' || t === 'longread' || t === 'story'
+      );
+      setActiveTab(preferredTab || availableTabs[0]);
+    }
+  }, [availableTabs, activeTab]);
+
+  // Reset diff modes when tab changes
+  useEffect(() => {
+    setShowCleanedDiff(false);
+    setShowLongreadDiff(false);
+  }, [activeTab]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="xl">
@@ -193,147 +148,156 @@ export function ArchiveResultsModal({
         </div>
       )}
 
-      {results && (
-        <div className="space-y-3 max-h-[70vh] overflow-y-auto">
-          {/* Metadata */}
-          {results.metadata && (
-            <CollapsibleCard
-              title="Метаданные"
-              icon={FileText}
-              stats={
-                results.metadata.duration_seconds ? (
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    {formatDuration(results.metadata.duration_seconds)}
-                  </span>
-                ) : null
-              }
-              expanded={expandedBlocks.has('metadata')}
-              onToggle={() => toggleBlock('metadata')}
-            >
-              <MetadataView metadata={results.metadata} />
-            </CollapsibleCard>
-          )}
+      {results && availableTabs.length > 0 && (
+        <div className="flex flex-col h-[70vh]">
+          {/* Tab bar */}
+          <div className="flex gap-0.5 py-2 border-b border-gray-200 shrink-0 overflow-x-auto">
+            {availableTabs.map(tab => {
+              const Icon = TAB_ICONS[tab];
+              return (
+                <button
+                  key={tab}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all ${
+                    activeTab === tab
+                      ? 'text-blue-600 bg-blue-50 border border-blue-200'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-transparent'
+                  }`}
+                  onClick={() => setActiveTab(tab)}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{TAB_LABELS[tab]}</span>
+                </button>
+              );
+            })}
+          </div>
 
-          {/* Raw Transcript */}
-          {results.raw_transcript && (
-            <CollapsibleCard
-              title="Сырая транскрипция"
-              icon={FileText}
-              stats={
-                <>
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    {formatDuration(results.raw_transcript.duration_seconds)}
-                  </span>
-                  <span>
-                    {results.raw_transcript.segments.length} сегментов
-                  </span>
-                </>
-              }
-              expanded={expandedBlocks.has('rawTranscript')}
-              onToggle={() => toggleBlock('rawTranscript')}
-            >
-              <RawTranscriptView
-                transcript={results.raw_transcript}
-                displayText={results.display_text || results.raw_transcript.full_text}
-              />
-            </CollapsibleCard>
-          )}
+          {/* Content area */}
+          <div className="flex-1 py-3 overflow-y-auto min-h-0">
+            {activeTab === 'metadata' && results.metadata && (
+              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                  <h3 className="text-sm font-semibold text-gray-900">Метаданные</h3>
+                  {results.metadata.duration_seconds && (
+                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                      <Clock className="w-3 h-3" />
+                      {formatDuration(results.metadata.duration_seconds)}
+                    </div>
+                  )}
+                </div>
+                <div className="p-4 flex-1 overflow-y-auto">
+                  <MetadataView metadata={results.metadata} />
+                </div>
+              </div>
+            )}
 
-          {/* Cleaned Transcript */}
-          {results.cleaned_transcript && (
-            <CollapsibleCard
-              title="Очищенная транскрипция"
-              icon={Zap}
-              stats={
-                <>
-                  <span>
-                    {results.cleaned_transcript.cleaned_length.toLocaleString()}{' '}
-                    симв.
-                  </span>
-                  <span>
-                    -
-                    {Math.round(
-                      ((results.cleaned_transcript.original_length -
-                        results.cleaned_transcript.cleaned_length) /
-                        results.cleaned_transcript.original_length) *
-                        100
+            {activeTab === 'rawTranscript' && results.raw_transcript && (
+              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                  <h3 className="text-sm font-semibold text-gray-900">Сырая транскрипция</h3>
+                  {results.raw_transcript.processing_time_sec !== undefined && (
+                    <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
+                      {formatTime(results.raw_transcript.processing_time_sec)}
+                    </span>
+                  )}
+                </div>
+                <div className="p-4 flex-1 overflow-hidden min-h-0">
+                  <RawTranscriptView
+                    transcript={results.raw_transcript}
+                    displayText={results.display_text || results.raw_transcript.full_text}
+                  />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'cleanedTranscript' && results.cleaned_transcript && (
+              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                {!showCleanedDiff && (
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                    <h3 className="text-sm font-semibold text-gray-900">Очищенная транскрипция</h3>
+                    {results.cleaned_transcript.processing_time_sec !== undefined && (
+                      <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
+                        {formatTime(results.cleaned_transcript.processing_time_sec)}
+                      </span>
                     )}
-                    %
-                  </span>
-                </>
-              }
-              expanded={expandedBlocks.has('cleanedTranscript')}
-              onToggle={() => toggleBlock('cleanedTranscript')}
-            >
-              <CleanedTranscriptView transcript={results.cleaned_transcript} />
-            </CollapsibleCard>
-          )}
-
-          {/* Chunks */}
-          {results.chunks && (
-            <CollapsibleCard
-              title="Семантические чанки"
-              icon={Layers}
-              stats={
-                <>
-                  <span>{results.chunks.total_chunks} чанков</span>
-                  <span>~{results.chunks.avg_chunk_size} слов/чанк</span>
-                </>
-              }
-              expanded={expandedBlocks.has('chunks')}
-              onToggle={() => toggleBlock('chunks')}
-            >
-              <ChunksView chunks={results.chunks} />
-            </CollapsibleCard>
-          )}
-
-          {/* Longread (new pipeline) */}
-          {results.longread && (
-            <CollapsibleCard
-              title="Лонгрид"
-              icon={BookOpen}
-              expanded={expandedBlocks.has('longread')}
-              onToggle={() => toggleBlock('longread')}
-            >
-              <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                {formatObjectAsText(results.longread)}
+                  </div>
+                )}
+                <div className={showCleanedDiff ? 'flex-1 min-h-0' : 'p-4 flex-1 overflow-hidden min-h-0'}>
+                  <CleanedTranscriptView
+                    transcript={results.cleaned_transcript}
+                    rawText={results.display_text}
+                    showDiff={showCleanedDiff}
+                    onToggleDiff={() => setShowCleanedDiff(!showCleanedDiff)}
+                  />
+                </div>
               </div>
-            </CollapsibleCard>
-          )}
+            )}
 
-          {/* Summary (any version) */}
-          {results.summary && (
-            <CollapsibleCard
-              title="Конспект"
-              icon={FileText}
-              expanded={expandedBlocks.has('summary')}
-              onToggle={() => toggleBlock('summary')}
-            >
-              <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                {formatObjectAsText(results.summary)}
+            {activeTab === 'longread' && results.longread && (
+              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                {!showLongreadDiff && (
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                    <h3 className="text-sm font-semibold text-gray-900">Лонгрид</h3>
+                    {results.longread.processing_time_sec !== undefined && (
+                      <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
+                        {formatTime(results.longread.processing_time_sec)}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className={showLongreadDiff ? 'flex-1 min-h-0' : 'p-4 flex-1 overflow-y-auto'}>
+                  <LongreadView
+                    longread={results.longread}
+                    cleanedText={results.cleaned_transcript?.text}
+                    cleanedChars={results.cleaned_transcript?.cleaned_length}
+                    showDiff={showLongreadDiff}
+                    onToggleDiff={() => setShowLongreadDiff(!showLongreadDiff)}
+                  />
+                </div>
               </div>
-            </CollapsibleCard>
-          )}
+            )}
 
-          {/* Story (leadership content) */}
-          {results.story && (
-            <CollapsibleCard
-              title="Лидерская история"
-              icon={Users}
-              stats={
-                <>
-                  <span>{results.story.total_blocks} блоков</span>
-                  <span>{results.story.speed}</span>
-                </>
-              }
-              expanded={expandedBlocks.has('story')}
-              onToggle={() => toggleBlock('story')}
-            >
-              <StoryView story={results.story} />
-            </CollapsibleCard>
-          )}
+            {activeTab === 'summary' && results.summary && (
+              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                  <h3 className="text-sm font-semibold text-gray-900">Конспект</h3>
+                  {results.summary.processing_time_sec !== undefined && (
+                    <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
+                      {formatTime(results.summary.processing_time_sec)}
+                    </span>
+                  )}
+                </div>
+                <div className="p-4 flex-1 overflow-y-auto">
+                  <SummaryView summary={results.summary} />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'story' && results.story && (
+              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                  <h3 className="text-sm font-semibold text-gray-900">Лидерская история</h3>
+                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                    <span>{results.story.total_blocks} блоков</span>
+                    <span>{results.story.speed}</span>
+                  </div>
+                </div>
+                <div className="p-4 flex-1 overflow-y-auto">
+                  <StoryView story={results.story} />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'chunks' && results.chunks && (
+              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                  <h3 className="text-sm font-semibold text-gray-900">Чанки</h3>
+                </div>
+                <div className="p-4 flex-1 overflow-y-auto">
+                  <ChunksView chunks={results.chunks} />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

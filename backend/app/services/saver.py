@@ -315,6 +315,10 @@ class FileSaver:
                 "whisper_model": raw_transcript.whisper_model,
                 "full_text": raw_transcript.full_text,
                 "text_with_timestamps": raw_transcript.text_with_timestamps,
+                "chars": raw_transcript.chars,
+                "words": raw_transcript.words,
+                "confidence": raw_transcript.confidence,
+                "processing_time_sec": raw_transcript.processing_time_sec,
             },
             "display_text": display_text,
             "cleaned_transcript": {
@@ -322,6 +326,11 @@ class FileSaver:
                 "original_length": cleaned_transcript.original_length,
                 "cleaned_length": cleaned_transcript.cleaned_length,
                 "model_name": cleaned_transcript.model_name,
+                "words": cleaned_transcript.words,
+                "change_percent": cleaned_transcript.change_percent,
+                "tokens_used": cleaned_transcript.tokens_used.model_dump() if cleaned_transcript.tokens_used else None,
+                "cost": cleaned_transcript.cost,
+                "processing_time_sec": cleaned_transcript.processing_time_sec,
             },
             "chunks": {
                 "chunks": [
@@ -360,6 +369,10 @@ class FileSaver:
                 "tags": longread.tags,
                 "access_level": longread.access_level,
                 "model_name": longread.model_name,
+                "chars": longread.chars,
+                "tokens_used": longread.tokens_used.model_dump() if longread.tokens_used else None,
+                "cost": longread.cost,
+                "processing_time_sec": longread.processing_time_sec,
             },
             "summary": {
                 "video_id": summary.video_id,
@@ -373,6 +386,11 @@ class FileSaver:
                 "tags": summary.tags,
                 "access_level": summary.access_level,
                 "model_name": summary.model_name,
+                "chars": summary.chars,
+                "words": summary.words,
+                "tokens_used": summary.tokens_used.model_dump() if summary.tokens_used else None,
+                "cost": summary.cost,
+                "processing_time_sec": summary.processing_time_sec,
             },
         }
 
@@ -449,6 +467,10 @@ class FileSaver:
                 "whisper_model": raw_transcript.whisper_model,
                 "full_text": raw_transcript.full_text,
                 "text_with_timestamps": raw_transcript.text_with_timestamps,
+                "chars": raw_transcript.chars,
+                "words": raw_transcript.words,
+                "confidence": raw_transcript.confidence,
+                "processing_time_sec": raw_transcript.processing_time_sec,
             },
             "display_text": display_text,
             "cleaned_transcript": {
@@ -456,6 +478,11 @@ class FileSaver:
                 "original_length": cleaned_transcript.original_length,
                 "cleaned_length": cleaned_transcript.cleaned_length,
                 "model_name": cleaned_transcript.model_name,
+                "words": cleaned_transcript.words,
+                "change_percent": cleaned_transcript.change_percent,
+                "tokens_used": cleaned_transcript.tokens_used.model_dump() if cleaned_transcript.tokens_used else None,
+                "cost": cleaned_transcript.cost,
+                "processing_time_sec": cleaned_transcript.processing_time_sec,
             },
             "chunks": {
                 "chunks": [
@@ -501,6 +528,10 @@ class FileSaver:
                 "related": story.related,
                 "total_blocks": story.total_blocks,
                 "model_name": story.model_name,
+                "chars": story.chars,
+                "tokens_used": story.tokens_used.model_dump() if story.tokens_used else None,
+                "cost": story.cost,
+                "processing_time_sec": story.processing_time_sec,
             },
         }
 

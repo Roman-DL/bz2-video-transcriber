@@ -19,24 +19,26 @@ export function useArchive() {
  */
 export function useArchiveResults(
   year: string | null,
-  eventFolder: string | null,
+  eventType: string | null,
+  midFolder: string | null,
   topicFolder: string | null
 ) {
   return useQuery({
-    queryKey: ['archive-results', year, eventFolder, topicFolder],
+    queryKey: ['archive-results', year, eventType, midFolder, topicFolder],
     queryFn: async () => {
       const { data } = await apiClient.get<PipelineResultsResponse>(
         '/api/archive/results',
         {
           params: {
             year,
-            event_folder: eventFolder,
+            event_type: eventType,
+            mid_folder: midFolder,
             topic_folder: topicFolder,
           },
         }
       );
       return data;
     },
-    enabled: !!(year && eventFolder && topicFolder),
+    enabled: !!(year && eventType && midFolder && topicFolder),
   });
 }

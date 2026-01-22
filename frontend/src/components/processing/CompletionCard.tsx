@@ -34,7 +34,7 @@ export function CompletionCard({ files, totals, onClose }: CompletionCardProps) 
       </div>
 
       {/* Files list */}
-      <div className="mb-4 max-h-32 overflow-y-auto">
+      <div className="mb-4 max-h-44 overflow-y-auto">
         <ul className="text-xs text-gray-600 space-y-0.5">
           {files.map((file, i) => (
             <li key={i} className="font-mono truncate" title={file}>
