@@ -1,6 +1,6 @@
 import type { SlidesExtractionResult } from '@/api/types';
 import { ResultFooter } from '@/components/common/ResultFooter';
-import { formatNumber, formatTime } from '@/utils/formatUtils';
+import { formatNumber } from '@/utils/formatUtils';
 
 interface SlidesResultViewProps {
   slidesResult: SlidesExtractionResult;
@@ -27,11 +27,6 @@ export function SlidesResultView({ slidesResult }: SlidesResultViewProps) {
         {slidesResult.tables_count > 0 && (
           <span>
             {slidesResult.tables_count} таблиц
-          </span>
-        )}
-        {slidesResult.processing_time_sec !== undefined && (
-          <span className="text-emerald-600">
-            {formatTime(slidesResult.processing_time_sec)}
           </span>
         )}
       </div>
