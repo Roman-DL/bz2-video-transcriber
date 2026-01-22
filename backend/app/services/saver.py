@@ -16,6 +16,7 @@ from app.models.schemas import (
     ContentType,
     Longread,
     RawTranscript,
+    SlidesExtractionResult,
     Story,
     Summary,
     TranscriptChunks,
@@ -91,6 +92,7 @@ class FileSaver:
         longread: Longread,
         summary: Summary,
         audio_path: Path | None = None,
+        slides_extraction: SlidesExtractionResult | None = None,
     ) -> list[str]:
         """
         Save educational content results to archive.
@@ -113,6 +115,7 @@ class FileSaver:
             longread: Longread document
             summary: Condensed summary (конспект)
             audio_path: Path to extracted audio file (optional)
+            slides_extraction: Slides extraction result (optional)
 
         Returns:
             List of created file names
@@ -129,7 +132,7 @@ class FileSaver:
         # Save pipeline results JSON (for archive viewing)
         pipeline_path = self._save_pipeline_results_educational(
             archive_path, metadata, raw_transcript, cleaned_transcript,
-            chunks, longread, summary
+            chunks, longread, summary, slides_extraction
         )
         created_files.append(pipeline_path.name)
 
@@ -176,6 +179,7 @@ class FileSaver:
         chunks: TranscriptChunks,
         story: Story,
         audio_path: Path | None = None,
+        slides_extraction: SlidesExtractionResult | None = None,
     ) -> list[str]:
         """
         Save leadership content results to archive.
@@ -196,6 +200,7 @@ class FileSaver:
             chunks: Semantic chunks
             story: Leadership story (8 blocks)
             audio_path: Path to extracted audio file (optional)
+            slides_extraction: Slides extraction result (optional)
 
         Returns:
             List of created file names
@@ -212,7 +217,7 @@ class FileSaver:
         # Save pipeline results JSON (for archive viewing)
         pipeline_path = self._save_pipeline_results_leadership(
             archive_path, metadata, raw_transcript, cleaned_transcript,
-            chunks, story
+            chunks, story, slides_extraction
         )
         created_files.append(pipeline_path.name)
 
@@ -256,6 +261,7 @@ class FileSaver:
         chunks: TranscriptChunks,
         longread: Longread,
         summary: Summary,
+        slides_extraction: SlidesExtractionResult | None = None,
     ) -> Path:
         """
         Save complete pipeline results for educational content.
@@ -271,6 +277,7 @@ class FileSaver:
             chunks: Semantic chunks
             longread: Longread document
             summary: Condensed summary
+            slides_extraction: Slides extraction result (optional)
 
         Returns:
             Path to created file
@@ -392,6 +399,17 @@ class FileSaver:
                 "cost": summary.cost,
                 "processing_time_sec": summary.processing_time_sec,
             },
+            "slides_extraction": {
+                "extracted_text": slides_extraction.extracted_text,
+                "slides_count": slides_extraction.slides_count,
+                "chars_count": slides_extraction.chars_count,
+                "words_count": slides_extraction.words_count,
+                "tables_count": slides_extraction.tables_count,
+                "model": slides_extraction.model,
+                "tokens_used": slides_extraction.tokens_used.model_dump() if slides_extraction.tokens_used else None,
+                "cost": slides_extraction.cost,
+                "processing_time_sec": slides_extraction.processing_time_sec,
+            } if slides_extraction else None,
         }
 
         file_path = archive_path / "pipeline_results.json"
@@ -411,6 +429,7 @@ class FileSaver:
         cleaned_transcript: CleanedTranscript,
         chunks: TranscriptChunks,
         story: Story,
+        slides_extraction: SlidesExtractionResult | None = None,
     ) -> Path:
         """
         Save complete pipeline results for leadership content.
@@ -422,6 +441,7 @@ class FileSaver:
             cleaned_transcript: Cleaned transcript after LLM processing
             chunks: Semantic chunks
             story: Leadership story (8 blocks)
+            slides_extraction: Slides extraction result (optional)
 
         Returns:
             Path to created file
@@ -533,6 +553,17 @@ class FileSaver:
                 "cost": story.cost,
                 "processing_time_sec": story.processing_time_sec,
             },
+            "slides_extraction": {
+                "extracted_text": slides_extraction.extracted_text,
+                "slides_count": slides_extraction.slides_count,
+                "chars_count": slides_extraction.chars_count,
+                "words_count": slides_extraction.words_count,
+                "tables_count": slides_extraction.tables_count,
+                "model": slides_extraction.model,
+                "tokens_used": slides_extraction.tokens_used.model_dump() if slides_extraction.tokens_used else None,
+                "cost": slides_extraction.cost,
+                "processing_time_sec": slides_extraction.processing_time_sec,
+            } if slides_extraction else None,
         }
 
         file_path = archive_path / "pipeline_results.json"

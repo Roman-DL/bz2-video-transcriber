@@ -365,6 +365,8 @@ export interface PipelineResults {
   summary?: Summary;
   // Leadership content
   story?: Story;
+  // Slides extraction (v0.54+)
+  slides_extraction?: SlidesExtractionResult;
 }
 
 // Response from /archive/results endpoint

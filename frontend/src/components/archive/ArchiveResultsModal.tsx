@@ -11,6 +11,7 @@ import { ChunksView } from '@/components/results/ChunksView';
 import { StoryView } from '@/components/results/StoryView';
 import { LongreadView } from '@/components/results/LongreadView';
 import { SummaryView } from '@/components/results/SummaryView';
+import { SlidesResultView } from '@/components/results/SlidesResultView';
 import { useArchiveResults } from '@/api/hooks/useArchive';
 import { formatTime } from '@/utils/formatUtils';
 import {
@@ -23,6 +24,7 @@ import {
   BookOpen,
   Heart,
   ListChecks,
+  Presentation,
 } from 'lucide-react';
 import type { ArchiveItemWithPath, PipelineResults } from '@/api/types';
 
@@ -36,6 +38,7 @@ type ResultTab =
   | 'metadata'
   | 'rawTranscript'
   | 'cleanedTranscript'
+  | 'slides'
   | 'longread'
   | 'summary'
   | 'story'
@@ -45,6 +48,7 @@ const TAB_ICONS: Record<ResultTab, React.ComponentType<{ className?: string }>> 
   metadata: FileText,
   rawTranscript: FileAudio,
   cleanedTranscript: Sparkles,
+  slides: Presentation,
   longread: BookOpen,
   summary: ListChecks,
   story: Heart,
@@ -55,6 +59,7 @@ const TAB_LABELS: Record<ResultTab, string> = {
   metadata: 'Метаданные',
   rawTranscript: 'Транскрипт',
   cleanedTranscript: 'Очистка',
+  slides: 'Слайды',
   longread: 'Лонгрид',
   summary: 'Конспект',
   story: 'История',
@@ -75,6 +80,7 @@ function getAvailableTabs(results: PipelineResults): ResultTab[] {
   if (results.metadata) tabs.push('metadata');
   if (results.raw_transcript) tabs.push('rawTranscript');
   if (results.cleaned_transcript) tabs.push('cleanedTranscript');
+  if (results.slides_extraction) tabs.push('slides');
   if (results.longread) tabs.push('longread');
   if (results.summary) tabs.push('summary');
   if (results.story) tabs.push('story');
@@ -228,6 +234,22 @@ export function ArchiveResultsModal({
                     showDiff={showCleanedDiff}
                     onToggleDiff={() => setShowCleanedDiff(!showCleanedDiff)}
                   />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'slides' && results.slides_extraction && (
+              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                  <h3 className="text-sm font-semibold text-gray-900">Извлечённый текст слайдов</h3>
+                  {results.slides_extraction.processing_time_sec !== undefined && (
+                    <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
+                      {formatTime(results.slides_extraction.processing_time_sec)}
+                    </span>
+                  )}
+                </div>
+                <div className="p-4 flex-1 overflow-y-auto">
+                  <SlidesResultView slidesResult={results.slides_extraction} />
                 </div>
               </div>
             )}
