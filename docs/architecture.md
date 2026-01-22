@@ -16,7 +16,7 @@ tags:
   - whisper
   - ollama
   - knowledge-base
-updated: 2025-01-22
+updated: 2025-01-23
 status: production
 priority: high
 ---
@@ -74,6 +74,7 @@ priority: high
 │  │                     │         │ 1.Parse    │            │    │
 │  │                     │         │ 2.Transcribe─► Whisper  │    │
 │  │                     │         │ 3.Clean ────► Claude    │    │
+│  │                     │         │ 3.5.Slides ─► Claude V. │    │
 │  │                     │         │ 4.Longread ─► Claude    │    │
 │  │                     │         │ 5.Summary ──► Claude    │    │
 │  │                     │         │ 6.Chunk (H2)            │    │
@@ -127,6 +128,7 @@ priority: high
 | **OllamaClient** | HTTP → Ollama API | Резервный LLM провайдер |
 | **ProcessingStrategy** | Автовыбор провайдера (v0.19+) | Выбор LLM по имени модели |
 | **TranscriptCleaner** | ClaudeClient (v0.29+) | Очистка транскрипта |
+| **SlidesExtractor** | ClaudeClient Vision (v0.51+) | Извлечение текста со слайдов |
 | **LongreadGenerator** | ClaudeClient | Генерация развёрнутого текста |
 | **SummaryGenerator** | ClaudeClient | Генерация конспекта |
 | **StoryGenerator** | ClaudeClient (v0.23+) | Генерация лидерских историй |
@@ -169,6 +171,7 @@ bz2-video-transcriber/
 │   │   │   │   └── whisper_client.py  # WhisperClient (v0.27+)
 │   │   │   ├── parser.py              # Парсинг имени файла
 │   │   │   ├── cleaner.py             # TranscriptCleaner → AI client
+│   │   │   ├── slides_extractor.py    # SlidesExtractor → Claude Vision (v0.51+)
 │   │   │   ├── longread_generator.py  # LongreadGenerator → AI client
 │   │   │   ├── summary_generator.py   # SummaryGenerator → AI client
 │   │   │   ├── story_generator.py     # StoryGenerator (v0.23+)
@@ -195,6 +198,7 @@ bz2-video-transcriber/
 │   │   │   ├── chunk_utils.py         # validate_cyrillic_ratio()
 │   │   │   ├── media_utils.py         # get_media_duration() (v0.28+)
 │   │   │   ├── pricing_utils.py       # calculate_cost() (v0.42+)
+│   │   │   ├── pdf_utils.py           # pdf_to_images(), pdf_page_count() (v0.51+)
 │   │   │   └── h2_chunker.py          # H2-based chunking (v0.25+)
 │   │   └── models/
 │   │       ├── schemas.py       # Pydantic модели, TokensUsed (v0.42+)
@@ -227,7 +231,8 @@ bz2-video-transcriber/
 │           ├── inbox/           # InboxList, VideoItem
 │           ├── archive/         # ArchiveCatalog
 │           ├── processing/      # ProcessingModal, StepByStep
-│           └── results/         # MetadataView, TranscriptView, etc.
+│           ├── slides/          # SlidesAttachment, SlidesModal (v0.52+)
+│           └── results/         # MetadataView, TranscriptView, SlidesResultView
 │
 ├── config/
 │   ├── models.yaml              # Модели, context profiles, pricing
@@ -235,6 +240,7 @@ bz2-video-transcriber/
 │   ├── events.yaml              # Типы событий
 │   └── prompts/                 # Промпты по этапам (v0.31+)
 │       ├── cleaning/            # system.md, user.md
+│       ├── slides/              # system.md, user.md (v0.51+)
 │       ├── longread/            # system.md, instructions.md, template.md
 │       ├── summary/
 │       ├── story/
@@ -265,6 +271,7 @@ bz2-video-transcriber/
 | POST | `/api/step/parse` | Парсинг метаданных |
 | POST | `/api/step/transcribe` | Транскрипция (Whisper) — SSE |
 | POST | `/api/step/clean` | Очистка текста — SSE |
+| POST | `/api/step/slides` | Извлечение текста со слайдов (v0.51+) — SSE |
 | POST | `/api/step/chunk` | Разбиение на чанки — SSE |
 | POST | `/api/step/longread` | Генерация лонгрида — SSE |
 | POST | `/api/step/summarize` | Генерация конспекта — SSE |

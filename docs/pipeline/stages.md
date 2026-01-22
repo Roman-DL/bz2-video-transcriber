@@ -16,6 +16,9 @@ backend/app/services/stages/
 ├── summarize_stage.py       # Генерация конспекта (EDUCATIONAL)
 ├── story_stage.py           # Генерация истории 8 блоков (LEADERSHIP, v0.23+)
 └── save_stage.py            # Сохранение результатов
+
+backend/app/services/
+└── slides_extractor.py      # Извлечение текста со слайдов (v0.51+, отдельный сервис)
 ```
 
 ## Основные классы
@@ -262,6 +265,130 @@ parse ─────┬──────────────────�
 **Ветвление по content_type:**
 - `EDUCATIONAL` → longread → summarize → chunk → save
 - `LEADERSHIP` → story → chunk → save
+
+---
+
+## Slides Extraction (v0.51+)
+
+Извлечение текста со слайдов презентаций реализовано как отдельный сервис, а не как stage. Это связано с тем, что:
+
+1. Шаг выполняется **условно** — только если пользователь прикрепил слайды
+2. Работает только в **step-by-step режиме** (не в автоматическом pipeline)
+3. Требует **multimodal API** (Claude Vision) — отличается от текстовых LLM операций
+
+### Архитектура
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Step-by-step Pipeline (Frontend)                 │
+│                                                                      │
+│   Transcribe → Clean ─┬─→ [SLIDES] → Longread → Summary → Save      │
+│                       └─→ [SLIDES] → Story → Save                   │
+│                               ↓                                      │
+│                       (только если есть                              │
+│                        прикреплённые слайды)                         │
+└─────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                        SlidesExtractor                               │
+│                                                                      │
+│   SlideInput[] ─→ PDF→Images ─→ Batch(5) ─→ Claude Vision ─→ Result │
+│                                                                      │
+│   Input:  list[SlideInput]  (base64 images/PDFs)                    │
+│   Output: SlidesExtractionResult (markdown text + metrics)          │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Использование
+
+```python
+from app.services.slides_extractor import SlidesExtractor
+from app.services.ai_clients import ClaudeClient
+from app.models.schemas import SlideInput, PromptOverrides
+
+async with ClaudeClient.from_settings(settings) as client:
+    extractor = SlidesExtractor(client, settings)
+
+    slides = [
+        SlideInput(
+            filename="slide1.jpg",
+            content_type="image/jpeg",
+            data="base64_encoded_data"
+        ),
+        SlideInput(
+            filename="presentation.pdf",
+            content_type="application/pdf",
+            data="base64_encoded_data"
+        )
+    ]
+
+    result = await extractor.extract(
+        slides=slides,
+        model="claude-haiku-4-5",  # опционально
+        prompt_overrides=PromptOverrides(system="system"),  # опционально
+    )
+
+    print(f"Extracted {result.slides_count} slides")
+    print(f"Text: {result.extracted_text[:200]}...")
+    print(f"Cost: ${result.cost:.4f}")
+```
+
+### Интеграция в Longread/Story
+
+Извлечённый текст передаётся как параметр `slides_text`:
+
+```python
+# LongreadGenerator
+result = await generator.generate(
+    cleaned_transcript=cleaned,
+    metadata=metadata,
+    slides_text=slides_result.extracted_text,  # опционально
+)
+
+# StoryGenerator
+result = await generator.generate(
+    cleaned_transcript=cleaned,
+    metadata=metadata,
+    slides_text=slides_result.extracted_text,  # опционально
+)
+```
+
+### Конфигурация
+
+См. `config/models.yaml`:
+
+```yaml
+slides:
+  default: claude-haiku-4-5
+  batch_size: 5
+  available:
+    - id: "claude-haiku-4-5"
+      description: "Быстрый и дешёвый"
+    - id: "claude-sonnet-4-5"
+      description: "Баланс качества и скорости"
+    - id: "claude-opus-4-5"
+      description: "Максимальное качество"
+```
+
+### API Endpoint
+
+```python
+POST /api/step/slides
+
+# Request
+{
+    "slides": [{"filename": "...", "content_type": "...", "data": "base64..."}],
+    "model": "claude-haiku-4-5",
+    "prompt_overrides": {"system": "system"}
+}
+
+# Response (SSE)
+{"type": "progress", "progress": 33.3, "message": "Processing batch 1/3..."}
+{"type": "result", "data": {...SlidesExtractionResult...}}
+```
+
+Подробнее: [ADR-010: Slides Integration](../adr/010-slides-integration.md)
 
 ---
 

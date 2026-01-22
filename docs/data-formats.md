@@ -627,6 +627,7 @@ access_level: leader
 | `raw_transcript` | object | Сырая транскрипция от Whisper |
 | `display_text` | string | Текст для отображения (с/без таймкодов) |
 | `cleaned_transcript` | object | Очищенная транскрипция |
+| `slides_extraction` | object \| null | Извлечённый текст со слайдов (v0.51+, опционально) |
 | `chunks` | object | Семантические чанки |
 | `longread` | object | Развёрнутый текст (Longread) |
 | `summary` | object | Конспект (Summary) |
@@ -797,6 +798,40 @@ access_level: leader
 | Поле | Тип | Описание |
 |------|-----|----------|
 | `total_tokens` | int \| null | Общее количество токенов во всех чанках (estimated) |
+
+#### SlidesExtractionResult (v0.51+)
+
+Результат извлечения текста со слайдов презентации через Claude Vision API.
+
+```json
+{
+  "slides_extraction": {
+    "extracted_text": "# Слайд 1: Введение\n\nОсновные темы...\n\n## Таблица\n| Колонка 1 | Колонка 2 |\n...",
+    "slides_count": 15,
+    "chars_count": 4250,
+    "words_count": 580,
+    "tables_count": 3,
+    "model": "claude-haiku-4-5",
+    "tokens_used": {"input": 45000, "output": 1200, "total": 46200},
+    "cost": 0.051,
+    "processing_time_sec": 12.4
+  }
+}
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `extracted_text` | string | Извлечённый текст в markdown формате |
+| `slides_count` | int | Количество обработанных слайдов |
+| `chars_count` | int | Общее количество символов |
+| `words_count` | int | Общее количество слов |
+| `tables_count` | int | Количество обнаруженных таблиц |
+| `model` | string | Модель Claude Vision (haiku/sonnet/opus) |
+| `tokens_used` | TokensUsed \| null | Статистика токенов |
+| `cost` | float \| null | Стоимость в USD |
+| `processing_time_sec` | float \| null | Время обработки в секундах |
+
+**Примечание:** `slides_extraction` является опциональным полем в `pipeline_results.json`. Присутствует только если пользователь прикрепил слайды при обработке.
 
 ---
 

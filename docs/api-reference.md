@@ -579,7 +579,7 @@ API для получения доступных вариантов промпт
 Получить список вариантов промптов для этапа.
 
 **Параметры:**
-- `stage` (path) — название этапа (`cleaning`, `longread`, `summary`, `story`)
+- `stage` (path) — название этапа (`cleaning`, `slides`, `longread`, `summary`, `story`)
 
 **curl пример:**
 ```bash
@@ -629,11 +629,88 @@ curl http://100.64.0.1:8801/api/prompts/cleaning
 
 ---
 
-## Step API (v0.32+, updated v0.42)
+## Step API (v0.32+, updated v0.51)
 
 API для пошаговой обработки с возможностью override модели и промптов.
 
 С версии v0.42 response содержит расширенные метрики: `tokens_used`, `cost`, `processing_time_sec`.
+
+### POST /api/step/slides (v0.51+)
+
+Извлечение текста со слайдов презентации через Claude Vision API.
+
+**Request:**
+```json
+{
+  "slides": [
+    {
+      "filename": "slide1.jpg",
+      "content_type": "image/jpeg",
+      "data": "base64_encoded_image_data"
+    },
+    {
+      "filename": "presentation.pdf",
+      "content_type": "application/pdf",
+      "data": "base64_encoded_pdf_data"
+    }
+  ],
+  "model": "claude-haiku-4-5",
+  "prompt_overrides": {
+    "system": "system",
+    "user": "user"
+  }
+}
+```
+
+**Параметры:**
+- `slides` (required) — массив объектов SlideInput
+  - `filename` — имя файла
+  - `content_type` — MIME тип: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`
+  - `data` — base64 encoded содержимое файла
+- `model` (optional) — модель для обработки (claude-haiku-4-5, claude-sonnet-4-5, claude-opus-4-5)
+- `prompt_overrides` (optional) — override промптов
+
+**Response (SSE):**
+```json
+{"type": "progress", "status": "slides", "progress": 33.3, "message": "Processing batch 1/3..."}
+{"type": "progress", "status": "slides", "progress": 66.7, "message": "Processing batch 2/3..."}
+{"type": "result", "data": {
+  "extracted_text": "# Слайд 1: Введение\n\nОсновные темы презентации...\n\n## Таблица данных\n| Колонка 1 | Колонка 2 |\n...",
+  "slides_count": 15,
+  "chars_count": 4250,
+  "words_count": 580,
+  "tables_count": 3,
+  "model": "claude-haiku-4-5",
+  "tokens_used": {"input": 45000, "output": 1200, "total": 46200},
+  "cost": 0.051,
+  "processing_time_sec": 12.4
+}}
+```
+
+**Ограничения:**
+- Максимум 50 файлов
+- Максимум 10 MB на файл
+- Общий размер до 100 MB
+- PDF конвертируется в изображения (максимум 50 страниц)
+
+**curl пример:**
+```bash
+# Подготовить base64 данные
+IMAGE_DATA=$(base64 -i slide1.jpg)
+
+curl -X POST "http://100.64.0.1:8801/api/step/slides" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"slides\": [{
+      \"filename\": \"slide1.jpg\",
+      \"content_type\": \"image/jpeg\",
+      \"data\": \"$IMAGE_DATA\"
+    }],
+    \"model\": \"claude-haiku-4-5\"
+  }"
+```
+
+---
 
 ### POST /api/step/clean
 
@@ -689,12 +766,21 @@ API для пошаговой обработки с возможностью ove
   "cleaned_transcript": {...},
   "metadata": {...},
   "model": "claude-sonnet-4-5",
+  "slides_text": "# Слайд 1\n\nТекст со слайдов...",
   "prompt_overrides": {
     "system": "system",
     "instructions": "instructions",
     "template": "template"
   }
 }
+```
+
+**Параметры:**
+- `cleaned_transcript` (required) — очищенный транскрипт
+- `metadata` (required) — метаданные видео
+- `model` (optional) — override модели
+- `slides_text` (optional, v0.51+) — текст извлечённый со слайдов для обогащения
+- `prompt_overrides` (optional) — override промптов
 ```
 
 **Response (SSE):**
@@ -735,6 +821,24 @@ API для пошаговой обработки с возможностью ove
 ### POST /api/step/story
 
 Генерация 8-блочной истории (для content_type=LEADERSHIP).
+
+**Request:**
+```json
+{
+  "cleaned_transcript": {...},
+  "metadata": {...},
+  "model": "claude-sonnet-4-5",
+  "slides_text": "# Слайд 1\n\nТекст со слайдов...",
+  "prompt_overrides": {...}
+}
+```
+
+**Параметры:**
+- `cleaned_transcript` (required) — очищенный транскрипт
+- `metadata` (required) — метаданные видео
+- `model` (optional) — override модели
+- `slides_text` (optional, v0.51+) — текст извлечённый со слайдов для обогащения
+- `prompt_overrides` (optional) — override промптов
 
 **Response (SSE):**
 ```json

@@ -34,11 +34,12 @@ http://100.64.0.1:8801      # Backend API
 ## Архитектура
 
 ```
-Video → Parse → Whisper → Clean ─┬─→ Longread → Summary → Chunk (H2) → Save (educational)
-                                 └─→ Story → Chunk (H2) → Save (leadership)
+Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longread → Summary → Chunk (H2) → Save (educational)
+                                            └─→ [Slides] → Story → Chunk (H2) → Save (leadership)
 ```
 
 > **v0.25+:** Chunk теперь детерминированный (парсинг H2 заголовков), выполняется ПОСЛЕ longread/story.
+> **v0.51+:** Опциональный шаг Slides появляется перед Longread/Story если пользователь прикрепил слайды.
 
 ## Документация
 
@@ -168,6 +169,79 @@ API для получения доступных вариантов промпт
 
 Подробнее: [docs/api-reference.md](docs/api-reference.md)
 
+## Slides Extraction (v0.51+)
+
+Опциональный шаг для извлечения текста со слайдов презентаций с использованием Claude Vision API.
+
+**Pipeline со слайдами:**
+```
+Video + Slides → Parse → Transcribe → Clean → [SLIDES] → Longread/Story → Summary → Chunk → Save
+```
+
+Шаг `slides` появляется условно между `clean` и `longread/story` если пользователь прикрепил слайды.
+
+**Модели данных:**
+```python
+from app.models.schemas import SlideInput, SlidesExtractionResult
+
+# SlideInput — входные данные (base64 encoded)
+class SlideInput(BaseModel):
+    filename: str
+    content_type: str  # image/jpeg, image/png, application/pdf
+    data: str          # base64 encoded
+
+# SlidesExtractionResult — результат извлечения
+class SlidesExtractionResult(BaseModel):
+    extracted_text: str      # markdown формат
+    slides_count: int        # количество слайдов
+    chars_count: int
+    words_count: int
+    tables_count: int        # обнаруженные таблицы
+    model: str               # claude-haiku-4-5 / claude-sonnet-4-5
+    tokens_used: TokensUsed | None
+    cost: float | None
+    processing_time_sec: float | None
+```
+
+**API endpoint:**
+```python
+# POST /api/step/slides
+{
+    "slides": [
+        {"filename": "slide1.jpg", "content_type": "image/jpeg", "data": "base64..."},
+        {"filename": "presentation.pdf", "content_type": "application/pdf", "data": "base64..."}
+    ],
+    "model": "claude-haiku-4-5",  # опционально
+    "prompt_overrides": {...}      # опционально
+}
+```
+
+**Ограничения:**
+
+| Параметр | Лимит | Причина |
+|----------|-------|---------|
+| Макс. файлов | 50 | Контекст модели |
+| Макс. размер файла | 10 MB | API ограничение |
+| Общий размер | 100 MB | Память браузера |
+| Batch size | 5 слайдов | Управление контекстом |
+
+**Конфигурация** (`config/models.yaml`):
+```yaml
+slides:
+  default: claude-haiku-4-5
+  batch_size: 5
+  available:
+    - claude-haiku-4-5   # быстро, дешево
+    - claude-sonnet-4-5  # баланс
+    - claude-opus-4-5    # качество
+```
+
+**Промпты** (`config/prompts/slides/`):
+- `system.md` — роль и правила извлечения
+- `user.md` — инструкции по обработке изображений
+
+Подробнее: [docs/adr/010-slides-integration.md](docs/adr/010-slides-integration.md)
+
 ## Content Types и Archive Structure (v0.21+, updated v0.23)
 
 Система поддерживает два типа контента с разными pipeline и выходными документами:
@@ -249,7 +323,7 @@ formatTokens(3570)     // → "3 570"
 
 Подробнее: [docs/data-formats.md](docs/data-formats.md)
 
-## Stage Abstraction (v0.14+, updated v0.23)
+## Stage Abstraction (v0.14+, updated v0.51)
 
 Система абстракций для этапов обработки. Позволяет добавлять новые шаги без изменения оркестратора.
 
@@ -265,6 +339,8 @@ backend/app/services/stages/
 ├── story_stage.py       # Генерация истории 8 блоков (LEADERSHIP, v0.23+)
 └── save_stage.py        # Сохранение результатов
 ```
+
+**Примечание:** Шаг `slides` реализован как отдельный API endpoint (`/api/step/slides`) и не является частью stage абстракции, т.к. выполняется условно только в step-by-step режиме при наличии прикреплённых слайдов.
 
 **Условное выполнение (v0.23+):**
 ```python
@@ -374,11 +450,12 @@ async with strategy.create_client("claude-sonnet-4-5") as client:
 | Ollama | http://100.64.0.1:11434 | см. ниже |
 | Whisper | http://100.64.0.1:9000 | large-v3 |
 
-### Конфигурация моделей (v0.29+)
+### Конфигурация моделей (v0.29+, updated v0.51)
 
 | Задача | Модель по умолчанию | Почему |
 |--------|---------------------|--------|
 | Очистка | claude-sonnet-4-5 | Высокое качество очистки текста |
+| Слайды | claude-haiku-4-5 | Быстро и дёшево для извлечения текста (v0.51+) |
 | Лонгрид | claude-sonnet-4-5 | Отличное качество длинного текста |
 | Конспект | claude-sonnet-4-5 | Структурированный вывод, глубокий анализ |
 | Чанкирование | — | Детерминистический (H2 парсинг, v0.26+) |
@@ -447,6 +524,9 @@ config/prompts/
 ├── cleaning/            # Очистка транскрипта
 │   ├── system.md        # default
 │   ├── system_v2.md     # вариант (опционально)
+│   └── user.md
+├── slides/              # Извлечение текста со слайдов (v0.51+)
+│   ├── system.md
 │   └── user.md
 ├── longread/            # Генерация лонгрида
 │   ├── system.md
