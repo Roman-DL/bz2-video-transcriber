@@ -6,45 +6,55 @@ interface MetadataViewProps {
 
 export function MetadataView({ metadata }: MetadataViewProps) {
   return (
-    <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-      <dt className="text-gray-500">Дата</dt>
-      <dd className="text-gray-900">{metadata.date}</dd>
+    <dl className="space-y-2.5 text-sm max-w-md">
+      <div className="flex gap-4">
+        <dt className="text-gray-500 w-28 shrink-0">Дата</dt>
+        <dd className="text-gray-900 font-medium">{metadata.date}</dd>
+      </div>
 
-      <dt className="text-gray-500">Мероприятие</dt>
-      <dd className="text-gray-900">{metadata.event_type}</dd>
+      <div className="flex gap-4">
+        <dt className="text-gray-500 w-28 shrink-0">Мероприятие</dt>
+        <dd className="text-gray-900 font-medium">{metadata.event_type}</dd>
+      </div>
 
       {metadata.stream && (
-        <>
-          <dt className="text-gray-500">Часть</dt>
-          <dd className="text-gray-900">{metadata.stream}</dd>
-        </>
+        <div className="flex gap-4">
+          <dt className="text-gray-500 w-28 shrink-0">Часть</dt>
+          <dd className="text-gray-900 font-medium">{metadata.stream}</dd>
+        </div>
       )}
 
-      <dt className="text-gray-500">Тема</dt>
-      <dd className="text-gray-900">{metadata.title}</dd>
+      <div className="flex gap-4">
+        <dt className="text-gray-500 w-28 shrink-0">Тема</dt>
+        <dd className="text-gray-900 font-medium">{metadata.title}</dd>
+      </div>
 
-      <dt className="text-gray-500">Спикер</dt>
-      <dd className="text-gray-900">{metadata.speaker}</dd>
+      <div className="flex gap-4">
+        <dt className="text-gray-500 w-28 shrink-0">Спикер</dt>
+        <dd className="text-gray-900 font-medium">{metadata.speaker}</dd>
+      </div>
 
-      <dt className="text-gray-500">Video ID</dt>
-      <dd className="text-gray-900 font-mono text-xs">{metadata.video_id}</dd>
+      <div className="flex gap-4">
+        <dt className="text-gray-500 w-28 shrink-0">Video ID</dt>
+        <dd className="text-gray-900 font-mono text-xs">{metadata.video_id}</dd>
+      </div>
 
       {metadata.content_type && (
-        <>
-          <dt className="text-gray-500">Тип контента</dt>
-          <dd className="text-gray-900">
+        <div className="flex gap-4">
+          <dt className="text-gray-500 w-28 shrink-0">Тип контента</dt>
+          <dd className="text-gray-900 font-medium">
             {metadata.content_type === 'educational' ? 'Обучающий' : 'Лидерская история'}
           </dd>
-        </>
+        </div>
       )}
 
       {metadata.event_category && (
-        <>
-          <dt className="text-gray-500">Категория</dt>
-          <dd className="text-gray-900">
+        <div className="flex gap-4">
+          <dt className="text-gray-500 w-28 shrink-0">Категория</dt>
+          <dd className="text-gray-900 font-medium">
             {metadata.event_category === 'regular' ? 'Регулярное' : 'Выездное'}
           </dd>
-        </>
+        </div>
       )}
     </dl>
   );

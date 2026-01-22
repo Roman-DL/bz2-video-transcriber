@@ -15,7 +15,7 @@ export function ProcessingModal({ isOpen, filename, mode, onClose }: ProcessingM
   const isAutoRun = mode === 'auto';
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} closable={!isAutoRun} size="xl">
+    <Modal isOpen={isOpen} onClose={onClose} closable={!isAutoRun} size="full" noPadding>
       <StepByStep filename={filename} autoRun={isAutoRun} onComplete={onClose} onCancel={onClose} />
     </Modal>
   );

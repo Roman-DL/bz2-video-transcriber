@@ -835,36 +835,36 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
   const availableTabs = getAvailableTabs();
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50">
+    <div className="flex flex-col h-[85vh] min-h-[700px] max-h-[950px] bg-slate-50">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-            Пошаговая обработка
-          </span>
-          <h1 className="text-lg font-medium text-gray-900 truncate max-w-2xl">
-            {filename}
-          </h1>
-        </div>
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-between px-5 py-3 bg-white border-b border-gray-200 shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex flex-col gap-0 min-w-0">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+              Пошаговая обработка
+            </span>
+            <h1 className="text-sm font-medium text-gray-900 truncate">
+              {filename}
+            </h1>
+          </div>
           {contentType === 'leadership' && (
-            <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-700">
+            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 shrink-0">
               Лидерская история
             </span>
           )}
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-600 bg-transparent border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Отменить
-          </button>
         </div>
+        <button
+          onClick={onCancel}
+          className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
+        >
+          Отменить
+        </button>
       </header>
 
       {/* Main content area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Left Panel - Pipeline Control */}
-        <aside className="w-80 flex flex-col gap-5 p-5 bg-white border-r border-gray-200 overflow-y-auto">
+        <aside className="w-96 flex flex-col gap-3 p-4 bg-white border-r border-gray-200 overflow-y-auto shrink-0">
           {/* Next Step Action - Primary CTA */}
           {!isComplete && (
             <div className="p-5 bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl relative overflow-hidden">
@@ -960,8 +960,8 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           )}
 
           {/* Pipeline Steps */}
-          <div className="flex-1">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">
+          <div className="flex-1 min-h-0">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">
               Этапы обработки
             </h4>
             <div className="flex flex-col">
@@ -975,7 +975,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
                 return (
                   <div key={step} className="relative">
                     <div
-                      className={`flex items-start gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+                      className={`flex items-start gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${
                         (status === 'completed') ? 'hover:bg-gray-50' : ''
                       }`}
                       onClick={() => {
@@ -985,71 +985,71 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
                         }
                       }}
                     >
-                      <div className="relative flex flex-col items-center pt-0.5">
+                      <div className="relative flex flex-col items-center">
                         {status === 'completed' ? (
-                          <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                          <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
                         ) : status === 'running' ? (
-                          <Loader2 className="w-5 h-5 text-blue-500 animate-spin flex-shrink-0" />
-                        ) : status === 'current' || status === 'next' ? (
-                          <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
-                            <ChevronRight className="w-3 h-3 text-white" />
+                          <Loader2 className="w-4 h-4 text-blue-500 animate-spin flex-shrink-0" />
+                        ) : status === 'current' ? (
+                          <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                            <ChevronRight className="w-2.5 h-2.5 text-white" />
                           </div>
                         ) : (
-                          <Circle className="w-5 h-5 text-gray-300 flex-shrink-0" />
+                          <Circle className="w-4 h-4 text-gray-300 flex-shrink-0" />
                         )}
                         {index < pipelineSteps.length - 1 && (
-                          <div className={`absolute top-6 left-1/2 -translate-x-1/2 w-0.5 h-8 ${
+                          <div className={`absolute top-4 left-1/2 -translate-x-1/2 w-0.5 h-4 ${
                             status === 'completed' ? 'bg-emerald-500' : 'bg-gray-200'
                           }`} />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <Icon className={`w-4 h-4 ${
                             status === 'current' || status === 'running' ? 'text-blue-500' :
                             status === 'completed' ? 'text-gray-500' : 'text-gray-300'
                           }`} />
                           <span className={`text-sm font-medium ${
-                            status === 'pending' ? 'text-gray-400' : 'text-gray-900'
+                            status === 'pending' || status === 'next' ? 'text-gray-400' : 'text-gray-900'
                           }`}>
                             {STEP_LABELS[step]}
                           </span>
                           {isCurrent && (
-                            <span className="text-xs font-semibold uppercase tracking-wide text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded">
                               текущий
                             </span>
                           )}
                         </div>
                         {hasSettings && (
                           <button
-                            className="flex items-center gap-1 mt-1.5 px-2 py-1 text-xs font-medium text-gray-500 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                            className="flex items-center gap-1 mt-1 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
                             onClick={(e) => {
                               e.stopPropagation();
                               setExpandedSettings(isExpanded ? null : step);
                             }}
                           >
-                            <Settings className="w-3 h-3" />
+                            <Settings className="w-2.5 h-2.5" />
                             <span>Настройки</span>
-                            <ChevronRight className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                            <ChevronRight className={`w-2.5 h-2.5 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                           </button>
                         )}
                       </div>
                       {isCurrent && (
                         <button
-                          className="p-1.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded transition-colors"
+                          className="p-1 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded transition-colors"
                           onClick={(e) => {
                             e.stopPropagation();
                             rerunStep(step);
                           }}
                         >
-                          <RefreshCw className="w-4 h-4" />
+                          <RefreshCw className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
 
                     {/* Expanded Settings Panel */}
                     {isExpanded && hasSettings && isLLMStep(step) && (
-                      <div className="ml-8 mt-2 mb-2 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                      <div className="ml-6 mt-1 mb-1 p-2 bg-gray-50 rounded-lg border border-gray-100 text-xs">
                         {/* Model selector */}
                         {llmOptions.length > 0 && (() => {
                           const settingsKey = step === 'story' ? 'summarize' : step;
@@ -1121,20 +1121,20 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           {availableTabs.length > 0 ? (
             <>
               {/* Tabs */}
-              <div className="flex gap-1 px-5 py-3 bg-white border-b border-gray-200 overflow-x-auto">
+              <div className="flex gap-0.5 px-3 py-2 bg-white border-b border-gray-200 shrink-0">
                 {availableTabs.map(tab => {
                   const Icon = TAB_ICONS[tab];
                   return (
                     <button
                       key={tab}
-                      className={`flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
+                      className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all ${
                         activeTab === tab
                           ? 'text-blue-600 bg-blue-50 border border-blue-200'
                           : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-transparent'
                       }`}
                       onClick={() => setActiveTab(tab)}
                     >
-                      <Icon className="w-4 h-4" />
+                      <Icon className="w-3.5 h-3.5" />
                       <span>{TAB_LABELS[tab]}</span>
                     </button>
                   );
@@ -1142,11 +1142,11 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
               </div>
 
               {/* Content Area */}
-              <div className="flex-1 p-5 overflow-y-auto">
+              <div className="flex-1 p-3 overflow-y-auto min-h-0">
                 {activeTab === 'metadata' && data.metadata && (
-                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
-                      <h3 className="text-lg font-semibold text-gray-900">Метаданные</h3>
+                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                      <h3 className="text-sm font-semibold text-gray-900">Метаданные</h3>
                       {data.metadata.duration_seconds && (
                         <div className="flex items-center gap-1 text-xs text-gray-500">
                           <Clock className="w-3 h-3" />
@@ -1154,16 +1154,16 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
                         </div>
                       )}
                     </div>
-                    <div className="p-5">
+                    <div className="p-4 flex-1 overflow-y-auto">
                       <MetadataView metadata={data.metadata} />
                     </div>
                   </div>
                 )}
 
                 {activeTab === 'rawTranscript' && data.rawTranscript && (
-                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
-                      <h3 className="text-lg font-semibold text-gray-900">Сырая транскрипция</h3>
+                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                      <h3 className="text-sm font-semibold text-gray-900">Сырая транскрипция</h3>
                       <div className="flex items-center gap-3 text-xs text-gray-500">
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
@@ -1172,16 +1172,16 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
                         <span>{data.rawTranscript.segments.length} сегментов</span>
                       </div>
                     </div>
-                    <div className="p-5">
+                    <div className="p-4 flex-1 overflow-hidden min-h-0">
                       <RawTranscriptView transcript={data.rawTranscript} displayText={data.displayText || ''} />
                     </div>
                   </div>
                 )}
 
                 {activeTab === 'cleanedTranscript' && data.cleanedTranscript && (
-                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
-                      <h3 className="text-lg font-semibold text-gray-900">Очищенная транскрипция</h3>
+                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                      <h3 className="text-sm font-semibold text-gray-900">Очищенная транскрипция</h3>
                       <div className="flex items-center gap-3 text-xs text-gray-500">
                         <span>{data.cleanedTranscript.cleaned_length.toLocaleString()} симв.</span>
                         <span className="text-emerald-600">
@@ -1189,67 +1189,67 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
                         </span>
                       </div>
                     </div>
-                    <div className="p-5">
+                    <div className="p-4 flex-1 overflow-hidden min-h-0">
                       <CleanedTranscriptView transcript={data.cleanedTranscript} />
                     </div>
                   </div>
                 )}
 
                 {activeTab === 'longread' && data.longread && (
-                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
-                      <h3 className="text-lg font-semibold text-gray-900">Лонгрид</h3>
+                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                      <h3 className="text-sm font-semibold text-gray-900">Лонгрид</h3>
                       <div className="flex items-center gap-3 text-xs text-gray-500">
                         <span>{data.longread.total_sections} секций</span>
                         <span>{data.longread.total_word_count} слов</span>
                       </div>
                     </div>
-                    <div className="p-5">
+                    <div className="p-4 flex-1 overflow-y-auto">
                       <LongreadView longread={data.longread} />
                     </div>
                   </div>
                 )}
 
                 {activeTab === 'summary' && data.summary && (
-                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
-                      <h3 className="text-lg font-semibold text-gray-900">Конспект</h3>
+                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                      <h3 className="text-sm font-semibold text-gray-900">Конспект</h3>
                       <div className="flex items-center gap-3 text-xs text-gray-500">
                         <span>{data.summary.key_concepts.length} концепций</span>
                         <span>{data.summary.quotes.length} цитат</span>
                       </div>
                     </div>
-                    <div className="p-5">
+                    <div className="p-4 flex-1 overflow-y-auto">
                       <SummaryView summary={data.summary} />
                     </div>
                   </div>
                 )}
 
                 {activeTab === 'story' && data.story && (
-                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
-                      <h3 className="text-lg font-semibold text-gray-900">Лидерская история</h3>
+                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                      <h3 className="text-sm font-semibold text-gray-900">Лидерская история</h3>
                       <div className="flex items-center gap-3 text-xs text-gray-500">
                         <span>{data.story.total_blocks} блоков</span>
                         <span>{data.story.speed}</span>
                       </div>
                     </div>
-                    <div className="p-5">
+                    <div className="p-4 flex-1 overflow-y-auto">
                       <StoryView story={data.story} />
                     </div>
                   </div>
                 )}
 
                 {activeTab === 'chunks' && data.chunks && (
-                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
-                      <h3 className="text-lg font-semibold text-gray-900">Чанки</h3>
+                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                      <h3 className="text-sm font-semibold text-gray-900">Чанки</h3>
                       <div className="flex items-center gap-3 text-xs text-gray-500">
                         <span>{data.chunks.total_chunks} чанков</span>
                         <span>~{data.chunks.avg_chunk_size} слов/чанк</span>
                       </div>
                     </div>
-                    <div className="p-5">
+                    <div className="p-4 flex-1 overflow-y-auto">
                       <ChunksView chunks={data.chunks} />
                     </div>
                   </div>

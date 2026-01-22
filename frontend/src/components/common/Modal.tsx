@@ -7,8 +7,9 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
   closable?: boolean;
+  noPadding?: boolean;
 }
 
 export function Modal({
@@ -18,6 +19,7 @@ export function Modal({
   children,
   size = 'md',
   closable = true,
+  noPadding = false,
 }: ModalProps) {
   useEffect(() => {
     if (isOpen) {
@@ -46,6 +48,8 @@ export function Modal({
             'max-w-md': size === 'md',
             'max-w-lg': size === 'lg',
             'max-w-2xl': size === 'xl',
+            'max-w-5xl': size === '2xl',
+            'max-w-[1100px]': size === 'full',
           }
         )}
       >
@@ -62,7 +66,7 @@ export function Modal({
             )}
           </div>
         )}
-        <div className="p-6">{children}</div>
+        <div className={noPadding ? '' : 'p-6'}>{children}</div>
       </div>
     </div>
   );
