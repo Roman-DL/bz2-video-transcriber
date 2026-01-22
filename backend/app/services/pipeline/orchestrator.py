@@ -20,6 +20,7 @@ from app.models.schemas import (
     ProcessingStatus,
     PromptOverrides,
     RawTranscript,
+    SlidesExtractionResult,
     Story,
     Summary,
     TranscriptChunks,
@@ -464,6 +465,7 @@ class PipelineOrchestrator:
         summary: Summary | None = None,
         story: Story | None = None,
         audio_path: Path | None = None,
+        slides_extraction: SlidesExtractionResult | None = None,
     ) -> list[str]:
         """
         Save all processing results to archive.
@@ -479,6 +481,7 @@ class PipelineOrchestrator:
             summary: Summary (for educational content)
             story: Story document (for leadership content)
             audio_path: Path to extracted audio file (optional)
+            slides_extraction: Slides extraction result (optional, v0.55+)
 
         Returns:
             List of created file names
@@ -489,12 +492,12 @@ class PipelineOrchestrator:
         if story is not None:
             return await saver.save_leadership(
                 metadata, raw_transcript, cleaned_transcript, chunks,
-                story, audio_path
+                story, audio_path, slides_extraction
             )
         elif longread is not None and summary is not None:
             return await saver.save_educational(
                 metadata, raw_transcript, cleaned_transcript, chunks,
-                longread, summary, audio_path
+                longread, summary, audio_path, slides_extraction
             )
         else:
             raise ValueError("Either story or longread+summary must be provided")

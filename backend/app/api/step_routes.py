@@ -564,6 +564,7 @@ async def step_save(request: StepSaveRequest) -> list[str]:
             summary=request.summary,
             story=request.story,
             audio_path=audio_path,
+            slides_extraction=request.slides_extraction,
         )
         return files
     except Exception as e:

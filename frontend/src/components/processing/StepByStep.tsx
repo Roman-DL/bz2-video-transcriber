@@ -574,6 +574,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
               chunks: data.chunks,
               story: data.story,
               audio_path: data.audioPath,
+              slides_extraction: data.slidesResult,
             });
             setData((prev) => ({ ...prev, savedFiles: savedFilesLeadership }));
           } else {
@@ -586,6 +587,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
               longread: data.longread,
               summary: data.summary,
               audio_path: data.audioPath,
+              slides_extraction: data.slidesResult,
             });
             setData((prev) => ({ ...prev, savedFiles }));
           }

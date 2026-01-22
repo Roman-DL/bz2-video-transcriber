@@ -287,6 +287,7 @@ export interface StepSaveRequest {
   // Leadership content (optional)
   story?: Story;
   audio_path?: string;
+  slides_extraction?: SlidesExtractionResult; // v0.55+
 }
 
 // Pipeline step names for UI

@@ -1097,6 +1097,10 @@ class StepSaveRequest(BaseModel):
         default=None,
         description="Path to extracted audio file (from transcribe step)",
     )
+    slides_extraction: SlidesExtractionResult | None = Field(
+        default=None,
+        description="Slides extraction result (v0.55+)",
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
