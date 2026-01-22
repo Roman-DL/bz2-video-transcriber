@@ -214,6 +214,41 @@ metadata.event_name     # Для offsite: "Форум TABTeam (Москва)"
 metadata.is_offsite     # computed: True если event_category == OFFSITE
 ```
 
+## Расширенные метрики (v0.42+)
+
+API response содержит метрики для отладки промптов и отслеживания стоимости:
+
+```python
+from app.models.schemas import TokensUsed, CleanedTranscript
+
+# TokensUsed — статистика токенов
+class TokensUsed(BaseModel):
+    input: int   # входные токены
+    output: int  # выходные токены
+    total: int   # computed: input + output
+
+# Метрики в моделях результатов:
+# RawTranscript: confidence, processing_time_sec, chars, words
+# CleanedTranscript: tokens_used, cost, processing_time_sec, words, change_percent
+# Longread: tokens_used, cost, processing_time_sec, chars
+# Summary: tokens_used, cost, processing_time_sec, chars, words
+# Story: tokens_used, cost, processing_time_sec, chars
+# TranscriptChunks: total_tokens
+```
+
+**Frontend утилиты (v0.44+):**
+```typescript
+import { formatTime, formatCost, formatTokens } from '@/utils/formatUtils';
+
+formatTime(6.2)        // → "6с"
+formatTime(125.5)      // → "2м 6с"
+formatCost(0.0314)     // → "~$0.03"
+formatCost(0)          // → "бесплатно"
+formatTokens(3570)     // → "3 570"
+```
+
+Подробнее: [docs/data-formats.md](docs/data-formats.md)
+
 ## Stage Abstraction (v0.14+, updated v0.23)
 
 Система абстракций для этапов обработки. Позволяет добавлять новые шаги без изменения оркестратора.
@@ -368,10 +403,40 @@ async with strategy.create_client("claude-sonnet-4-5") as client:
 
 | Файл | Назначение |
 |------|------------|
-| `config/models.yaml` | Параметры моделей (chunk_size, thresholds) |
+| `config/models.yaml` | Параметры моделей (chunk_size, thresholds, **pricing**) |
 | `config/glossary.yaml` | Глоссарий терминов для коррекции |
 | `config/prompts/{stage}/` | Промпты для LLM (v0.30+: иерархическая структура) |
 | `config/events.yaml` | Типы событий для парсинга имён |
+
+### Pricing моделей (v0.42+)
+
+Цены моделей хранятся в `config/models.yaml` и используются для расчёта стоимости:
+
+```yaml
+claude_models:
+  - id: "claude-sonnet-4-5"
+    pricing:
+      input: 3.00   # $ за 1M токенов
+      output: 15.00
+  - id: "claude-haiku-4-5"
+    pricing:
+      input: 1.00
+      output: 5.00
+  - id: "claude-opus-4-5"
+    pricing:
+      input: 15.00
+      output: 75.00
+```
+
+Локальные модели (Ollama) — бесплатны, pricing не указывается.
+
+**Утилиты расчёта:**
+```python
+from app.utils import pricing_utils
+
+cost = pricing_utils.calculate_cost("claude-sonnet-4-5", input_tokens=1000, output_tokens=500)
+# → 0.0105 USD
+```
 
 ### Структура промптов (v0.31+)
 

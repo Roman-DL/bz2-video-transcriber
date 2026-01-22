@@ -633,6 +633,173 @@ access_level: leader
 
 ---
 
+### Расширенные метрики (v0.42+)
+
+С версии v0.42 API response содержит расширенные метрики для отладки промптов и отслеживания стоимости.
+
+#### TokensUsed
+
+Статистика использования токенов LLM:
+
+```json
+{
+  "tokens_used": {
+    "input": 1850,
+    "output": 1720,
+    "total": 3570
+  }
+}
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `input` | int | Входные токены (промпт) |
+| `output` | int | Выходные токены (ответ LLM) |
+| `total` | int | Сумма (computed field) |
+
+#### RawTranscript — расширенные поля
+
+```json
+{
+  "raw_transcript": {
+    "segments": [...],
+    "language": "ru",
+    "duration_seconds": 301.5,
+    "whisper_model": "large-v3-turbo",
+    "confidence": 0.94,
+    "processing_time_sec": 23.5,
+    "chars": 4412,
+    "words": 756
+  }
+}
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `confidence` | float \| null | Средняя уверенность Whisper (0-1), рассчитывается из avg_logprob |
+| `processing_time_sec` | float \| null | Время транскрибации в секундах |
+| `chars` | int | Количество символов (computed) |
+| `words` | int | Количество слов (computed) |
+
+#### CleanedTranscript — расширенные поля
+
+```json
+{
+  "cleaned_transcript": {
+    "text": "...",
+    "original_length": 4412,
+    "cleaned_length": 4187,
+    "model_name": "claude-sonnet-4-5",
+    "tokens_used": {"input": 1850, "output": 1720},
+    "cost": 0.0314,
+    "processing_time_sec": 6.2,
+    "words": 698,
+    "change_percent": -5.1
+  }
+}
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `tokens_used` | TokensUsed \| null | Статистика токенов LLM |
+| `cost` | float \| null | Стоимость в USD |
+| `processing_time_sec` | float \| null | Время обработки в секундах |
+| `words` | int | Количество слов (computed) |
+| `change_percent` | float | Процент изменения vs оригинал (computed) |
+
+#### Longread — расширенные поля
+
+```json
+{
+  "longread": {
+    "video_id": "...",
+    "title": "...",
+    "sections": [...],
+    "model_name": "claude-sonnet-4-5",
+    "tokens_used": {"input": 3200, "output": 2800},
+    "cost": 0.0516,
+    "processing_time_sec": 12.4,
+    "chars": 8500
+  }
+}
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `tokens_used` | TokensUsed \| null | Статистика токенов LLM |
+| `cost` | float \| null | Стоимость в USD |
+| `processing_time_sec` | float \| null | Время обработки в секундах |
+| `chars` | int | Количество символов (computed) |
+
+#### Summary — расширенные поля
+
+```json
+{
+  "summary": {
+    "video_id": "...",
+    "essence": "...",
+    "model_name": "claude-sonnet-4-5",
+    "tokens_used": {"input": 2100, "output": 890},
+    "cost": 0.0196,
+    "processing_time_sec": 5.8,
+    "chars": 2150,
+    "words": 312
+  }
+}
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `tokens_used` | TokensUsed \| null | Статистика токенов LLM |
+| `cost` | float \| null | Стоимость в USD |
+| `processing_time_sec` | float \| null | Время обработки в секундах |
+| `chars` | int | Количество символов (computed) |
+| `words` | int | Количество слов (computed) |
+
+#### Story — расширенные поля
+
+```json
+{
+  "story": {
+    "video_id": "...",
+    "names": "...",
+    "blocks": [...],
+    "model_name": "claude-sonnet-4-5",
+    "tokens_used": {"input": 4500, "output": 3200},
+    "cost": 0.0615,
+    "processing_time_sec": 18.2,
+    "chars": 12500
+  }
+}
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `tokens_used` | TokensUsed \| null | Статистика токенов LLM |
+| `cost` | float \| null | Стоимость в USD |
+| `processing_time_sec` | float \| null | Время обработки в секундах |
+| `chars` | int | Количество символов (computed) |
+
+#### TranscriptChunks — расширенные поля
+
+```json
+{
+  "chunks": {
+    "chunks": [...],
+    "model_name": "deterministic",
+    "total_tokens": 680,
+    "total_chunks": 3,
+    "avg_chunk_size": 285
+  }
+}
+```
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `total_tokens` | int \| null | Общее количество токенов во всех чанках (estimated) |
+
+---
+
 ## Конфигурационные файлы
 
 ### config/glossary.yaml

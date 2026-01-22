@@ -629,9 +629,11 @@ curl http://100.64.0.1:8801/api/prompts/cleaning
 
 ---
 
-## Step API (v0.32+)
+## Step API (v0.32+, updated v0.42)
 
 API для пошаговой обработки с возможностью override модели и промптов.
+
+С версии v0.42 response содержит расширенные метрики: `tokens_used`, `cost`, `processing_time_sec`.
 
 ### POST /api/step/clean
 
@@ -639,7 +641,10 @@ API для пошаговой обработки с возможностью ove
 ```json
 {
   "raw_transcript": {
-    "text": "Сырой транскрипт..."
+    "segments": [...],
+    "language": "ru",
+    "duration_seconds": 301.5,
+    "whisper_model": "large-v3-turbo"
   },
   "metadata": {
     "title": "...",
@@ -661,23 +666,90 @@ API для пошаговой обработки с возможностью ove
 **Response (SSE):**
 ```json
 {"type": "progress", "status": "cleaning", "progress": 45.5, "message": "..."}
-{"type": "result", "data": {...}}
+{"type": "result", "data": {
+  "text": "Очищенный транскрипт...",
+  "original_length": 4412,
+  "cleaned_length": 4187,
+  "model_name": "claude-sonnet-4-5",
+  "tokens_used": {"input": 1850, "output": 1720, "total": 3570},
+  "cost": 0.0314,
+  "processing_time_sec": 6.2,
+  "words": 698,
+  "change_percent": -5.1
+}}
 ```
 
 ### POST /api/step/longread
 
-Аналогично `/step/clean`, но `prompt_overrides` может содержать:
-- `system` — системный промпт
-- `instructions` — инструкции
-- `template` — шаблон
+Генерация лонгрида из очищенного транскрипта.
+
+**Request:**
+```json
+{
+  "cleaned_transcript": {...},
+  "metadata": {...},
+  "model": "claude-sonnet-4-5",
+  "prompt_overrides": {
+    "system": "system",
+    "instructions": "instructions",
+    "template": "template"
+  }
+}
+```
+
+**Response (SSE):**
+```json
+{"type": "progress", "status": "longread", "progress": 75.0, "message": "..."}
+{"type": "result", "data": {
+  "video_id": "...",
+  "title": "...",
+  "sections": [...],
+  "model_name": "claude-sonnet-4-5",
+  "tokens_used": {"input": 3200, "output": 2800, "total": 6000},
+  "cost": 0.0516,
+  "processing_time_sec": 12.4,
+  "chars": 8500,
+  "total_word_count": 1250
+}}
+```
 
 ### POST /api/step/summarize
 
-Аналогично `/step/longread`.
+Генерация конспекта из очищенного транскрипта.
+
+**Response (SSE):**
+```json
+{"type": "result", "data": {
+  "video_id": "...",
+  "essence": "...",
+  "key_concepts": [...],
+  "model_name": "claude-sonnet-4-5",
+  "tokens_used": {"input": 2100, "output": 890, "total": 2990},
+  "cost": 0.0196,
+  "processing_time_sec": 5.8,
+  "chars": 2150,
+  "words": 312
+}}
+```
 
 ### POST /api/step/story
 
-Аналогично `/step/longread`.
+Генерация 8-блочной истории (для content_type=LEADERSHIP).
+
+**Response (SSE):**
+```json
+{"type": "result", "data": {
+  "video_id": "...",
+  "names": "...",
+  "blocks": [...],
+  "model_name": "claude-sonnet-4-5",
+  "tokens_used": {"input": 4500, "output": 3200, "total": 7700},
+  "cost": 0.0615,
+  "processing_time_sec": 18.2,
+  "chars": 12500,
+  "total_blocks": 8
+}}
+```
 
 ---
 
