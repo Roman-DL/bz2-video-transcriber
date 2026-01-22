@@ -21,12 +21,8 @@ function Dashboard() {
 
   return (
     <>
-      <div className="max-w-6xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <InboxList onProcessVideo={setSelectedVideo} />
-          <ArchiveCatalog />
-        </div>
-      </div>
+      <InboxList onProcessVideo={setSelectedVideo} />
+      <ArchiveCatalog />
 
       <ProcessingModal
         isOpen={selectedVideo !== null}

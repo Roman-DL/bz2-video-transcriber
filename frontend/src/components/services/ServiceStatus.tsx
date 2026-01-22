@@ -33,10 +33,10 @@ function StatusIndicator({ name, status }: { name: string; status: boolean }) {
     <div className="flex items-center gap-1.5">
       <div
         className={`w-2 h-2 rounded-full ${
-          status ? 'bg-green-500' : 'bg-red-500'
+          status ? 'bg-emerald-500' : 'bg-gray-300'
         }`}
       />
-      <span className={status ? 'text-gray-700' : 'text-red-600'}>{name}</span>
+      <span className="text-sm text-gray-600">{name}</span>
     </div>
   );
 }
