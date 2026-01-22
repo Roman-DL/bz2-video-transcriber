@@ -12,7 +12,7 @@ import time
 
 from app.config import Settings, get_settings, load_glossary_text, load_model_config, load_prompt
 from app.models.schemas import CleanedTranscript, PromptOverrides, RawTranscript, TokensUsed, VideoMetadata
-from app.services.ai_clients import BaseAIClient, ClaudeClient, OllamaClient
+from app.services.ai_clients import BaseAIClient, OllamaClient
 from app.utils import calculate_cost
 
 logger = logging.getLogger(__name__)
@@ -111,10 +111,9 @@ class TranscriptCleaner:
         total_input_chars = 0
         total_output_chars = 0
 
-        # Token tracking (v0.42+)
+        # Token tracking (v0.43+: unified interface)
         total_input_tokens = 0
         total_output_tokens = 0
-        has_usage_tracking = isinstance(self.ai_client, ClaudeClient)
 
         for i, chunk in enumerate(chunks):
             user_content = self.user_template.format(
@@ -130,23 +129,15 @@ class TranscriptCleaner:
             # Estimate output tokens: ~2 chars per token, expect 80-95% of input
             num_predict = max(int(len(chunk) * 0.5), 4096)
 
-            # Use chat_with_usage for Claude to track tokens (v0.42+)
-            if has_usage_tracking:
-                chunk_result, usage = await self.ai_client.chat_with_usage(
-                    messages,
-                    model=self.settings.cleaner_model,
-                    temperature=0.0,
-                    num_predict=num_predict,
-                )
-                total_input_tokens += usage.input_tokens
-                total_output_tokens += usage.output_tokens
-            else:
-                chunk_result = await self.ai_client.chat(
-                    messages,
-                    model=self.settings.cleaner_model,
-                    temperature=0.0,
-                    num_predict=num_predict,
-                )
+            # v0.43+: Unified interface - all clients return (response, usage)
+            chunk_result, usage = await self.ai_client.chat(
+                messages,
+                model=self.settings.cleaner_model,
+                temperature=0.0,
+                num_predict=num_predict,
+            )
+            total_input_tokens += usage.input_tokens
+            total_output_tokens += usage.output_tokens
             chunk_result = chunk_result.strip()
 
             # Detailed logging for each chunk

@@ -24,7 +24,7 @@ from app.models.schemas import (
     TokensUsed,
     VideoMetadata,
 )
-from app.services.ai_clients import BaseAIClient, ClaudeClient, OllamaClient
+from app.services.ai_clients import BaseAIClient, OllamaClient
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -127,21 +127,12 @@ class SummaryGenerator:
         # Build prompt
         prompt = self._build_prompt(transcript_text, metadata)
 
-        # Call LLM with usage tracking if available (v0.42+)
-        input_tokens = 0
-        output_tokens = 0
-        has_usage_tracking = isinstance(self.ai_client, ClaudeClient)
-
-        if has_usage_tracking:
-            response, usage = await self.ai_client.generate_with_usage(
-                prompt, model=self.settings.summarizer_model
-            )
-            input_tokens = usage.input_tokens
-            output_tokens = usage.output_tokens
-        else:
-            response = await self.ai_client.generate(
-                prompt, model=self.settings.summarizer_model
-            )
+        # v0.43+: Unified interface - all clients return (response, usage)
+        response, usage = await self.ai_client.generate(
+            prompt, model=self.settings.summarizer_model
+        )
+        input_tokens = usage.input_tokens
+        output_tokens = usage.output_tokens
 
         # Parse response
         summary_data = self._parse_response(response)

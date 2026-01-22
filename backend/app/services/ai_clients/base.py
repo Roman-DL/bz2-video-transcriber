@@ -46,6 +46,28 @@ class GenerationOptions:
     stop: list[str] = field(default_factory=list)
 
 
+@dataclass
+class ChatUsage:
+    """
+    Token usage statistics from LLM response.
+
+    Used by both cloud (Claude) and local (Ollama) providers.
+    For providers without usage tracking, returns zeros.
+
+    Attributes:
+        input_tokens: Tokens in the input prompt
+        output_tokens: Tokens generated in response
+    """
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+    @property
+    def total_tokens(self) -> int:
+        """Total tokens used."""
+        return self.input_tokens + self.output_tokens
+
+
 @runtime_checkable
 class BaseAIClient(Protocol):
     """
@@ -55,15 +77,20 @@ class BaseAIClient(Protocol):
     This enables dependency injection and easy swapping between
     local (Ollama) and cloud (Claude API) providers.
 
+    v0.43+: All methods return tuple[str, ChatUsage] for unified interface.
+    For providers without usage tracking, ChatUsage(0, 0) is returned.
+
     Example:
         async def process_text(client: BaseAIClient, text: str) -> str:
-            return await client.generate(text)
+            response, usage = await client.generate(text)
+            print(f"Used {usage.total_tokens} tokens")
+            return response
 
         # Works with any implementation
         ollama = OllamaClient(config)
         claude = ClaudeClient(config)
-        result = await process_text(ollama, "Hello")
-        result = await process_text(claude, "Hello")
+        result, _ = await process_text(ollama, "Hello")  # usage is (0, 0)
+        result, usage = await process_text(claude, "Hello")  # actual usage
     """
 
     async def generate(
@@ -71,7 +98,7 @@ class BaseAIClient(Protocol):
         prompt: str,
         model: str | None = None,
         num_predict: int | None = None,
-    ) -> str:
+    ) -> tuple[str, ChatUsage]:
         """
         Generate text from a prompt.
 
@@ -81,7 +108,7 @@ class BaseAIClient(Protocol):
             num_predict: Max tokens to generate (model default if None)
 
         Returns:
-            Generated text response
+            Tuple of (generated_text, ChatUsage)
 
         Raises:
             AIClientError: If generation fails
@@ -94,7 +121,7 @@ class BaseAIClient(Protocol):
         model: str | None = None,
         temperature: float = 0.7,
         num_predict: int | None = None,
-    ) -> str:
+    ) -> tuple[str, ChatUsage]:
         """
         Chat completion with message history.
 
@@ -105,7 +132,7 @@ class BaseAIClient(Protocol):
             num_predict: Max tokens to generate (model default if None)
 
         Returns:
-            Assistant's response content
+            Tuple of (response_content, ChatUsage)
 
         Raises:
             AIClientError: If chat completion fails
@@ -198,6 +225,8 @@ class BaseAIClientImpl(ABC):
     Provides common functionality for context manager protocol
     and can be extended with shared helper methods.
 
+    v0.43+: All methods return tuple[str, ChatUsage] for unified interface.
+
     Subclasses must implement:
         - generate()
         - chat()
@@ -219,7 +248,7 @@ class BaseAIClientImpl(ABC):
         prompt: str,
         model: str | None = None,
         num_predict: int | None = None,
-    ) -> str:
+    ) -> tuple[str, ChatUsage]:
         """Generate text from a prompt."""
         pass
 
@@ -230,7 +259,7 @@ class BaseAIClientImpl(ABC):
         model: str | None = None,
         temperature: float = 0.7,
         num_predict: int | None = None,
-    ) -> str:
+    ) -> tuple[str, ChatUsage]:
         """Chat completion with message history."""
         pass
 

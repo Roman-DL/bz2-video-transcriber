@@ -4,6 +4,9 @@ Ollama AI client implementation.
 Provides async HTTP client for Ollama LLM API with retry logic.
 Implements BaseAIClient protocol for text generation and chat completions.
 
+v0.43+: All methods return tuple[str, ChatUsage] for unified interface.
+Note: Ollama doesn't provide token usage, so ChatUsage(0, 0) is returned.
+
 Note: Whisper transcription is handled by separate WhisperClient.
 """
 
@@ -24,6 +27,7 @@ from app.services.ai_clients.base import (
     AIClientResponseError,
     AIClientTimeoutError,
     BaseAIClientImpl,
+    ChatUsage,
 )
 
 logger = logging.getLogger(__name__)
@@ -133,7 +137,7 @@ class OllamaClient(BaseAIClientImpl):
         prompt: str,
         model: str | None = None,
         num_predict: int | None = None,
-    ) -> str:
+    ) -> tuple[str, ChatUsage]:
         """
         Generate text using Ollama /api/generate endpoint.
 
@@ -143,7 +147,8 @@ class OllamaClient(BaseAIClientImpl):
             num_predict: Max tokens to generate (default: None = model default)
 
         Returns:
-            Generated text response
+            Tuple of (generated_text, ChatUsage).
+            Note: ChatUsage(0, 0) as Ollama doesn't provide token usage.
 
         Raises:
             AIClientError: If generation fails
@@ -183,7 +188,7 @@ class OllamaClient(BaseAIClientImpl):
 
             logger.debug(f"Generated {len(response_text)} chars")
 
-            return response_text
+            return response_text, ChatUsage()
 
         except httpx.TimeoutException as e:
             logger.error(f"Generation timeout with {model}: {e}")
@@ -220,7 +225,7 @@ class OllamaClient(BaseAIClientImpl):
         model: str | None = None,
         temperature: float = 0.7,
         num_predict: int | None = None,
-    ) -> str:
+    ) -> tuple[str, ChatUsage]:
         """
         Chat completion using Ollama OpenAI-compatible endpoint.
 
@@ -231,7 +236,8 @@ class OllamaClient(BaseAIClientImpl):
             num_predict: Max tokens to generate (default: None = model default)
 
         Returns:
-            Assistant's response content
+            Tuple of (response_content, ChatUsage).
+            Note: ChatUsage(0, 0) as Ollama doesn't provide token usage.
 
         Raises:
             AIClientError: If chat completion fails
@@ -263,7 +269,7 @@ class OllamaClient(BaseAIClientImpl):
             content = result["choices"][0]["message"]["content"]
             logger.debug(f"Chat response: {len(content)} chars")
 
-            return content
+            return content, ChatUsage()
 
         except httpx.TimeoutException as e:
             logger.error(f"Chat timeout with {model}: {e}")
@@ -330,11 +336,12 @@ if __name__ == "__main__":
             print("\nTest 2: Generate text...", end=" ")
             if status["ollama"]:
                 try:
-                    response = await client.generate(
+                    response, usage = await client.generate(
                         "Say 'Hello' in Russian. Reply with just the word."
                     )
                     print("OK")
                     print(f"  Response: {response.strip()}")
+                    print(f"  Usage: {usage.total_tokens} tokens (Ollama doesn't track)")
                 except Exception as e:
                     print(f"FAILED: {e}")
                     return 1
@@ -352,9 +359,10 @@ if __name__ == "__main__":
                         },
                         {"role": "user", "content": "What is 2+2?"},
                     ]
-                    response = await client.chat(messages)
+                    response, usage = await client.chat(messages)
                     print("OK")
                     print(f"  Response: {response.strip()[:100]}")
+                    print(f"  Usage: {usage.total_tokens} tokens (Ollama doesn't track)")
                 except Exception as e:
                     print(f"FAILED: {e}")
                     return 1

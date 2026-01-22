@@ -4,12 +4,11 @@ Claude API client implementation.
 Provides async client for Anthropic's Claude API with retry logic.
 Implements BaseAIClient protocol for text generation and chat completions.
 
-v0.42+: Added chat_with_usage() method for token tracking.
+v0.43+: All methods return tuple[str, ChatUsage] for unified interface.
 """
 
 import logging
 import os
-from dataclasses import dataclass
 
 from anthropic import AsyncAnthropic, APIConnectionError, APIStatusError, APITimeoutError
 
@@ -20,30 +19,13 @@ from app.services.ai_clients.base import (
     AIClientResponseError,
     AIClientTimeoutError,
     BaseAIClientImpl,
+    ChatUsage,
 )
 
 logger = logging.getLogger(__name__)
 
 # Default Claude model (using alias for auto-updates)
 DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-5"
-
-
-@dataclass
-class ChatUsage:
-    """Token usage from Claude API response.
-
-    Attributes:
-        input_tokens: Tokens in the input prompt
-        output_tokens: Tokens generated in response
-    """
-
-    input_tokens: int = 0
-    output_tokens: int = 0
-
-    @property
-    def total_tokens(self) -> int:
-        """Total tokens used."""
-        return self.input_tokens + self.output_tokens
 
 
 class ClaudeClient(BaseAIClientImpl):
@@ -143,7 +125,7 @@ class ClaudeClient(BaseAIClientImpl):
         prompt: str,
         model: str | None = None,
         num_predict: int | None = None,
-    ) -> str:
+    ) -> tuple[str, ChatUsage]:
         """
         Generate text using Claude API.
 
@@ -155,44 +137,17 @@ class ClaudeClient(BaseAIClientImpl):
             num_predict: Max tokens to generate (default: 4096)
 
         Returns:
-            Generated text response
+            Tuple of (generated_text, ChatUsage)
 
         Raises:
             AIClientError: If generation fails
-        """
-        messages = [{"role": "user", "content": prompt}]
-        return await self.chat(
-            messages=messages,
-            model=model,
-            temperature=0.7,
-            num_predict=num_predict,
-        )
-
-    async def generate_with_usage(
-        self,
-        prompt: str,
-        model: str | None = None,
-        num_predict: int | None = None,
-    ) -> tuple[str, ChatUsage]:
-        """
-        Generate text with token usage tracking.
-
-        Same as generate() but also returns token usage statistics.
-
-        Args:
-            prompt: Text prompt for generation
-            model: Model name (default: claude-sonnet)
-            num_predict: Max tokens to generate (default: 4096)
-
-        Returns:
-            Tuple of (generated_text, ChatUsage)
 
         Example:
-            text, usage = await client.generate_with_usage("Hello!")
+            text, usage = await client.generate("Hello!")
             print(f"Used {usage.total_tokens} tokens")
         """
         messages = [{"role": "user", "content": prompt}]
-        return await self.chat_with_usage(
+        return await self.chat(
             messages=messages,
             model=model,
             temperature=0.7,
@@ -205,7 +160,7 @@ class ClaudeClient(BaseAIClientImpl):
         model: str | None = None,
         temperature: float = 0.7,
         num_predict: int | None = None,
-    ) -> str:
+    ) -> tuple[str, ChatUsage]:
         """
         Chat completion using Claude Messages API.
 
@@ -220,117 +175,13 @@ class ClaudeClient(BaseAIClientImpl):
             num_predict: Max tokens to generate (default: 4096)
 
         Returns:
-            Assistant's response content
-
-        Raises:
-            AIClientError: If chat completion fails
-        """
-        if model is None:
-            model = self.default_model
-
-        if num_predict is None:
-            num_predict = 4096
-
-        # Extract system message if present
-        system_content = None
-        chat_messages = []
-
-        for msg in messages:
-            if msg["role"] == "system":
-                system_content = msg["content"]
-            else:
-                chat_messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"],
-                })
-
-        logger.debug(
-            f"Claude chat: model={model}, messages={len(chat_messages)}, "
-            f"system={'yes' if system_content else 'no'}, max_tokens={num_predict}"
-        )
-
-        try:
-            # Build request kwargs
-            kwargs = {
-                "model": model,
-                "max_tokens": num_predict,
-                "temperature": temperature,
-                "messages": chat_messages,
-            }
-
-            if system_content:
-                kwargs["system"] = system_content
-
-            response = await self.client.messages.create(**kwargs)
-
-            # Extract text from response
-            content = response.content[0].text
-
-            # Log usage for cost monitoring
-            input_tokens = response.usage.input_tokens
-            output_tokens = response.usage.output_tokens
-            logger.info(
-                f"Claude response: {len(content)} chars, "
-                f"tokens: {input_tokens} in / {output_tokens} out"
-            )
-
-            return content
-
-        except APITimeoutError as e:
-            logger.error(f"Claude timeout: {e}")
-            raise AIClientTimeoutError(
-                f"Claude request timeout",
-                provider="claude",
-                model=model,
-                original_error=e,
-            ) from e
-
-        except APIConnectionError as e:
-            logger.error(f"Claude connection error: {e}")
-            raise AIClientConnectionError(
-                f"Cannot connect to Claude API: {e}",
-                provider="claude",
-                original_error=e,
-            ) from e
-
-        except APIStatusError as e:
-            logger.error(f"Claude API error: {e.status_code} - {e.message}")
-            raise AIClientResponseError(
-                f"Claude API error: {e.message}",
-                provider="claude",
-                model=model,
-                status_code=e.status_code,
-                response_body=str(e.body) if e.body else None,
-                original_error=e,
-            ) from e
-
-    async def chat_with_usage(
-        self,
-        messages: list[dict],
-        model: str | None = None,
-        temperature: float = 0.7,
-        num_predict: int | None = None,
-    ) -> tuple[str, ChatUsage]:
-        """
-        Chat completion with token usage tracking.
-
-        Same as chat() but also returns token usage statistics.
-        Use this when you need to track costs or debug prompts.
-
-        Args:
-            messages: List of chat messages [{"role": "user", "content": "..."}]
-            model: Model name (default: claude-sonnet)
-            temperature: Sampling temperature (default: 0.7)
-            num_predict: Max tokens to generate (default: 4096)
-
-        Returns:
             Tuple of (response_content, ChatUsage)
 
         Raises:
             AIClientError: If chat completion fails
 
         Example:
-            content, usage = await client.chat_with_usage(messages)
+            content, usage = await client.chat(messages)
             print(f"Used {usage.input_tokens} in, {usage.output_tokens} out")
         """
         if model is None:
@@ -353,7 +204,7 @@ class ClaudeClient(BaseAIClientImpl):
                 })
 
         logger.debug(
-            f"Claude chat_with_usage: model={model}, messages={len(chat_messages)}, "
+            f"Claude chat: model={model}, messages={len(chat_messages)}, "
             f"system={'yes' if system_content else 'no'}, max_tokens={num_predict}"
         )
 
@@ -477,12 +328,13 @@ if __name__ == "__main__":
             # Test 2: Generate
             print("\nTest 2: Generate text...", end=" ")
             try:
-                response = await client.generate(
+                response, usage = await client.generate(
                     "Say 'Hello' in Russian. Reply with just the word.",
                     num_predict=10,
                 )
                 print("OK")
                 print(f"  Response: {response.strip()}")
+                print(f"  Usage: {usage.input_tokens} in / {usage.output_tokens} out")
             except Exception as e:
                 print(f"FAILED: {e}")
                 return 1
@@ -494,9 +346,10 @@ if __name__ == "__main__":
                     {"role": "system", "content": "You are a helpful assistant. Be brief."},
                     {"role": "user", "content": "What is 2+2?"},
                 ]
-                response = await client.chat(messages, num_predict=20)
+                response, usage = await client.chat(messages, num_predict=20)
                 print("OK")
                 print(f"  Response: {response.strip()[:100]}")
+                print(f"  Usage: {usage.total_tokens} total tokens")
             except Exception as e:
                 print(f"FAILED: {e}")
                 return 1

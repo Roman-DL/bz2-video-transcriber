@@ -28,7 +28,7 @@ from app.models.schemas import (
     TranscriptOutline,
     VideoMetadata,
 )
-from app.services.ai_clients import BaseAIClient, ClaudeClient, OllamaClient
+from app.services.ai_clients import BaseAIClient, OllamaClient
 from app.services.outline_extractor import OutlineExtractor
 from app.services.text_splitter import TextSplitter
 
@@ -106,11 +106,10 @@ class LongreadGenerator:
         self.text_splitter = TextSplitter()
         self.outline_extractor = OutlineExtractor(ai_client, settings)
 
-        # Token tracking (v0.42+)
+        # Token tracking (v0.43+: unified interface)
         self._total_input_tokens = 0
         self._total_output_tokens = 0
         self._tokens_lock = asyncio.Lock()
-        self._has_usage_tracking = isinstance(ai_client, ClaudeClient)
 
         # Get model-specific config
         model_config = get_model_config(settings.summarizer_model, settings)
@@ -386,18 +385,13 @@ class LongreadGenerator:
             section_idx, total_sections, parts_text, metadata, outline_context
         )
 
-        # Call LLM with usage tracking if available (v0.42+)
-        if self._has_usage_tracking:
-            response, usage = await self.ai_client.generate_with_usage(
-                prompt, model=self.settings.summarizer_model
-            )
-            async with self._tokens_lock:
-                self._total_input_tokens += usage.input_tokens
-                self._total_output_tokens += usage.output_tokens
-        else:
-            response = await self.ai_client.generate(
-                prompt, model=self.settings.summarizer_model
-            )
+        # v0.43+: Unified interface - all clients return (response, usage)
+        response, usage = await self.ai_client.generate(
+            prompt, model=self.settings.summarizer_model
+        )
+        async with self._tokens_lock:
+            self._total_input_tokens += usage.input_tokens
+            self._total_output_tokens += usage.output_tokens
 
         # Parse response
         section_data = self._parse_json_response(response)
@@ -514,18 +508,13 @@ class LongreadGenerator:
         # Build prompt with new architecture
         prompt = self._build_frame_prompt(sections_summary, metadata, date_formatted)
 
-        # Call LLM with usage tracking if available (v0.42+)
-        if self._has_usage_tracking:
-            response, usage = await self.ai_client.generate_with_usage(
-                prompt, model=self.settings.summarizer_model
-            )
-            async with self._tokens_lock:
-                self._total_input_tokens += usage.input_tokens
-                self._total_output_tokens += usage.output_tokens
-        else:
-            response = await self.ai_client.generate(
-                prompt, model=self.settings.summarizer_model
-            )
+        # v0.43+: Unified interface - all clients return (response, usage)
+        response, usage = await self.ai_client.generate(
+            prompt, model=self.settings.summarizer_model
+        )
+        async with self._tokens_lock:
+            self._total_input_tokens += usage.input_tokens
+            self._total_output_tokens += usage.output_tokens
 
         # Parse response
         data = self._parse_json_response(response)
