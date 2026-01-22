@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   useStepParse,
   useStepTranscribe,
@@ -35,6 +35,7 @@ import { ChunksView } from '@/components/results/ChunksView';
 import { LongreadView } from '@/components/results/LongreadView';
 import { SummaryView } from '@/components/results/SummaryView';
 import { StoryView } from '@/components/results/StoryView';
+import { CompletionCard } from '@/components/processing/CompletionCard';
 import { ComponentPromptSelector } from '@/components/settings/ComponentPromptSelector';
 import { ModelSelector } from '@/components/settings/ModelSelector';
 import { buildLLMOptions } from '@/utils/modelUtils';
@@ -126,6 +127,8 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
   const [isInitializing, setIsInitializing] = useState(true);
   const [parseError, setParseError] = useState<string | null>(null);
   const [expandedSettings, setExpandedSettings] = useState<PipelineStep | null>(null);
+  const [showCleanedDiff, setShowCleanedDiff] = useState(false);
+  const [showLongreadDiff, setShowLongreadDiff] = useState(false);
   const [promptOverrides, setPromptOverrides] = useState<StagePromptOverrides>({
     clean: {},
     longread: {},
@@ -598,6 +601,59 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
     chunks: 'Чанки',
   };
 
+  // Reset diff mode when tab changes
+  useEffect(() => {
+    setShowCleanedDiff(false);
+    setShowLongreadDiff(false);
+  }, [activeTab]);
+
+  // Calculate totals for CompletionCard
+  const calculateTotals = useCallback(() => {
+    let totalTime = 0;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    let totalCost = 0;
+
+    // RawTranscript (transcription time)
+    if (data.rawTranscript?.processing_time_sec) {
+      totalTime += data.rawTranscript.processing_time_sec;
+    }
+
+    // CleanedTranscript
+    if (data.cleanedTranscript) {
+      totalTime += data.cleanedTranscript.processing_time_sec || 0;
+      totalInputTokens += data.cleanedTranscript.tokens_used?.input || 0;
+      totalOutputTokens += data.cleanedTranscript.tokens_used?.output || 0;
+      totalCost += data.cleanedTranscript.cost || 0;
+    }
+
+    // Longread (educational)
+    if (data.longread) {
+      totalTime += data.longread.processing_time_sec || 0;
+      totalInputTokens += data.longread.tokens_used?.input || 0;
+      totalOutputTokens += data.longread.tokens_used?.output || 0;
+      totalCost += data.longread.cost || 0;
+    }
+
+    // Summary (educational)
+    if (data.summary) {
+      totalTime += data.summary.processing_time_sec || 0;
+      totalInputTokens += data.summary.tokens_used?.input || 0;
+      totalOutputTokens += data.summary.tokens_used?.output || 0;
+      totalCost += data.summary.cost || 0;
+    }
+
+    // Story (leadership)
+    if (data.story) {
+      totalTime += data.story.processing_time_sec || 0;
+      totalInputTokens += data.story.tokens_used?.input || 0;
+      totalOutputTokens += data.story.tokens_used?.output || 0;
+      totalCost += data.story.cost || 0;
+    }
+
+    return { totalTime, totalInputTokens, totalOutputTokens, totalCost };
+  }, [data]);
+
   // Get step stats for display
   const getStepStats = (step: PipelineStep): string | null => {
     switch (step) {
@@ -923,29 +979,13 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
             </div>
           )}
 
-          {/* Success card */}
+          {/* Success card with totals */}
           {isComplete && data.savedFiles && (
-            <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-xl">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center">
-                  <CheckCircle className="w-5 h-5 text-emerald-500" />
-                </div>
-                <div className="font-semibold text-emerald-700">
-                  Успешно сохранено
-                </div>
-              </div>
-              <ul className="text-sm space-y-1 text-gray-700 mb-4">
-                {data.savedFiles.map((file) => (
-                  <li key={file} className="flex items-center gap-2">
-                    <span>•</span>
-                    <span className="font-mono text-xs">{file}</span>
-                  </li>
-                ))}
-              </ul>
-              <Button onClick={onComplete} className="w-full">
-                Закрыть
-              </Button>
-            </div>
+            <CompletionCard
+              files={data.savedFiles}
+              totals={calculateTotals()}
+              onClose={onComplete}
+            />
           )}
 
           {/* Error */}
@@ -1180,32 +1220,45 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
 
                 {activeTab === 'cleanedTranscript' && data.cleanedTranscript && (
                   <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
-                      <h3 className="text-sm font-semibold text-gray-900">Очищенная транскрипция</h3>
-                      <div className="flex items-center gap-3 text-xs text-gray-500">
-                        <span>{data.cleanedTranscript.cleaned_length.toLocaleString()} симв.</span>
-                        <span className="text-emerald-600">
-                          -{Math.round(((data.cleanedTranscript.original_length - data.cleanedTranscript.cleaned_length) / data.cleanedTranscript.original_length) * 100)}%
-                        </span>
+                    {!showCleanedDiff && (
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                        <h3 className="text-sm font-semibold text-gray-900">Очищенная транскрипция</h3>
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <span>{data.cleanedTranscript.cleaned_length.toLocaleString()} симв.</span>
+                          <span className="text-emerald-600">
+                            -{Math.round(((data.cleanedTranscript.original_length - data.cleanedTranscript.cleaned_length) / data.cleanedTranscript.original_length) * 100)}%
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="p-4 flex-1 overflow-hidden min-h-0">
-                      <CleanedTranscriptView transcript={data.cleanedTranscript} />
+                    )}
+                    <div className={showCleanedDiff ? 'flex-1 min-h-0' : 'p-4 flex-1 overflow-hidden min-h-0'}>
+                      <CleanedTranscriptView
+                        transcript={data.cleanedTranscript}
+                        rawText={data.displayText}
+                        showDiff={showCleanedDiff}
+                        onToggleDiff={() => setShowCleanedDiff(!showCleanedDiff)}
+                      />
                     </div>
                   </div>
                 )}
 
                 {activeTab === 'longread' && data.longread && (
                   <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
-                      <h3 className="text-sm font-semibold text-gray-900">Лонгрид</h3>
-                      <div className="flex items-center gap-3 text-xs text-gray-500">
-                        <span>{data.longread.total_sections} секций</span>
-                        <span>{data.longread.total_word_count} слов</span>
+                    {!showLongreadDiff && (
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                        <h3 className="text-sm font-semibold text-gray-900">Лонгрид</h3>
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <span>{data.longread.total_word_count} слов</span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="p-4 flex-1 overflow-y-auto">
-                      <LongreadView longread={data.longread} />
+                    )}
+                    <div className={showLongreadDiff ? 'flex-1 min-h-0' : 'p-4 flex-1 overflow-y-auto'}>
+                      <LongreadView
+                        longread={data.longread}
+                        cleanedText={data.cleanedTranscript?.text}
+                        showDiff={showLongreadDiff}
+                        onToggleDiff={() => setShowLongreadDiff(!showLongreadDiff)}
+                      />
                     </div>
                   </div>
                 )}

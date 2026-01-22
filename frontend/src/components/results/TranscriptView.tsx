@@ -1,6 +1,8 @@
+import { Columns } from 'lucide-react';
 import type { RawTranscript, CleanedTranscript } from '@/api/types';
 import { formatNumber, formatTime } from '@/utils/formatUtils';
 import { ResultFooter } from '@/components/common/ResultFooter';
+import { InlineDiffView } from '@/components/common/InlineDiffView';
 
 interface RawTranscriptViewProps {
   transcript: RawTranscript;
@@ -57,9 +59,30 @@ export function RawTranscriptView({ transcript, displayText }: RawTranscriptView
 
 interface CleanedTranscriptViewProps {
   transcript: CleanedTranscript;
+  rawText?: string;
+  showDiff?: boolean;
+  onToggleDiff?: () => void;
 }
 
-export function CleanedTranscriptView({ transcript }: CleanedTranscriptViewProps) {
+export function CleanedTranscriptView({
+  transcript,
+  rawText,
+  showDiff = false,
+  onToggleDiff,
+}: CleanedTranscriptViewProps) {
+  // Show diff view if enabled
+  if (showDiff && rawText && onToggleDiff) {
+    return (
+      <InlineDiffView
+        leftText={rawText}
+        rightText={transcript.text}
+        leftTitle="Транскрипт"
+        rightTitle="Очистка"
+        onClose={onToggleDiff}
+      />
+    );
+  }
+
   return (
     <div className="h-full flex flex-col">
       {/* Header with metrics */}
@@ -79,6 +102,19 @@ export function CleanedTranscriptView({ transcript }: CleanedTranscriptViewProps
           </span>
         )}
       </div>
+
+      {/* Diff button - only show if rawText available */}
+      {rawText && onToggleDiff && (
+        <div className="mb-2 shrink-0">
+          <button
+            onClick={onToggleDiff}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+          >
+            <Columns className="w-3.5 h-3.5" />
+            Сравнить с транскриптом
+          </button>
+        </div>
+      )}
 
       {/* Cleaned text */}
       <div className="flex-1 overflow-y-auto text-sm text-gray-700 whitespace-pre-wrap break-words min-h-0">

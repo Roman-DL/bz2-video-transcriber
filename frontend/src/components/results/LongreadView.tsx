@@ -1,10 +1,15 @@
+import { Columns } from 'lucide-react';
 import type { Longread } from '@/api/types';
 import { Badge } from '@/components/common/Badge';
 import { ResultFooter } from '@/components/common/ResultFooter';
+import { InlineDiffView } from '@/components/common/InlineDiffView';
 import { formatNumber, formatTime } from '@/utils/formatUtils';
 
 interface LongreadViewProps {
   longread: Longread;
+  cleanedText?: string;
+  showDiff?: boolean;
+  onToggleDiff?: () => void;
 }
 
 function formatLongreadAsMarkdown(longread: Longread): string {
@@ -34,8 +39,26 @@ function formatLongreadAsMarkdown(longread: Longread): string {
   return lines.join('\n');
 }
 
-export function LongreadView({ longread }: LongreadViewProps) {
+export function LongreadView({
+  longread,
+  cleanedText,
+  showDiff = false,
+  onToggleDiff,
+}: LongreadViewProps) {
   const markdownText = formatLongreadAsMarkdown(longread);
+
+  // Show diff view if enabled
+  if (showDiff && cleanedText && onToggleDiff) {
+    return (
+      <InlineDiffView
+        leftText={cleanedText}
+        rightText={markdownText}
+        leftTitle="Очистка"
+        rightTitle="Лонгрид"
+        onClose={onToggleDiff}
+      />
+    );
+  }
 
   return (
     <div className="h-full flex flex-col">
@@ -53,6 +76,19 @@ export function LongreadView({ longread }: LongreadViewProps) {
           </span>
         )}
       </div>
+
+      {/* Diff button - only show if cleanedText available */}
+      {cleanedText && onToggleDiff && (
+        <div className="mb-2 shrink-0">
+          <button
+            onClick={onToggleDiff}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+          >
+            <Columns className="w-3.5 h-3.5" />
+            Сравнить с очисткой
+          </button>
+        </div>
+      )}
 
       {/* Longread text as markdown */}
       <div className="flex-1 overflow-y-auto text-sm text-gray-700 whitespace-pre-wrap leading-relaxed min-h-0">
