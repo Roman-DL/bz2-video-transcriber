@@ -14,13 +14,18 @@ export function ChunksView({ chunks }: ChunksViewProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Header with metrics */}
-      <div className="text-xs text-gray-500 mb-3 px-4 shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="text-xs text-gray-500 mb-3 shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1">
         <span>
           {chunks.total_chunks} чанков
         </span>
         {chunks.total_tokens !== undefined && (
           <span>
             {formatNumber(chunks.total_tokens)} токенов
+          </span>
+        )}
+        {chunks.avg_chunk_size !== undefined && (
+          <span>
+            ~{chunks.avg_chunk_size} слов/чанк
           </span>
         )}
         <span className="ml-auto font-mono text-gray-400">

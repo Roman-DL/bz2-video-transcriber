@@ -34,15 +34,14 @@ export function CompletionCard({ files, totals, onClose }: CompletionCardProps) 
       </div>
 
       {/* Files list */}
-      <div className="space-y-1 mb-4 max-h-40 overflow-y-auto">
-        {files.map((file, i) => (
-          <div
-            key={i}
-            className="px-2.5 py-1.5 bg-white rounded-lg border border-emerald-100 text-xs"
-          >
-            <span className="font-mono text-gray-700 break-all">{file}</span>
-          </div>
-        ))}
+      <div className="mb-4 max-h-32 overflow-y-auto">
+        <ul className="text-xs text-gray-600 space-y-0.5">
+          {files.map((file, i) => (
+            <li key={i} className="font-mono truncate" title={file}>
+              {file}
+            </li>
+          ))}
+        </ul>
       </div>
 
       {/* Total metrics */}

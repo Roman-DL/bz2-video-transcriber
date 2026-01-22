@@ -1,6 +1,6 @@
 import { Columns } from 'lucide-react';
 import type { RawTranscript, CleanedTranscript } from '@/api/types';
-import { formatNumber, formatTime } from '@/utils/formatUtils';
+import { formatNumber } from '@/utils/formatUtils';
 import { ResultFooter } from '@/components/common/ResultFooter';
 import { InlineDiffView } from '@/components/common/InlineDiffView';
 
@@ -39,11 +39,6 @@ export function RawTranscriptView({ transcript, displayText }: RawTranscriptView
             Уверенность: <span className="text-gray-700">{confidence}</span>
           </span>
         )}
-        {transcript.processing_time_sec !== undefined && (
-          <span>
-            {formatTime(transcript.processing_time_sec)}
-          </span>
-        )}
         <span className="ml-auto font-mono text-gray-400">
           {transcript.whisper_model}
         </span>
@@ -70,6 +65,11 @@ export function CleanedTranscriptView({
   showDiff = false,
   onToggleDiff,
 }: CleanedTranscriptViewProps) {
+  // Calculate change percent correctly: negative = reduction, positive = increase
+  const changePercent = transcript.original_length > 0
+    ? ((transcript.cleaned_length - transcript.original_length) / transcript.original_length) * 100
+    : 0;
+
   // Show diff view if enabled
   if (showDiff && rawText && onToggleDiff) {
     return (
@@ -93,14 +93,12 @@ export function CleanedTranscriptView({
         <span>
           {formatNumber(transcript.words)} слов
         </span>
-        <span title="Изменение объёма после очистки">
-          {transcript.change_percent > 0 ? '+' : ''}{transcript.change_percent.toFixed(1)}%
+        <span
+          title="Изменение объёма после очистки"
+          className={changePercent < 0 ? 'text-emerald-600' : 'text-amber-600'}
+        >
+          {changePercent > 0 ? '+' : ''}{changePercent.toFixed(1)}%
         </span>
-        {transcript.processing_time_sec !== undefined && (
-          <span>
-            {formatTime(transcript.processing_time_sec)}
-          </span>
-        )}
       </div>
 
       {/* Diff button - only show if rawText available */}

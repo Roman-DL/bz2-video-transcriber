@@ -39,6 +39,7 @@ import { CompletionCard } from '@/components/processing/CompletionCard';
 import { ComponentPromptSelector } from '@/components/settings/ComponentPromptSelector';
 import { ModelSelector } from '@/components/settings/ModelSelector';
 import { buildLLMOptions } from '@/utils/modelUtils';
+import { formatTime } from '@/utils/formatUtils';
 import { useSettings } from '@/contexts/SettingsContext';
 import {
   CheckCircle,
@@ -533,26 +534,6 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
     return STAGES_WITH_PROMPTS.includes(step as StageWithPrompts);
   };
 
-  // Find the last completed LLM step (the "current" one for rerun)
-  const getLastCompletedLLMStep = (): StageWithModels | null => {
-    for (let i = currentStepIndex - 1; i >= 0; i--) {
-      const step = pipelineSteps[i];
-      if (isLLMStep(step)) {
-        const hasResult = (() => {
-          switch (step) {
-            case 'clean': return !!data.cleanedTranscript;
-            case 'longread': return !!data.longread;
-            case 'summarize': return !!data.summary;
-            case 'story': return !!data.story;
-            default: return false;
-          }
-        })();
-        if (hasResult) return step as StageWithModels;
-      }
-    }
-    return null;
-  };
-
   // Rerun a step with current overrides
   const rerunStep = async (step: PipelineStep) => {
     setExpandedSettings(null);
@@ -560,8 +541,6 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
     setCurrentStep(step);
     await runStep(step);
   };
-
-  const lastCompletedLLMStep = getLastCompletedLLMStep();
 
   // Get tab for step result
   const getTabForStep = (step: PipelineStep): ResultTab | null => {
@@ -937,7 +916,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
                 {STEP_LABELS[currentStep]}
               </h3>
               <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-                {message || getStepDescription(currentStep)}
+                {getStepDescription(currentStep)}
               </p>
 
               {/* Progress for long-running steps */}
@@ -1009,7 +988,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
                 const status = getStepStatus(step);
                 const Icon = STEP_ICONS[step];
                 const isExpanded = expandedSettings === step;
-                const isCurrent = step === lastCompletedLLMStep && status === 'completed';
+                const isCurrent = status === 'completed' && getTabForStep(step) === activeTab;
                 const hasSettings = isLLMStep(step) && isCurrent;
 
                 return (
@@ -1204,13 +1183,11 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
                   <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                     <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                       <h3 className="text-sm font-semibold text-gray-900">Сырая транскрипция</h3>
-                      <div className="flex items-center gap-3 text-xs text-gray-500">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {formatDuration(data.rawTranscript.duration_seconds)}
+                      {data.rawTranscript.processing_time_sec !== undefined && (
+                        <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
+                          {formatTime(data.rawTranscript.processing_time_sec)}
                         </span>
-                        <span>{data.rawTranscript.segments.length} сегментов</span>
-                      </div>
+                      )}
                     </div>
                     <div className="p-4 flex-1 overflow-hidden min-h-0">
                       <RawTranscriptView transcript={data.rawTranscript} displayText={data.displayText || ''} />
@@ -1223,12 +1200,11 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
                     {!showCleanedDiff && (
                       <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                         <h3 className="text-sm font-semibold text-gray-900">Очищенная транскрипция</h3>
-                        <div className="flex items-center gap-3 text-xs text-gray-500">
-                          <span>{data.cleanedTranscript.cleaned_length.toLocaleString()} симв.</span>
-                          <span className="text-emerald-600">
-                            -{Math.round(((data.cleanedTranscript.original_length - data.cleanedTranscript.cleaned_length) / data.cleanedTranscript.original_length) * 100)}%
+                        {data.cleanedTranscript.processing_time_sec !== undefined && (
+                          <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
+                            {formatTime(data.cleanedTranscript.processing_time_sec)}
                           </span>
-                        </div>
+                        )}
                       </div>
                     )}
                     <div className={showCleanedDiff ? 'flex-1 min-h-0' : 'p-4 flex-1 overflow-hidden min-h-0'}>
@@ -1247,15 +1223,18 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
                     {!showLongreadDiff && (
                       <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                         <h3 className="text-sm font-semibold text-gray-900">Лонгрид</h3>
-                        <div className="flex items-center gap-3 text-xs text-gray-500">
-                          <span>{data.longread.total_word_count} слов</span>
-                        </div>
+                        {data.longread.processing_time_sec !== undefined && (
+                          <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
+                            {formatTime(data.longread.processing_time_sec)}
+                          </span>
+                        )}
                       </div>
                     )}
                     <div className={showLongreadDiff ? 'flex-1 min-h-0' : 'p-4 flex-1 overflow-y-auto'}>
                       <LongreadView
                         longread={data.longread}
                         cleanedText={data.cleanedTranscript?.text}
+                        cleanedChars={data.cleanedTranscript?.cleaned_length}
                         showDiff={showLongreadDiff}
                         onToggleDiff={() => setShowLongreadDiff(!showLongreadDiff)}
                       />
@@ -1267,10 +1246,11 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
                   <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                     <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                       <h3 className="text-sm font-semibold text-gray-900">Конспект</h3>
-                      <div className="flex items-center gap-3 text-xs text-gray-500">
-                        <span>{data.summary.key_concepts.length} концепций</span>
-                        <span>{data.summary.quotes.length} цитат</span>
-                      </div>
+                      {data.summary.processing_time_sec !== undefined && (
+                        <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
+                          {formatTime(data.summary.processing_time_sec)}
+                        </span>
+                      )}
                     </div>
                     <div className="p-4 flex-1 overflow-y-auto">
                       <SummaryView summary={data.summary} />
@@ -1297,10 +1277,6 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
                   <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                     <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                       <h3 className="text-sm font-semibold text-gray-900">Чанки</h3>
-                      <div className="flex items-center gap-3 text-xs text-gray-500">
-                        <span>{data.chunks.total_chunks} чанков</span>
-                        <span>~{data.chunks.avg_chunk_size} слов/чанк</span>
-                      </div>
                     </div>
                     <div className="p-4 flex-1 overflow-y-auto">
                       <ChunksView chunks={data.chunks} />

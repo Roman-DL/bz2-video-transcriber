@@ -1,13 +1,13 @@
 import { Columns } from 'lucide-react';
 import type { Longread } from '@/api/types';
-import { Badge } from '@/components/common/Badge';
 import { ResultFooter } from '@/components/common/ResultFooter';
 import { InlineDiffView } from '@/components/common/InlineDiffView';
-import { formatNumber, formatTime } from '@/utils/formatUtils';
+import { formatNumber } from '@/utils/formatUtils';
 
 interface LongreadViewProps {
   longread: Longread;
   cleanedText?: string;
+  cleanedChars?: number;
   showDiff?: boolean;
   onToggleDiff?: () => void;
 }
@@ -42,10 +42,16 @@ function formatLongreadAsMarkdown(longread: Longread): string {
 export function LongreadView({
   longread,
   cleanedText,
+  cleanedChars,
   showDiff = false,
   onToggleDiff,
 }: LongreadViewProps) {
   const markdownText = formatLongreadAsMarkdown(longread);
+
+  // Calculate reduction percentage if cleanedChars available
+  const reductionPercent = cleanedChars && cleanedChars > 0
+    ? Math.round((1 - longread.chars / cleanedChars) * 100)
+    : null;
 
   // Show diff view if enabled
   if (showDiff && cleanedText && onToggleDiff) {
@@ -70,9 +76,9 @@ export function LongreadView({
         <span>
           {formatNumber(longread.total_word_count)} слов
         </span>
-        {longread.processing_time_sec !== undefined && (
-          <span>
-            {formatTime(longread.processing_time_sec)}
+        {reductionPercent !== null && (
+          <span className={reductionPercent > 0 ? 'text-emerald-600' : 'text-amber-600'}>
+            {reductionPercent > 0 ? '-' : '+'}{Math.abs(reductionPercent)}%
           </span>
         )}
       </div>
@@ -94,32 +100,6 @@ export function LongreadView({
       <div className="flex-1 overflow-y-auto text-sm text-gray-700 whitespace-pre-wrap leading-relaxed min-h-0">
         {markdownText}
       </div>
-
-      {/* Tags metadata */}
-      {(longread.topic_area.length > 0 || longread.tags.length > 0) && (
-        <div className="pt-3 border-t border-gray-100 mt-3 shrink-0">
-          <div className="flex flex-wrap items-center gap-4 text-sm">
-            {longread.topic_area.length > 0 && (
-              <div>
-                <span className="text-gray-500">Область:</span>{' '}
-                <span className="text-gray-900">
-                  {longread.topic_area.join(' / ')}
-                </span>
-              </div>
-            )}
-            {longread.tags.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">Теги:</span>
-                <div className="flex flex-wrap gap-1">
-                  {longread.tags.map((tag) => (
-                    <Badge key={tag} variant="default">{tag}</Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Footer with LLM metrics */}
       <ResultFooter
