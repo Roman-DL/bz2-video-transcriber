@@ -4,6 +4,8 @@ Deterministic H2 chunking for markdown documents.
 Parses markdown by H2 headings to create semantic chunks.
 Used after Longread/Story generation for RAG retrieval.
 
+v0.42+: Added total_tokens estimation for chunk metadata.
+
 Example:
     from app.utils.h2_chunker import chunk_by_h2
 
@@ -16,6 +18,7 @@ Example:
     '''
     chunks = chunk_by_h2(markdown, "video-123")
     # chunks.total_chunks == 2
+    # chunks.total_tokens == 150  # estimated
 """
 
 import logging
@@ -23,6 +26,7 @@ import re
 
 from app.models.schemas import TranscriptChunk, TranscriptChunks
 from app.utils.chunk_utils import count_words, generate_chunk_id
+from app.utils.token_utils import estimate_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -108,12 +112,21 @@ def chunk_by_h2(markdown: str, video_id: str) -> TranscriptChunks:
         logger.warning("No H2 sections found, creating fallback chunk")
         return _create_fallback_chunk(video_id, markdown)
 
+    # Calculate total tokens (v0.42+)
+    total_text = " ".join(c.text for c in chunks)
+    total_tokens = estimate_tokens(total_text, lang="ru")
+
     logger.info(
         f"Chunked by H2: {len(chunks)} chunks, "
-        f"avg {sum(c.word_count for c in chunks) // len(chunks)} words"
+        f"avg {sum(c.word_count for c in chunks) // len(chunks)} words, "
+        f"~{total_tokens} tokens"
     )
 
-    return TranscriptChunks(chunks=chunks, model_name=DETERMINISTIC_MODEL)
+    return TranscriptChunks(
+        chunks=chunks,
+        model_name=DETERMINISTIC_MODEL,
+        total_tokens=total_tokens,
+    )
 
 
 def _clean_topic(topic: str) -> str:
@@ -159,7 +172,14 @@ def _create_fallback_chunk(video_id: str, text: str = "") -> TranscriptChunks:
         word_count=count_words(content),
     )
 
-    return TranscriptChunks(chunks=[chunk], model_name=DETERMINISTIC_MODEL)
+    # Calculate total tokens (v0.42+)
+    total_tokens = estimate_tokens(content, lang="ru") if content else 0
+
+    return TranscriptChunks(
+        chunks=[chunk],
+        model_name=DETERMINISTIC_MODEL,
+        total_tokens=total_tokens,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════

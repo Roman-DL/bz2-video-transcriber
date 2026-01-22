@@ -5,6 +5,7 @@ Creates leadership story documents (8 blocks) from cleaned transcript.
 Used for leadership content_type instead of longread + summary.
 
 v0.23+: New document type for leadership content.
+v0.42+: Added tokens_used, cost, and processing_time_sec metrics.
 """
 
 import json
@@ -14,14 +15,16 @@ from typing import Any
 
 from app.config import Settings, get_settings, load_prompt, get_model_config
 from app.utils.json_utils import extract_json
+from app.utils import calculate_cost
 from app.models.schemas import (
     CleanedTranscript,
     PromptOverrides,
     Story,
     StoryBlock,
+    TokensUsed,
     VideoMetadata,
 )
-from app.services.ai_clients import BaseAIClient, OllamaClient
+from app.services.ai_clients import BaseAIClient, ClaudeClient, OllamaClient
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -112,29 +115,53 @@ class StoryGenerator:
         # Build prompt
         prompt = self._build_prompt(cleaned_transcript, metadata)
 
-        # Call LLM
-        response = await self.ai_client.generate(
-            prompt, model=self.settings.summarizer_model
-        )
+        # Call LLM with usage tracking if available (v0.42+)
+        input_tokens = 0
+        output_tokens = 0
+        has_usage_tracking = isinstance(self.ai_client, ClaudeClient)
+
+        if has_usage_tracking:
+            response, usage = await self.ai_client.generate_with_usage(
+                prompt, model=self.settings.summarizer_model
+            )
+            input_tokens = usage.input_tokens
+            output_tokens = usage.output_tokens
+        else:
+            response = await self.ai_client.generate(
+                prompt, model=self.settings.summarizer_model
+            )
 
         # Parse response
         data = self._parse_json_response(response)
 
         elapsed = time.time() - start_time
 
-        # Build Story object with validation
-        story = self._build_story(data, metadata)
+        # Calculate cost if we have token data (v0.42+)
+        tokens_used = None
+        cost = None
+        if input_tokens > 0 or output_tokens > 0:
+            tokens_used = TokensUsed(input=input_tokens, output=output_tokens)
+            cost = calculate_cost(
+                self.settings.summarizer_model,
+                input_tokens,
+                output_tokens,
+            )
+
+        # Build Story object with validation and metrics
+        story = self._build_story(data, metadata, tokens_used, cost, elapsed)
 
         logger.info(
             f"Story complete: {story.total_blocks} blocks, "
             f"speed={story.speed}, {elapsed:.1f}s"
         )
 
+        cost_str = f"cost=${cost:.4f} | " if cost else ""
         perf_logger.info(
             f"PERF | story | "
             f"blocks={story.total_blocks} | "
             f"speed={story.speed} | "
-            f"time={elapsed:.1f}s"
+            f"tokens={input_tokens}+{output_tokens} | "
+            f"{cost_str}time={elapsed:.1f}s"
         )
 
         return story
@@ -181,13 +208,23 @@ class StoryGenerator:
         ]
         return "\n".join(prompt_parts)
 
-    def _build_story(self, data: dict[str, Any], metadata: VideoMetadata) -> Story:
+    def _build_story(
+        self,
+        data: dict[str, Any],
+        metadata: VideoMetadata,
+        tokens_used: TokensUsed | None = None,
+        cost: float | None = None,
+        processing_time: float | None = None,
+    ) -> Story:
         """
         Build Story object from parsed data with validation.
 
         Args:
             data: Parsed JSON from LLM
             metadata: Video metadata
+            tokens_used: Token usage statistics (v0.42+)
+            cost: Estimated cost in USD (v0.42+)
+            processing_time: Processing time in seconds (v0.42+)
 
         Returns:
             Validated Story object
@@ -244,6 +281,9 @@ class StoryGenerator:
             access_level=access_level,
             related=data.get("related", []),
             model_name=self.settings.summarizer_model,
+            tokens_used=tokens_used,
+            cost=cost,
+            processing_time_sec=processing_time,
         )
 
     def _parse_json_response(self, response: str) -> dict[str, Any]:

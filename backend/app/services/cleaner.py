@@ -2,6 +2,8 @@
 Transcript cleaner service.
 
 Cleans raw transcripts using LLM with glossary context.
+
+v0.42+: Added tokens_used, cost, and processing_time_sec metrics.
 """
 
 import logging
@@ -9,8 +11,9 @@ import re
 import time
 
 from app.config import Settings, get_settings, load_glossary_text, load_model_config, load_prompt
-from app.models.schemas import CleanedTranscript, PromptOverrides, RawTranscript, VideoMetadata
-from app.services.ai_clients import BaseAIClient, OllamaClient
+from app.models.schemas import CleanedTranscript, PromptOverrides, RawTranscript, TokensUsed, VideoMetadata
+from app.services.ai_clients import BaseAIClient, ClaudeClient, OllamaClient
+from app.utils import calculate_cost
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -108,6 +111,11 @@ class TranscriptCleaner:
         total_input_chars = 0
         total_output_chars = 0
 
+        # Token tracking (v0.42+)
+        total_input_tokens = 0
+        total_output_tokens = 0
+        has_usage_tracking = isinstance(self.ai_client, ClaudeClient)
+
         for i, chunk in enumerate(chunks):
             user_content = self.user_template.format(
                 glossary=self.glossary_text,
@@ -122,12 +130,23 @@ class TranscriptCleaner:
             # Estimate output tokens: ~2 chars per token, expect 80-95% of input
             num_predict = max(int(len(chunk) * 0.5), 4096)
 
-            chunk_result = await self.ai_client.chat(
-                messages,
-                model=self.settings.cleaner_model,  # gemma2:9b by default
-                temperature=0.0,  # Deterministic output to prevent summarization
-                num_predict=num_predict,
-            )
+            # Use chat_with_usage for Claude to track tokens (v0.42+)
+            if has_usage_tracking:
+                chunk_result, usage = await self.ai_client.chat_with_usage(
+                    messages,
+                    model=self.settings.cleaner_model,
+                    temperature=0.0,
+                    num_predict=num_predict,
+                )
+                total_input_tokens += usage.input_tokens
+                total_output_tokens += usage.output_tokens
+            else:
+                chunk_result = await self.ai_client.chat(
+                    messages,
+                    model=self.settings.cleaner_model,
+                    temperature=0.0,
+                    num_predict=num_predict,
+                )
             chunk_result = chunk_result.strip()
 
             # Detailed logging for each chunk
@@ -229,12 +248,28 @@ class TranscriptCleaner:
             f"({reduction_percent}% reduction)"
         )
 
+        # Calculate cost if we have token data (v0.42+)
+        tokens_used = None
+        cost = None
+        if total_input_tokens > 0 or total_output_tokens > 0:
+            tokens_used = TokensUsed(
+                input=total_input_tokens,
+                output=total_output_tokens,
+            )
+            cost = calculate_cost(
+                self.settings.cleaner_model,
+                total_input_tokens,
+                total_output_tokens,
+            )
+
         # Performance metrics for progress estimation
+        cost_str = f"cost=${cost:.4f} | " if cost else ""
         perf_logger.info(
             f"PERF | clean | "
             f"input_chars={original_length} | "
             f"output_chars={cleaned_length} | "
-            f"time={elapsed:.1f}s"
+            f"tokens={total_input_tokens}+{total_output_tokens} | "
+            f"{cost_str}time={elapsed:.1f}s"
         )
 
         return CleanedTranscript(
@@ -242,6 +277,9 @@ class TranscriptCleaner:
             original_length=original_length,
             cleaned_length=cleaned_length,
             model_name=self.settings.cleaner_model,
+            tokens_used=tokens_used,
+            cost=cost,
+            processing_time_sec=elapsed,
         )
 
     def _split_into_chunks(self, text: str) -> list[str]:

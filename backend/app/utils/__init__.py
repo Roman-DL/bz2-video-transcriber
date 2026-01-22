@@ -10,6 +10,7 @@ Modules:
     chunk_utils: Chunk merging and validation utilities
     h2_chunker: Deterministic H2-based markdown chunking (v0.25+)
     media_utils: Media file handling (duration, type detection) (v0.28+)
+    pricing_utils: LLM cost calculation (v0.42+)
 """
 
 from app.utils.chunk_utils import (
@@ -24,6 +25,10 @@ from app.utils.media_utils import (
     get_media_duration,
     is_audio_file,
     is_video_file,
+)
+from app.utils.pricing_utils import (
+    calculate_cost,
+    get_model_pricing,
 )
 from app.utils.token_utils import (
     calculate_num_predict,
@@ -50,4 +55,7 @@ __all__ = [
     "estimate_duration_from_size",
     "is_audio_file",
     "is_video_file",
+    # pricing_utils
+    "calculate_cost",
+    "get_model_pricing",
 ]

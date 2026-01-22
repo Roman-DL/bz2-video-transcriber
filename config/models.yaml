@@ -4,16 +4,26 @@
 # Claude models available for selection in UI
 # Only shown when ANTHROPIC_API_KEY is set
 # Using aliases for auto-updates to latest versions
+# Pricing: $ per 1M tokens (input/output)
 claude_models:
   - id: "claude-sonnet-4-5"
     name: "Claude Sonnet 4.5"
     description: "Быстрая и умная ($3/$15 за 1M токенов)"
+    pricing:
+      input: 3.00
+      output: 15.00
   - id: "claude-haiku-4-5"
     name: "Claude Haiku 4.5"
     description: "Самая быстрая ($1/$5 за 1M токенов)"
+    pricing:
+      input: 1.00
+      output: 5.00
   - id: "claude-opus-4-5"
     name: "Claude Opus 4.5"
-    description: "Максимальный интеллект ($5/$25 за 1M токенов)"
+    description: "Максимальный интеллект ($15/$75 за 1M токенов)"
+    pricing:
+      input: 15.00
+      output: 75.00
 
 # Available Whisper models for transcription
 # Only models listed here will be shown in the UI

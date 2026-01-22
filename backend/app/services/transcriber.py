@@ -3,9 +3,12 @@ Whisper transcription service.
 
 Transcribes video/audio files via Whisper HTTP API.
 Extracts audio from video before sending to Whisper for better reliability.
+
+v0.42+: Added confidence and processing_time_sec metrics.
 """
 
 import logging
+import math
 import time
 from pathlib import Path
 
@@ -90,12 +93,13 @@ class WhisperTranscriber:
         whisper_time = time.time() - whisper_start
         total_time = time.time() - start_time
 
-        # Parse response into models
-        transcript = self._parse_response(response_data)
+        # Parse response into models with processing time
+        transcript = self._parse_response(response_data, processing_time=total_time)
 
+        conf_str = f", confidence={transcript.confidence:.2%}" if transcript.confidence else ""
         logger.info(
             f"Transcription complete: {len(transcript.segments)} segments, "
-            f"{transcript.duration_seconds:.1f}s duration"
+            f"{transcript.duration_seconds:.1f}s duration{conf_str}"
         )
 
         # Performance metrics for progress estimation
@@ -110,16 +114,23 @@ class WhisperTranscriber:
 
         return transcript, audio_path
 
-    def _parse_response(self, data: dict) -> RawTranscript:
+    def _parse_response(
+        self,
+        data: dict,
+        processing_time: float | None = None,
+    ) -> RawTranscript:
         """
         Parse Whisper API response into RawTranscript.
 
         Args:
             data: JSON response from Whisper API (verbose_json format)
+            processing_time: Total processing time in seconds (v0.42+)
 
         Returns:
-            RawTranscript with parsed segments
+            RawTranscript with parsed segments and metrics
         """
+        raw_segments = data.get("segments", [])
+
         # Parse segments
         segments = [
             TranscriptSegment(
@@ -127,16 +138,51 @@ class WhisperTranscriber:
                 end=seg.get("end", 0.0),
                 text=seg.get("text", "").strip(),
             )
-            for seg in data.get("segments", [])
+            for seg in raw_segments
         ]
 
-        # Build RawTranscript
+        # Calculate confidence from avg_logprob (v0.42+)
+        # Whisper segments contain avg_logprob which is log probability
+        # confidence = exp(avg_logprob), clamped to [0, 1]
+        confidence = self._calculate_confidence(raw_segments)
+
+        # Build RawTranscript with metrics
         return RawTranscript(
             segments=segments,
             language=data.get("language", self.settings.whisper_language),
             duration_seconds=data.get("duration", 0.0),
             whisper_model=self.settings.whisper_model,
+            confidence=confidence,
+            processing_time_sec=processing_time,
         )
+
+    def _calculate_confidence(self, segments: list[dict]) -> float | None:
+        """
+        Calculate average confidence from Whisper segments.
+
+        Uses avg_logprob from segments and converts to probability.
+        confidence = exp(mean(avg_logprob))
+
+        Args:
+            segments: Raw segment data from Whisper API
+
+        Returns:
+            Confidence score 0-1, or None if not available
+        """
+        logprobs = []
+        for seg in segments:
+            logprob = seg.get("avg_logprob")
+            if logprob is not None:
+                logprobs.append(logprob)
+
+        if not logprobs:
+            return None
+
+        avg_logprob = sum(logprobs) / len(logprobs)
+        # Convert log probability to probability, clamp to [0, 1]
+        confidence = min(1.0, max(0.0, math.exp(avg_logprob)))
+
+        return round(confidence, 4)
 
 
 if __name__ == "__main__":

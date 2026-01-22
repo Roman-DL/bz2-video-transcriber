@@ -5,6 +5,7 @@ Creates condensed summaries (конспект) from cleaned transcripts.
 A summary is a navigation document for those who already watched/read the content.
 
 v0.24+: Generates from CleanedTranscript (not Longread) using 3-component prompt architecture.
+v0.42+: Added tokens_used, cost, and processing_time_sec metrics.
 """
 
 import json
@@ -15,13 +16,15 @@ from typing import Any
 
 from app.config import Settings, get_settings, load_prompt, get_model_config
 from app.utils.json_utils import extract_json
+from app.utils import calculate_cost
 from app.models.schemas import (
     CleanedTranscript,
     PromptOverrides,
     Summary,
+    TokensUsed,
     VideoMetadata,
 )
-from app.services.ai_clients import BaseAIClient, OllamaClient
+from app.services.ai_clients import BaseAIClient, ClaudeClient, OllamaClient
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -124,15 +127,37 @@ class SummaryGenerator:
         # Build prompt
         prompt = self._build_prompt(transcript_text, metadata)
 
-        # Call LLM
-        response = await self.ai_client.generate(
-            prompt, model=self.settings.summarizer_model
-        )
+        # Call LLM with usage tracking if available (v0.42+)
+        input_tokens = 0
+        output_tokens = 0
+        has_usage_tracking = isinstance(self.ai_client, ClaudeClient)
+
+        if has_usage_tracking:
+            response, usage = await self.ai_client.generate_with_usage(
+                prompt, model=self.settings.summarizer_model
+            )
+            input_tokens = usage.input_tokens
+            output_tokens = usage.output_tokens
+        else:
+            response = await self.ai_client.generate(
+                prompt, model=self.settings.summarizer_model
+            )
 
         # Parse response
         summary_data = self._parse_response(response)
 
         elapsed = time.time() - start_time
+
+        # Calculate cost if we have token data (v0.42+)
+        tokens_used = None
+        cost = None
+        if input_tokens > 0 or output_tokens > 0:
+            tokens_used = TokensUsed(input=input_tokens, output=output_tokens)
+            cost = calculate_cost(
+                self.settings.summarizer_model,
+                input_tokens,
+                output_tokens,
+            )
 
         # Validate and normalize classification
         topic_area = self._validate_topic_area(summary_data.get("topic_area", []))
@@ -154,6 +179,9 @@ class SummaryGenerator:
             tags=summary_data.get("tags", []),
             access_level=access_level,
             model_name=self.settings.summarizer_model,
+            tokens_used=tokens_used,
+            cost=cost,
+            processing_time_sec=elapsed,
         )
 
         logger.info(
@@ -161,12 +189,14 @@ class SummaryGenerator:
             f"{len(summary.quotes)} quotes, topic_area={topic_area}, {elapsed:.1f}s"
         )
 
+        cost_str = f"cost=${cost:.4f} | " if cost else ""
         perf_logger.info(
             f"PERF | summary | "
             f"input_chars={input_chars} | "
             f"concepts={len(summary.key_concepts)} | "
             f"quotes={len(summary.quotes)} | "
-            f"topic_area={','.join(topic_area)} | "
+            f"tokens={input_tokens}+{output_tokens} | "
+            f"{cost_str}topic_area={','.join(topic_area)} | "
             f"time={elapsed:.1f}s"
         )
 

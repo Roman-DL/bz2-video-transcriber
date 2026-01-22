@@ -6,6 +6,7 @@ Each section is generated in parallel with outline as shared context.
 
 v0.23+: New prompt architecture (system + instructions + template).
 v0.25+: Accepts CleanedTranscript directly (no chunks dependency).
+v0.42+: Added tokens_used, cost, and processing_time_sec metrics.
 """
 
 import asyncio
@@ -16,16 +17,18 @@ from typing import Any
 
 from app.config import Settings, get_settings, load_prompt, get_model_config
 from app.utils.json_utils import extract_json
+from app.utils import calculate_cost
 from app.models.schemas import (
     CleanedTranscript,
     Longread,
     LongreadSection,
     PromptOverrides,
     TextPart,
+    TokensUsed,
     TranscriptOutline,
     VideoMetadata,
 )
-from app.services.ai_clients import BaseAIClient, OllamaClient
+from app.services.ai_clients import BaseAIClient, ClaudeClient, OllamaClient
 from app.services.outline_extractor import OutlineExtractor
 from app.services.text_splitter import TextSplitter
 
@@ -103,6 +106,12 @@ class LongreadGenerator:
         self.text_splitter = TextSplitter()
         self.outline_extractor = OutlineExtractor(ai_client, settings)
 
+        # Token tracking (v0.42+)
+        self._total_input_tokens = 0
+        self._total_output_tokens = 0
+        self._tokens_lock = asyncio.Lock()
+        self._has_usage_tracking = isinstance(ai_client, ClaudeClient)
+
         # Get model-specific config
         model_config = get_model_config(settings.summarizer_model, settings)
         longread_config = model_config.get("longread", {})
@@ -142,6 +151,10 @@ class LongreadGenerator:
         """
         start_time = time.time()
 
+        # Reset token counters (v0.42+)
+        self._total_input_tokens = 0
+        self._total_output_tokens = 0
+
         # Phase 0: Split text into parts
         text_parts = self.text_splitter.split(cleaned_transcript.text)
         input_chars = len(cleaned_transcript.text)
@@ -179,6 +192,20 @@ class LongreadGenerator:
         if access_level not in VALID_ACCESS_LEVELS:
             access_level = "consultant"
 
+        # Calculate cost if we have token data (v0.42+)
+        tokens_used = None
+        cost = None
+        if self._total_input_tokens > 0 or self._total_output_tokens > 0:
+            tokens_used = TokensUsed(
+                input=self._total_input_tokens,
+                output=self._total_output_tokens,
+            )
+            cost = calculate_cost(
+                self.settings.summarizer_model,
+                self._total_input_tokens,
+                self._total_output_tokens,
+            )
+
         longread = Longread(
             video_id=metadata.video_id,
             title=metadata.title,
@@ -194,8 +221,12 @@ class LongreadGenerator:
             tags=classification.get("tags", []),
             access_level=access_level,
             model_name=self.settings.summarizer_model,
+            tokens_used=tokens_used,
+            cost=cost,
+            processing_time_sec=elapsed,
         )
 
+        cost_str = f"cost=${cost:.4f} | " if cost else ""
         logger.info(
             f"Longread complete: {longread.total_sections} sections, "
             f"{longread.total_word_count} words, {elapsed:.1f}s"
@@ -207,7 +238,8 @@ class LongreadGenerator:
             f"parts={len(text_parts)} | "
             f"sections={longread.total_sections} | "
             f"words={longread.total_word_count} | "
-            f"time={elapsed:.1f}s"
+            f"tokens={self._total_input_tokens}+{self._total_output_tokens} | "
+            f"{cost_str}time={elapsed:.1f}s"
         )
 
         return longread
@@ -354,10 +386,18 @@ class LongreadGenerator:
             section_idx, total_sections, parts_text, metadata, outline_context
         )
 
-        # Call LLM
-        response = await self.ai_client.generate(
-            prompt, model=self.settings.summarizer_model
-        )
+        # Call LLM with usage tracking if available (v0.42+)
+        if self._has_usage_tracking:
+            response, usage = await self.ai_client.generate_with_usage(
+                prompt, model=self.settings.summarizer_model
+            )
+            async with self._tokens_lock:
+                self._total_input_tokens += usage.input_tokens
+                self._total_output_tokens += usage.output_tokens
+        else:
+            response = await self.ai_client.generate(
+                prompt, model=self.settings.summarizer_model
+            )
 
         # Parse response
         section_data = self._parse_json_response(response)
@@ -474,10 +514,18 @@ class LongreadGenerator:
         # Build prompt with new architecture
         prompt = self._build_frame_prompt(sections_summary, metadata, date_formatted)
 
-        # Call LLM
-        response = await self.ai_client.generate(
-            prompt, model=self.settings.summarizer_model
-        )
+        # Call LLM with usage tracking if available (v0.42+)
+        if self._has_usage_tracking:
+            response, usage = await self.ai_client.generate_with_usage(
+                prompt, model=self.settings.summarizer_model
+            )
+            async with self._tokens_lock:
+                self._total_input_tokens += usage.input_tokens
+                self._total_output_tokens += usage.output_tokens
+        else:
+            response = await self.ai_client.generate(
+                prompt, model=self.settings.summarizer_model
+            )
 
         # Parse response
         data = self._parse_json_response(response)

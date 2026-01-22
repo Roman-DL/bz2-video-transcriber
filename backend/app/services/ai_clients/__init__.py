@@ -32,7 +32,7 @@ from app.services.ai_clients.base import (
     BaseAIClientImpl,
     GenerationOptions,
 )
-from app.services.ai_clients.claude_client import ClaudeClient
+from app.services.ai_clients.claude_client import ChatUsage, ClaudeClient
 from app.services.ai_clients.ollama_client import OllamaClient
 from app.services.ai_clients.whisper_client import WhisperClient
 
@@ -50,6 +50,7 @@ __all__ = [
     # LLM Implementations
     "OllamaClient",
     "ClaudeClient",
+    "ChatUsage",
     # Transcription
     "WhisperClient",
 ]
