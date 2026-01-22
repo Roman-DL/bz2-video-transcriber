@@ -75,6 +75,40 @@
 - Провайдеры AI (Ollama, Claude)
 - Конфигурации отдельных моделей
 
+#### Секция claude_models (v0.42+)
+
+Модели Claude с pricing для расчёта стоимости:
+
+```yaml
+claude_models:
+  - id: "claude-sonnet-4-5"
+    name: "Claude Sonnet 4.5"
+    description: "Быстрая и умная ($3/$15 за 1M токенов)"
+    pricing:
+      input: 3.00   # $ за 1M входных токенов
+      output: 15.00 # $ за 1M выходных токенов
+  - id: "claude-haiku-4-5"
+    name: "Claude Haiku 4.5"
+    description: "Самая быстрая ($1/$5 за 1M токенов)"
+    pricing:
+      input: 1.00
+      output: 5.00
+  - id: "claude-opus-4-5"
+    name: "Claude Opus 4.5"
+    description: "Максимальный интеллект ($15/$75 за 1M токенов)"
+    pricing:
+      input: 15.00
+      output: 75.00
+```
+
+**Расчёт стоимости:**
+```python
+from app.utils import pricing_utils
+
+cost = pricing_utils.calculate_cost("claude-sonnet-4-5", input_tokens=1000, output_tokens=500)
+# → 0.0105 USD (= 1000/1M * $3 + 500/1M * $15)
+```
+
 #### Секция whisper_models
 
 Список установленных моделей транскрипции. Только эти модели показываются в UI.

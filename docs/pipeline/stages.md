@@ -11,9 +11,10 @@ backend/app/services/stages/
 ├── parse_stage.py           # Парсинг имени файла
 ├── transcribe_stage.py      # Транскрипция через Whisper
 ├── clean_stage.py           # Очистка транскрипта
-├── chunk_stage.py           # Семантическое чанкирование
-├── longread_stage.py        # Генерация лонгрида
-├── summarize_stage.py       # Генерация конспекта
+├── chunk_stage.py           # H2-based чанкирование (детерминистический)
+├── longread_stage.py        # Генерация лонгрида (EDUCATIONAL)
+├── summarize_stage.py       # Генерация конспекта (EDUCATIONAL)
+├── story_stage.py           # Генерация истории 8 блоков (LEADERSHIP, v0.23+)
 └── save_stage.py            # Сохранение результатов
 ```
 
@@ -76,11 +77,13 @@ class MyStage(BaseStage):
 
 ```python
 from app.services.stages import StageRegistry, create_default_stages
-from app.services.ai_clients import OllamaClient, WhisperClient
+from app.services.ai_clients import WhisperClient
+from app.services.pipeline import ProcessingStrategy
 
-# v0.27+: Раздельные клиенты для транскрибации и LLM
+# v0.29+: Whisper для транскрипции, ProcessingStrategy для LLM
 async with WhisperClient.from_settings(settings) as whisper:
-    async with OllamaClient.from_settings(settings) as llm:
+    strategy = ProcessingStrategy(settings)
+    async with strategy.create_client("claude-sonnet-4-5") as llm:
         registry = create_default_stages(whisper, llm, settings)
 
 # Построение pipeline (автоматически добавляет зависимости)
@@ -238,21 +241,27 @@ result = await cleaner.clean(raw_transcript, metadata)
 parse ─────┬──────────────────────────────────────────────→ save
            │                                                  ↑
            ↓                                                  │
-       transcribe                                             │
+       transcribe (Whisper)                                   │
            │                                                  │
            ↓                                                  │
-         clean                                                │
+         clean (Claude) ──────────────────────────────────────┤
            │                                                  │
-           ↓                                                  │
-         chunk ───────────────────────────────────────────────┤
-           │                                                  │
-           ↓                                                  │
-       longread ──────────────────────────────────────────────┤
-           │                                                  │
-           ├──→ summarize ────────────────────────────────────┤
-           │                                                  │
-           └──→ telegram_summary (optional) ──────────────────┘
+           ├────────────────────────────┐                     │
+           ↓                            ↓                     │
+       longread (Claude)           story (Claude)             │
+      [EDUCATIONAL]               [LEADERSHIP]                │
+           │                            │                     │
+           ↓                            │                     │
+       summarize (Claude)               │                     │
+           │                            │                     │
+           └────────────┬───────────────┘                     │
+                        ↓                                     │
+                  chunk (H2) ─────────────────────────────────┘
 ```
+
+**Ветвление по content_type:**
+- `EDUCATIONAL` → longread → summarize → chunk → save
+- `LEADERSHIP` → story → chunk → save
 
 ---
 

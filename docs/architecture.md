@@ -16,8 +16,8 @@ tags:
   - whisper
   - ollama
   - knowledge-base
-updated: 2025-01-09
-status: mvp-ready
+updated: 2025-01-22
+status: production
 priority: high
 ---
 
@@ -35,11 +35,11 @@ priority: high
 |----------|----------|
 | [overview.md](overview.md) | Обзор системы, цели, AI сервисы |
 | [pipeline/](pipeline/) | Детальный pipeline (7 этапов) |
-| [web-ui.md](web-ui.md) | Web интерфейс |
+| [configuration.md](configuration.md) | Конфигурация моделей, промптов, pricing |
+| [data-formats.md](data-formats.md) | Форматы файлов, метрики (v0.42+) |
+| [api-reference.md](api-reference.md) | HTTP API |
 | [deployment.md](deployment.md) | Развёртывание, Docker, доступ |
-| [data-formats.md](data-formats.md) | Форматы файлов, конфигурация |
-| [api-reference.md](api-reference.md) | HTTP API для Ollama и Whisper |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Процесс разработки |
+| [adr/](adr/) | Architecture Decision Records |
 
 ---
 
@@ -51,10 +51,10 @@ priority: high
 ┌─────────────────────────────────────────────────────────────────┐
 │  Клиенты                                                        │
 │                                                                 │
-│  ┌──────────────┐  ┌──────────────┐                             │
-│  │   Браузер    │  │  Mac (Ollama)│                             │
-│  │   Web UI     │  │   клиент     │                             │
-│  └──────┬───────┘  └──────────────┘                             │
+│  ┌──────────────┐                                               │
+│  │   Браузер    │                                               │
+│  │   Web UI     │                                               │
+│  └──────┬───────┘                                               │
 │         │                                                       │
 └─────────┼───────────────────────────────────────────────────────┘
           │ HTTP / WebSocket
@@ -65,53 +65,53 @@ priority: high
 │         │                                                       │
 │         ▼                                                       │
 │  ┌─────────────────────────────────────────────────────────┐    │
-│  │  bz2-video-transcriber (:8801)                          │    │
+│  │  bz2-video-transcriber (:8801/:8802)                    │    │
 │  │                                                         │    │
 │  │  ┌─────────┐  ┌────────────┐  ┌────────────┐            │    │
 │  │  │ Web UI  │  │  FastAPI   │  │  Pipeline  │            │    │
-│  │  │ (React) │◄─┤  Backend   │◄─┤            │            │    │
-│  │  └─────────┘  └─────┬──────┘  │ 1.Parser   │            │    │
-│  │                     │         │ 2.Whisper ─┼──► API     │    │
-│  │                     │         │ 3.Cleaner ─┼──► API     │    │
-│  │                     │         │ 4.Chunker ─┼──► API     │    │
-│  │                     │         │ 5.Longread─┼──► API     │    │
-│  │                     │         │ 6.Summary ─┼──► API     │    │
-│  │                     │         │ 7.Saver    │            │    │
+│  │  │ (React) │◄─┤  Backend   │◄─┤  (v0.47+)  │            │    │
+│  │  └─────────┘  └─────┬──────┘  │            │            │    │
+│  │                     │         │ 1.Parse    │            │    │
+│  │                     │         │ 2.Transcribe─► Whisper  │    │
+│  │                     │         │ 3.Clean ────► Claude    │    │
+│  │                     │         │ 4.Longread ─► Claude    │    │
+│  │                     │         │ 5.Summary ──► Claude    │    │
+│  │                     │         │ 6.Chunk (H2)            │    │
+│  │                     │         │ 7.Save      │            │    │
 │  │                     │         └──────┬─────┘            │    │
 │  └─────────────────────┼────────────────┼──────────────────┘    │
 │                        │                │                       │
-│            ┌───────────┴────────────────┴───────────┐           │
-│            │                                        │           │
-│            ▼                                        ▼           │
-│  ┌──────────────────────────┐    ┌──────────────────────────┐   │
-│  │  ollama (:11434)         │    │  faster-whisper (:9000)  │   │
-│  │                          │    │                          │   │
-│  │  ┌────────────────────┐  │    │  ┌────────────────────┐  │   │
-│  │  │  qwen2.5:14b       │  │    │  │  large-v3          │  │   │
-│  │  │  ~9 GB VRAM        │  │    │  │  ~3 GB VRAM        │  │   │
-│  │  └────────────────────┘  │    │  └────────────────────┘  │   │
-│  │                          │    │                          │   │
-│  │  Задачи:                 │    │  Задачи:                 │   │
-│  │  • Cleaner               │    │  • Транскрипция          │   │
-│  │  • Longread              │    │                          │   │
-│  │  • Summary               │    │                          │   │
-│  │  (Chunker v0.25+: H2)    │    │                          │   │
-│  └──────────────────────────┘    └──────────────────────────┘   │
-│                                                                 │
+│            ┌───────────┴────────────────┼───────────┐           │
+│            │                            │           │           │
+│            ▼                            ▼           ▼           │
+│  ┌──────────────────────────┐  ┌─────────────┐  ┌─────────────┐ │
+│  │  faster-whisper (:9000)  │  │ Claude API  │  │ Ollama      │ │
+│  │                          │  │ (через прокси)│  │ (:11434)    │ │
+│  │  ┌────────────────────┐  │  │             │  │ (fallback)  │ │
+│  │  │  large-v3-turbo    │  │  │ Модели:     │  │             │ │
+│  │  │  ~3 GB VRAM        │  │  │ • sonnet-4.5│  │ Модели:     │ │
+│  │  └────────────────────┘  │  │ • haiku-4.5 │  │ • qwen2.5   │ │
+│  │                          │  │ • opus-4.5  │  │ • gemma2    │ │
+│  │  Задачи:                 │  │             │  │             │ │
+│  │  • Транскрипция          │  │ Задачи:     │  │ Задачи:     │ │
+│  │  • Confidence/duration   │  │ • Clean     │  │ (опц.)      │ │
+│  │                          │  │ • Longread  │  │             │ │
+│  └──────────────────────────┘  │ • Summary   │  └─────────────┘ │
+│                                │ • Story     │                  │
+│                                └─────────────┘                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │  Файловая система                                        │   │
 │  │                                                          │   │
 │  │  /mnt/main/work/bz2/video/                               │   │
-│  │  ├── inbox/      ← Входящие видео (watcher мониторит)    │   │
-│  │  ├── archive/    ← Обработанные (структура по датам)     │   │
-│  │  └── temp/       ← Временные файлы обработки             │   │
-│  │                                                          │   │
-│  │  /mnt/apps-pool/dev/projects/bz2-video-transcriber/      │   │
-│  │  └── config/     ← Промпты, глоссарий, настройки         │   │
+│  │  ├── inbox/      ← Входящие видео                        │   │
+│  │  ├── archive/    ← Обработанные (по датам/событиям)      │   │
+│  │  │   └── .cache/ ← Stage cache (версионирование)         │   │
+│  │  ├── temp/       ← Временные файлы                       │   │
+│  │  └── prompts/    ← Внешние промпты (v0.30+)              │   │
 │  │                                                          │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│  GPU: RTX 5070 Ti 16GB (shared: Whisper + Ollama)               │
+│  GPU: RTX 5070 Ti 16GB (Whisper only, LLM → облако)             │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -122,11 +122,16 @@ priority: high
 |-----------|------------|------------|
 | **Web UI** | React + Vite + TanStack Query + Tailwind | Интерфейс управления |
 | **Backend** | FastAPI + SSE | API, оркестрация |
-| **Transcriber** | HTTP → faster-whisper API | Вызов внешнего сервиса |
-| **Cleaner** | HTTP → Ollama Chat API (gemma2:9b) | Очистка транскрипта |
-| **LongreadGenerator** | HTTP → Ollama API | Генерация развёрнутого текста |
-| **SummaryGenerator** | HTTP → Ollama API | Генерация конспекта |
+| **WhisperClient** | HTTP → faster-whisper API (v0.27+) | Транскрипция видео |
+| **ClaudeClient** | Anthropic SDK (v0.19+) | Основной LLM провайдер |
+| **OllamaClient** | HTTP → Ollama API | Резервный LLM провайдер |
+| **ProcessingStrategy** | Автовыбор провайдера (v0.19+) | Выбор LLM по имени модели |
+| **TranscriptCleaner** | ClaudeClient (v0.29+) | Очистка транскрипта |
+| **LongreadGenerator** | ClaudeClient | Генерация развёрнутого текста |
+| **SummaryGenerator** | ClaudeClient | Генерация конспекта |
+| **StoryGenerator** | ClaudeClient (v0.23+) | Генерация лидерских историй |
 | **H2Chunker** | Deterministic (v0.25+) | Разбиение по H2 заголовкам |
+| **StageResultCache** | Файловая система (v0.18+) | Версионирование результатов |
 
 ---
 
@@ -140,51 +145,66 @@ bz2-video-transcriber/
 │   ├── overview.md              # Обзор системы
 │   ├── architecture.md          # Этот документ
 │   ├── web-ui.md                # Документация Web UI
-│   ├── pipeline/                # Детальный pipeline (7 этапов)
-│   ├── data-formats.md          # Форматы файлов
+│   ├── pipeline/                # Детальный pipeline
+│   ├── data-formats.md          # Форматы файлов, метрики (v0.42+)
+│   ├── configuration.md         # Конфигурация моделей и промптов
 │   ├── deployment.md            # Развёртывание
+│   ├── adr/                     # Architecture Decision Records
 │   └── CONTRIBUTING.md          # Процесс разработки
 │
 ├── backend/
 │   ├── app/
 │   │   ├── main.py              # FastAPI app
-│   │   ├── config.py            # Настройки
+│   │   ├── config.py            # Settings (Pydantic)
 │   │   ├── api/
 │   │   │   ├── routes.py        # API: inbox, archive
-│   │   │   └── step_routes.py   # Step API с SSE прогрессом
+│   │   │   ├── step_routes.py   # Step API с SSE прогрессом
+│   │   │   ├── cache_routes.py  # Cache API (v0.18+)
+│   │   │   └── prompt_routes.py # Prompts API (v0.31+)
 │   │   ├── services/
+│   │   │   ├── ai_clients/      # AI клиенты (v0.17+)
+│   │   │   │   ├── base.py      # BaseAIClient, ChatUsage, исключения
+│   │   │   │   ├── claude_client.py   # ClaudeClient (v0.19+)
+│   │   │   │   ├── ollama_client.py   # OllamaClient
+│   │   │   │   └── whisper_client.py  # WhisperClient (v0.27+)
 │   │   │   ├── parser.py              # Парсинг имени файла
-│   │   │   ├── transcriber.py         # HTTP → Whisper API
-│   │   │   ├── cleaner.py             # HTTP → Ollama API
-│   │   │   ├── chunker.py             # HTTP → Ollama API
-│   │   │   ├── text_splitter.py       # Разбиение с overlap
-│   │   │   ├── outline_extractor.py   # MAP-REDUCE для outline
-│   │   │   ├── longread_generator.py  # Генерация лонгрида
-│   │   │   ├── summary_generator.py   # Генерация конспекта
+│   │   │   ├── cleaner.py             # TranscriptCleaner → AI client
+│   │   │   ├── longread_generator.py  # LongreadGenerator → AI client
+│   │   │   ├── summary_generator.py   # SummaryGenerator → AI client
+│   │   │   ├── story_generator.py     # StoryGenerator (v0.23+)
 │   │   │   ├── saver.py               # Сохранение в архив
 │   │   │   ├── pipeline/              # Pipeline package (v0.15+)
-│   │   │   │   ├── __init__.py        # Экспорт PipelineOrchestrator
-│   │   │   │   ├── orchestrator.py    # Координация этапов
-│   │   │   │   ├── progress_manager.py # Расчёт прогресса
-│   │   │   │   ├── fallback_factory.py # Fallback объекты
-│   │   │   │   └── config_resolver.py # Override моделей
+│   │   │   │   ├── orchestrator.py    # PipelineOrchestrator
+│   │   │   │   ├── progress_manager.py # STAGE_WEIGHTS
+│   │   │   │   ├── config_resolver.py # Override моделей
+│   │   │   │   ├── stage_cache.py     # StageResultCache (v0.18+)
+│   │   │   │   └── processing_strategy.py # ProcessingStrategy (v0.19+)
 │   │   │   └── stages/                # Stage абстракция (v0.14+)
 │   │   │       ├── base.py            # BaseStage, StageContext, Registry
 │   │   │       ├── parse_stage.py
 │   │   │       ├── transcribe_stage.py
 │   │   │       ├── clean_stage.py
-│   │   │       ├── chunk_stage.py
+│   │   │       ├── chunk_stage.py     # H2Chunker (deterministic)
 │   │   │       ├── longread_stage.py
 │   │   │       ├── summarize_stage.py
+│   │   │       ├── story_stage.py     # StoryStage (v0.23+)
 │   │   │       └── save_stage.py
+│   │   ├── utils/                     # Shared utilities (v0.16+)
+│   │   │   ├── json_utils.py          # extract_json(), parse_json_safe()
+│   │   │   ├── token_utils.py         # estimate_tokens()
+│   │   │   ├── chunk_utils.py         # validate_cyrillic_ratio()
+│   │   │   ├── media_utils.py         # get_media_duration() (v0.28+)
+│   │   │   ├── pricing_utils.py       # calculate_cost() (v0.42+)
+│   │   │   └── h2_chunker.py          # H2-based chunking (v0.25+)
 │   │   └── models/
-│   │       └── schemas.py       # Pydantic модели
+│   │       ├── schemas.py       # Pydantic модели, TokensUsed (v0.42+)
+│   │       └── cache.py         # CacheManifest, CacheEntry (v0.18+)
 │   └── requirements.txt
 │
 ├── frontend/
 │   ├── Dockerfile               # Docker образ (node build → nginx)
 │   ├── nginx.conf               # Proxy для API
-│   ├── package.json
+│   ├── package.json             # Версия (v0.47+)
 │   ├── vite.config.ts           # Vite + proxy + path alias
 │   ├── tailwind.config.js
 │   └── src/
@@ -192,29 +212,33 @@ bz2-video-transcriber/
 │       ├── main.tsx
 │       ├── index.css            # Tailwind imports
 │       ├── api/
-│       │   ├── types.ts         # TypeScript типы (из backend schemas)
+│       │   ├── types.ts         # TypeScript типы (метрики v0.44+)
 │       │   ├── client.ts        # Axios instance
 │       │   └── hooks/           # TanStack Query hooks
+│       ├── utils/               # Shared utilities (v0.35+)
+│       │   ├── modelUtils.ts    # getDisplayModelName()
+│       │   └── formatUtils.ts   # formatTime(), formatCost() (v0.44+)
 │       └── components/
 │           ├── layout/          # Header, Layout
 │           ├── common/          # Button, Card, Modal, ProgressBar
-│           ├── services/        # ServiceStatus (Whisper/Ollama)
+│           │   ├── ResultFooter.tsx    # Метрики (v0.45+)
+│           │   └── InlineDiffView.tsx  # Diff view (v0.46+)
+│           ├── services/        # ServiceStatus (Whisper/Claude)
 │           ├── inbox/           # InboxList, VideoItem
 │           ├── archive/         # ArchiveCatalog
 │           ├── processing/      # ProcessingModal, StepByStep
 │           └── results/         # MetadataView, TranscriptView, etc.
 │
 ├── config/
-│   ├── prompts/
-│   │   ├── cleaner_system.md      # System prompt для очистки
-│   │   ├── cleaner_user.md        # User template для очистки
-│   │   ├── chunker.md             # Chunking с контекстом
-│   │   ├── map_outline.md         # Извлечение outline части
-│   │   ├── longread_section.md    # Генерация секции лонгрида
-│   │   ├── longread_combine.md    # Объединение + классификация
-│   │   └── summary.md             # Генерация конспекта
-│   ├── glossary.yaml
-│   └── events.yaml
+│   ├── models.yaml              # Модели, context profiles, pricing
+│   ├── glossary.yaml            # Терминология Herbalife
+│   ├── events.yaml              # Типы событий
+│   └── prompts/                 # Промпты по этапам (v0.31+)
+│       ├── cleaning/            # system.md, user.md
+│       ├── longread/            # system.md, instructions.md, template.md
+│       ├── summary/
+│       ├── story/
+│       └── outline/
 │
 ├── docker-compose.yml
 ├── Dockerfile
@@ -274,7 +298,7 @@ bz2-video-transcriber/
 
 ---
 
-## Pipeline Decomposition (v0.15+)
+## Pipeline Decomposition (v0.15+, updated v0.47)
 
 Модуль `pipeline` декомпозирован на независимые компоненты с чёткими обязанностями:
 
@@ -284,30 +308,35 @@ bz2-video-transcriber/
 │                    (координация этапов)                        │
 └────────────┬───────────────────────────────────────────────────┘
              │
-    ┌────────┼────────┬─────────────┬─────────────┐
-    ▼        ▼        ▼             ▼             ▼
-Progress  Fallback  Config      Stage         Services
-Manager   Factory   Resolver    Registry      (AI client)
+    ┌────────┼────────┬─────────────┬─────────────┬─────────────┐
+    ▼        ▼        ▼             ▼             ▼             ▼
+Progress  Config   Stage       Processing    Stage       AI Clients
+Manager   Resolver Registry    Strategy      Cache       (Claude/Ollama)
 ```
 
 | Компонент | Файл | Ответственность |
 |-----------|------|-----------------|
 | **PipelineOrchestrator** | `orchestrator.py` | Координация этапов, основной API |
 | **ProgressManager** | `progress_manager.py` | STAGE_WEIGHTS, расчёт прогресса |
-| **FallbackFactory** | `fallback_factory.py` | Создание fallback объектов |
 | **ConfigResolver** | `config_resolver.py` | Override моделей для step-by-step |
+| **ProcessingStrategy** | `processing_strategy.py` | Автовыбор AI провайдера (v0.19+) |
+| **StageResultCache** | `stage_cache.py` | Версионирование результатов (v0.18+) |
+
+> **v0.29+:** FallbackFactory удалён. При ошибках LLM выбрасывается `PipelineError`.
 
 **Принципы:**
 - Single Responsibility: каждый модуль — одна обязанность
-- Open/Closed: новые fallback добавляются без изменения orchestrator
-- Dependency Injection: ProgressManager и FallbackFactory — композиция
+- Open/Closed: новые stages добавляются без изменения orchestrator
+- Dependency Injection: компоненты через композицию
 
 **Документация:**
-- [adr/002-pipeline-decomposition.md](adr/002-pipeline-decomposition.md) — обоснование решения
+- [adr/002-pipeline-decomposition.md](adr/002-pipeline-decomposition.md) — декомпозиция pipeline
+- [adr/007-remove-fallback-use-claude.md](adr/007-remove-fallback-use-claude.md) — удаление fallback
+- [adr/009-extended-metrics.md](adr/009-extended-metrics.md) — расширенные метрики (v0.42+)
 
 ---
 
-## Stage Abstraction (v0.14+)
+## Stage Abstraction (v0.14+, updated v0.47)
 
 Система абстракций для этапов обработки, позволяющая добавлять новые шаги без изменения оркестратора.
 
@@ -321,19 +350,17 @@ Manager   Factory   Resolver    Registry      (AI client)
     ▼        ▼        ▼        ▼                   ▼        ▼
   Parse  Transcribe  Clean  ┌───┴───┐            Chunk    Save
   Stage    Stage    Stage   │       │            Stage    Stage
-                            ▼       ▼          (H2 det.)
-                       Longread  Story
-                        Stage    Stage
-                            │       │
-                       Summarize    │
-                        Stage       │
-                            │       │
-                     ┌──────┴───────┴────┐
-                     ▼                   │
-               StageContext              │
-          (передача данных)              ▼
-                                   deterministic
-                                  H2 chunking
+    │        │        │     ▼       ▼          (H2 det.)
+    │        │        │  Longread  Story
+    │     Whisper  Claude  Stage    Stage
+    │                │       │       │
+    │                │  Summarize    │
+    │                │   Stage       │
+    │                │       │       │
+    └────────────────┴───────┴───────┴─────────────────────┐
+                                                          ▼
+                                                   StageContext
+                                             (метрики: tokens, cost)
 ```
 
 **Pipeline (v0.25+):**
@@ -342,6 +369,12 @@ Manager   Factory   Resolver    Registry      (AI client)
 **Ветвление по content_type (v0.23+):**
 - `EDUCATIONAL` → LongreadStage → SummarizeStage → ChunkStage → longread.md + summary.md
 - `LEADERSHIP` → StoryStage → ChunkStage → story.md (8 блоков)
+
+**Расширенные метрики (v0.42+):**
+Каждый LLM-этап возвращает метрики в результате:
+- `tokens_used` (TokensUsed: input, output, total)
+- `cost` (USD, рассчитывается из pricing в models.yaml)
+- `processing_time_sec`
 
 **Основные классы:**
 - `BaseStage` — абстрактный базовый класс для этапов
@@ -369,7 +402,7 @@ class TelegramSummaryStage(BaseStage):
 
 ## Ресурсы
 
-- [faster-whisper](https://github.com/guillaumekln/faster-whisper)
-- [Ollama API](https://github.com/ollama/ollama/blob/main/docs/api.md)
-- [FastAPI](https://fastapi.tiangolo.com/)
-- [Qwen2.5](https://huggingface.co/Qwen/Qwen2.5-14B-Instruct)
+- [Anthropic Claude API](https://docs.anthropic.com/claude/reference/) — основной LLM провайдер
+- [faster-whisper](https://github.com/guillaumekln/faster-whisper) — транскрипция
+- [Ollama API](https://github.com/ollama/ollama/blob/main/docs/api.md) — резервный LLM
+- [FastAPI](https://fastapi.tiangolo.com/) — backend framework
