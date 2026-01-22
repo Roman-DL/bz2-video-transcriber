@@ -6,6 +6,7 @@ Used for leadership content_type instead of longread + summary.
 
 v0.23+: New document type for leadership content.
 v0.42+: Added tokens_used, cost, and processing_time_sec metrics.
+v0.53+: Added slides_text parameter for slides integration.
 """
 
 import json
@@ -94,13 +95,17 @@ class StoryGenerator:
         self,
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
+        slides_text: str | None = None,
     ) -> Story:
         """
         Generate story from cleaned transcript.
 
+        v0.53+: Added slides_text parameter for slides integration.
+
         Args:
             cleaned_transcript: Cleaned transcript from CleanStage
             metadata: Video metadata (should have content_type=LEADERSHIP)
+            slides_text: Optional extracted text from slides (v0.53+)
 
         Returns:
             Story with 8 blocks structure
@@ -112,8 +117,8 @@ class StoryGenerator:
             f"(event: {metadata.event_name or metadata.event_type})"
         )
 
-        # Build prompt
-        prompt = self._build_prompt(cleaned_transcript, metadata)
+        # Build prompt with optional slides context
+        prompt = self._build_prompt(cleaned_transcript, metadata, slides_text)
 
         # v0.43+: Unified interface - all clients return (response, usage)
         response, usage = await self.ai_client.generate(
@@ -161,17 +166,32 @@ class StoryGenerator:
         self,
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
+        slides_text: str | None = None,
     ) -> str:
         """
         Build story generation prompt.
 
+        v0.53+: Added slides_text parameter for slides integration.
+
         Args:
             cleaned_transcript: Cleaned transcript
             metadata: Video metadata
+            slides_text: Optional extracted text from slides (v0.53+)
 
         Returns:
             Combined prompt string
         """
+        # If slides_text provided, append to transcript for context
+        transcript_with_slides = cleaned_transcript.text
+        if slides_text:
+            transcript_with_slides = (
+                f"{cleaned_transcript.text}\n\n"
+                "---\n\n"
+                "## Дополнительная информация со слайдов презентации\n\n"
+                f"{slides_text}"
+            )
+            logger.info(f"Added slides context: {len(slides_text)} chars")
+
         prompt_parts = [
             self.system_prompt,
             "",
@@ -191,7 +211,7 @@ class StoryGenerator:
             "",
             "### Транскрипт",
             "",
-            cleaned_transcript.text,
+            transcript_with_slides,
             "",
             "### Формат ответа",
             "",

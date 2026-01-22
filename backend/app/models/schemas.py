@@ -986,6 +986,7 @@ class StepStoryRequest(BaseModel):
     """Request for /step/story endpoint.
 
     For content_type=LEADERSHIP only. Generates 8-block story.
+    v0.53+: Added slides_text for slides integration.
     """
 
     cleaned_transcript: CleanedTranscript
@@ -997,6 +998,10 @@ class StepStoryRequest(BaseModel):
     prompt_overrides: "PromptOverrides | None" = Field(
         default=None,
         description="Override prompt files for story (v0.32+)",
+    )
+    slides_text: str | None = Field(
+        default=None,
+        description="Optional extracted text from slides (v0.53+)",
     )
 
 

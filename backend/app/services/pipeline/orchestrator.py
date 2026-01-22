@@ -395,17 +395,21 @@ class PipelineOrchestrator:
         metadata: VideoMetadata,
         model: str | None = None,
         prompt_overrides: PromptOverrides | None = None,
+        slides_text: str | None = None,
     ) -> Story:
         """
         Generate leadership story (8 blocks) from cleaned transcript.
 
         For leadership content only (content_type=LEADERSHIP).
 
+        v0.53+: Added slides_text parameter for slides integration.
+
         Args:
             cleaned_transcript: Cleaned transcript
             metadata: Video metadata
             model: Optional model override for generation
             prompt_overrides: Optional prompt file overrides (v0.32+)
+            slides_text: Optional extracted text from slides (v0.53+)
 
         Returns:
             Story with 8 blocks
@@ -414,7 +418,7 @@ class PipelineOrchestrator:
         actual_model = model or settings.summarizer_model
         async with self.processing_strategy.create_client(actual_model) as ai_client:
             generator = StoryGenerator(ai_client, settings, prompt_overrides)
-            return await generator.generate(cleaned_transcript, metadata)
+            return await generator.generate(cleaned_transcript, metadata, slides_text)
 
     async def summarize(
         self,

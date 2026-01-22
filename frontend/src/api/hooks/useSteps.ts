@@ -10,12 +10,14 @@ import type {
   Summary,
   Story,
   TranscribeResult,
+  SlidesExtractionResult,
   StepParseRequest,
   StepCleanRequest,
   StepChunkRequest,
   StepLongreadRequest,
   StepSummarizeRequest,
   StepStoryRequest,
+  StepSlidesRequest,
   StepSaveRequest,
 } from '../types';
 
@@ -213,6 +215,15 @@ export const useStepSummarize = createStepWithProgress<Summary, StepSummarizeReq
  */
 export const useStepStory = createStepWithProgress<Story, StepStoryRequest>(
   '/api/step/story'
+);
+
+/**
+ * Extract text from slides using vision API.
+ * Uses SSE with progress.
+ * Only appears when slides are attached.
+ */
+export const useStepSlides = createStepWithProgress<SlidesExtractionResult, StepSlidesRequest>(
+  '/api/step/slides'
 );
 
 /**

@@ -7,6 +7,7 @@ import {
   useStepLongread,
   useStepSummarize,
   useStepStory,
+  useStepSlides,
   useStepSave,
 } from '@/api/hooks/useSteps';
 import { useStagePrompts } from '@/api/hooks/usePrompts';
@@ -19,6 +20,8 @@ import type {
   Longread,
   Summary,
   Story,
+  SlidesExtractionResult,
+  SlideInput,
   PipelineStep,
   PromptOverrides,
   StagePromptsResponse,
@@ -35,6 +38,7 @@ import { ChunksView } from '@/components/results/ChunksView';
 import { LongreadView } from '@/components/results/LongreadView';
 import { SummaryView } from '@/components/results/SummaryView';
 import { StoryView } from '@/components/results/StoryView';
+import { SlidesResultView } from '@/components/results/SlidesResultView';
 import { CompletionCard } from '@/components/processing/CompletionCard';
 import { ComponentPromptSelector } from '@/components/settings/ComponentPromptSelector';
 import { ModelSelector } from '@/components/settings/ModelSelector';
@@ -61,6 +65,7 @@ import {
   ChevronRight,
   Settings,
   Paperclip,
+  Images,
 } from 'lucide-react';
 
 import type { SlideFile } from '@/api/types';
@@ -79,6 +84,7 @@ interface StepData {
   displayText?: string;
   audioPath?: string;
   cleanedTranscript?: CleanedTranscript;
+  slidesResult?: SlidesExtractionResult;
   chunks?: TranscriptChunks;
   longread?: Longread;
   summary?: Summary;
@@ -86,7 +92,7 @@ interface StepData {
   savedFiles?: string[];
 }
 
-type ResultTab = 'metadata' | 'rawTranscript' | 'cleanedTranscript' | 'chunks' | 'longread' | 'summary' | 'story';
+type ResultTab = 'metadata' | 'rawTranscript' | 'cleanedTranscript' | 'slides' | 'chunks' | 'longread' | 'summary' | 'story';
 
 // Stages that support prompt selection
 const STAGES_WITH_PROMPTS = ['clean', 'longread', 'summarize', 'story'] as const;
@@ -106,6 +112,7 @@ const STEP_ICONS: Record<PipelineStep, React.ComponentType<{ className?: string 
   parse: FileText,
   transcribe: FileAudio,
   clean: Sparkles,
+  slides: Images,
   longread: BookOpen,
   summarize: ListChecks,
   story: Heart,
@@ -118,6 +125,7 @@ const TAB_ICONS: Record<ResultTab, React.ComponentType<{ className?: string }>> 
   metadata: FileText,
   rawTranscript: FileAudio,
   cleanedTranscript: Sparkles,
+  slides: Images,
   longread: BookOpen,
   summary: ListChecks,
   story: Heart,
@@ -158,6 +166,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
   const stepLongread = useStepLongread();
   const stepSummarize = useStepSummarize();
   const stepStory = useStepStory();
+  const stepSlides = useStepSlides();
   const stepSave = useStepSave();
 
   // Model hooks (only in step-by-step mode)
@@ -253,14 +262,26 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
     return () => { mounted = false; };
   }, [filename]);
 
-  // Determine pipeline steps based on content type
+  // Determine pipeline steps based on content type and slides presence
   const contentType = data.metadata?.content_type || 'educational';
-  const pipelineSteps = contentType === 'leadership' ? LEADERSHIP_STEPS : EDUCATIONAL_STEPS;
+  const pipelineSteps = useMemo(() => {
+    const baseSteps = contentType === 'leadership' ? LEADERSHIP_STEPS : EDUCATIONAL_STEPS;
+    if (!hasSlides) return baseSteps;
+
+    // Insert 'slides' between 'clean' and next step (longread/story)
+    const cleanIdx = baseSteps.indexOf('clean');
+    return [
+      ...baseSteps.slice(0, cleanIdx + 1),
+      'slides' as PipelineStep,
+      ...baseSteps.slice(cleanIdx + 1),
+    ];
+  }, [contentType, hasSlides]);
 
   const isLoading =
     stepParse.isPending ||
     stepTranscribe.isPending ||
     stepClean.isPending ||
+    stepSlides.isPending ||
     stepChunk.isPending ||
     stepLongread.isPending ||
     stepSummarize.isPending ||
@@ -310,6 +331,13 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
           estimatedSeconds: stepStory.estimatedSeconds,
           elapsedSeconds: stepStory.elapsedSeconds,
         };
+      case 'slides':
+        return {
+          progress: stepSlides.progress,
+          message: stepSlides.message,
+          estimatedSeconds: stepSlides.estimatedSeconds,
+          elapsedSeconds: stepSlides.elapsedSeconds,
+        };
       default:
         // parse, chunk, save - instant operations, no progress
         return { progress: null, message: null, estimatedSeconds: null, elapsedSeconds: null };
@@ -327,9 +355,20 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
       case 'parse': return true;
       case 'transcribe': return !!data.metadata;
       case 'clean': return !!data.rawTranscript && !!data.metadata;
-      case 'longread': return !!data.cleanedTranscript && !!data.metadata;
+      case 'slides': return !!data.cleanedTranscript && !!data.metadata && hasSlides;
+      case 'longread':
+        // If slides attached, need slidesResult; otherwise just cleanedTranscript
+        if (hasSlides) {
+          return !!data.cleanedTranscript && !!data.metadata && !!data.slidesResult;
+        }
+        return !!data.cleanedTranscript && !!data.metadata;
       case 'summarize': return !!data.cleanedTranscript && !!data.metadata;
-      case 'story': return !!data.cleanedTranscript && !!data.metadata;
+      case 'story':
+        // If slides attached, need slidesResult; otherwise just cleanedTranscript
+        if (hasSlides) {
+          return !!data.cleanedTranscript && !!data.metadata && !!data.slidesResult;
+        }
+        return !!data.cleanedTranscript && !!data.metadata;
       case 'chunk':
         if (contentType === 'leadership') {
           return !!data.story && !!data.metadata;
@@ -370,6 +409,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
       parse: ['metadata'],
       transcribe: ['rawTranscript', 'displayText', 'audioPath'],
       clean: ['cleanedTranscript'],
+      slides: ['slidesResult'],
       longread: ['longread'],
       summarize: ['summary'],
       story: ['story'],
@@ -429,6 +469,33 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
           });
           setData((prev) => ({ ...prev, cleanedTranscript }));
           setActiveTab('cleanedTranscript');
+          // Next step depends on slides presence
+          if (hasSlides) {
+            setCurrentStep('slides');
+          } else {
+            setCurrentStep(contentType === 'leadership' ? 'story' : 'longread');
+          }
+          break;
+
+        case 'slides':
+          if (!data.cleanedTranscript || !data.metadata || !hasSlides) return;
+          // Convert SlideFile[] to SlideInput[] with base64
+          const slideInputs: SlideInput[] = await Promise.all(
+            initialSlides.map(async (slide) => {
+              if (!slide.file) throw new Error(`No file for slide: ${slide.name}`);
+              const base64 = await fileToBase64(slide.file);
+              return {
+                filename: slide.name,
+                content_type: slide.file.type,
+                data: base64,
+              };
+            })
+          );
+          const slidesResult = await stepSlides.mutate({
+            slides: slideInputs,
+          });
+          setData((prev) => ({ ...prev, slidesResult }));
+          setActiveTab('slides');
           setCurrentStep(contentType === 'leadership' ? 'story' : 'longread');
           break;
 
@@ -439,6 +506,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
             metadata: data.metadata,
             model: getModelForStage('longread'),
             prompt_overrides: getPromptOverridesForApi('longread'),
+            slides_text: data.slidesResult?.extracted_text,
           });
           setData((prev) => ({ ...prev, longread }));
           setActiveTab('longread');
@@ -465,6 +533,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
             metadata: data.metadata,
             model: getModelForStage('story'),
             prompt_overrides: getPromptOverridesForApi('story'),
+            slides_text: data.slidesResult?.extracted_text,
           });
           setData((prev) => ({ ...prev, story }));
           setActiveTab('story');
@@ -554,6 +623,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
       case 'parse': return 'metadata';
       case 'transcribe': return 'rawTranscript';
       case 'clean': return 'cleanedTranscript';
+      case 'slides': return 'slides';
       case 'longread': return 'longread';
       case 'summarize': return 'summary';
       case 'story': return 'story';
@@ -568,6 +638,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
     if (data.metadata) tabs.push('metadata');
     if (data.rawTranscript) tabs.push('rawTranscript');
     if (data.cleanedTranscript) tabs.push('cleanedTranscript');
+    if (data.slidesResult) tabs.push('slides');
     if (data.longread) tabs.push('longread');
     if (data.summary) tabs.push('summary');
     if (data.story) tabs.push('story');
@@ -580,6 +651,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
     metadata: 'Метаданные',
     rawTranscript: 'Транскрипт',
     cleanedTranscript: 'Очистка',
+    slides: 'Слайды',
     longread: 'Лонгрид',
     summary: 'Конспект',
     story: 'История',
@@ -610,6 +682,14 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
       totalInputTokens += data.cleanedTranscript.tokens_used?.input || 0;
       totalOutputTokens += data.cleanedTranscript.tokens_used?.output || 0;
       totalCost += data.cleanedTranscript.cost || 0;
+    }
+
+    // SlidesResult
+    if (data.slidesResult) {
+      totalTime += data.slidesResult.processing_time_sec || 0;
+      totalInputTokens += data.slidesResult.tokens_used?.input || 0;
+      totalOutputTokens += data.slidesResult.tokens_used?.output || 0;
+      totalCost += data.slidesResult.cost || 0;
     }
 
     // Longread (educational)
@@ -646,6 +726,8 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
         return data.rawTranscript ? formatDuration(data.rawTranscript.duration_seconds) : null;
       case 'clean':
         return data.cleanedTranscript ? `${data.cleanedTranscript.cleaned_length.toLocaleString()} симв.` : null;
+      case 'slides':
+        return data.slidesResult ? `${data.slidesResult.slides_count} слайдов` : null;
       case 'longread':
         return data.longread ? `${data.longread.total_sections} секций` : null;
       case 'summarize':
@@ -1230,6 +1312,22 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false, in
                   </div>
                 )}
 
+                {activeTab === 'slides' && data.slidesResult && (
+                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                      <h3 className="text-sm font-semibold text-gray-900">Извлечённые данные со слайдов</h3>
+                      {data.slidesResult.processing_time_sec !== undefined && (
+                        <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
+                          {formatTime(data.slidesResult.processing_time_sec)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-4 flex-1 overflow-hidden min-h-0">
+                      <SlidesResultView slidesResult={data.slidesResult} />
+                    </div>
+                  </div>
+                )}
+
                 {activeTab === 'longread' && data.longread && (
                   <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                     {!showLongreadDiff && (
@@ -1317,6 +1415,8 @@ function getStepDescription(step: PipelineStep): string {
       return 'Извлечение аудио и транскрипция через Whisper';
     case 'clean':
       return 'Очистка текста с использованием глоссария и LLM';
+    case 'slides':
+      return 'Извлечение текста и таблиц со слайдов через Vision API';
     case 'longread':
       return 'Генерация структурированного текста из транскрипции';
     case 'summarize':
@@ -1363,4 +1463,21 @@ function formatETA(estimatedSeconds: number, elapsedSeconds: number): string {
     return seconds > 0 ? `~${minutes} мин ${seconds} сек` : `~${minutes} мин`;
   }
   return `~${seconds} сек`;
+}
+
+/**
+ * Convert File to base64 string (without data URL prefix).
+ */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      // Remove "data:image/jpeg;base64," prefix
+      const base64 = dataUrl.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }

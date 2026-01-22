@@ -526,6 +526,7 @@ async def step_story(request: StepStoryRequest) -> StreamingResponse:
                 metadata=request.metadata,
                 model=request.model,
                 prompt_overrides=request.prompt_overrides,
+                slides_text=request.slides_text,  # v0.53+
             ),
         )
     )

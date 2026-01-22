@@ -258,6 +258,7 @@ export interface StepLongreadRequest {
   metadata: VideoMetadata;
   model?: string;
   prompt_overrides?: PromptOverrides;
+  slides_text?: string;
 }
 
 export interface StepSummarizeRequest {
@@ -272,6 +273,7 @@ export interface StepStoryRequest {
   metadata: VideoMetadata;
   model?: string;
   prompt_overrides?: PromptOverrides;
+  slides_text?: string;
 }
 
 export interface StepSaveRequest {
@@ -289,10 +291,12 @@ export interface StepSaveRequest {
 
 // Pipeline step names for UI
 // Note: longread/summarize for educational, story for leadership
+// Note: slides step is dynamic (only when slides attached)
 export const PIPELINE_STEPS = [
   'parse',
   'transcribe',
   'clean',
+  'slides',
   'chunk',
   'longread',
   'summarize',
@@ -306,6 +310,7 @@ export const STEP_LABELS: Record<PipelineStep, string> = {
   parse: 'Парсинг метаданных',
   transcribe: 'Транскрипция (Whisper)',
   clean: 'Очистка текста',
+  slides: 'Извлечение слайдов',
   chunk: 'Разбиение на чанки',
   longread: 'Генерация лонгрида',
   summarize: 'Генерация конспекта',
