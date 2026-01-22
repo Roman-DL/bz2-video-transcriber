@@ -1,4 +1,6 @@
 import type { Story } from '@/api/types';
+import { ResultFooter } from '@/components/common/ResultFooter';
+import { formatNumber, formatTime } from '@/utils/formatUtils';
 
 interface StoryViewProps {
   story: Story;
@@ -41,18 +43,29 @@ export function StoryView({ story }: StoryViewProps) {
   const markdownText = formatStoryAsMarkdown(story);
 
   return (
-    <div className="space-y-4">
-      <div className="text-xs text-gray-500 mb-2">
-        Модель: <span className="font-mono">{story.model_name}</span>
+    <div className="h-full flex flex-col">
+      {/* Header with metrics */}
+      <div className="text-xs text-gray-500 mb-2 shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span>
+          {formatNumber(story.chars)} симв.
+        </span>
+        <span>
+          {story.total_blocks} блоков
+        </span>
+        {story.processing_time_sec !== undefined && (
+          <span>
+            {formatTime(story.processing_time_sec)}
+          </span>
+        )}
       </div>
 
       {/* Story text as markdown */}
-      <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+      <div className="flex-1 overflow-y-auto text-sm text-gray-700 whitespace-pre-wrap leading-relaxed min-h-0">
         {markdownText}
       </div>
 
       {/* Metadata footer */}
-      <div className="pt-4 border-t border-gray-100">
+      <div className="pt-3 border-t border-gray-100 mt-3 shrink-0">
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <div>
             <span className="text-gray-500">Уровень доступа:</span>{' '}
@@ -60,6 +73,13 @@ export function StoryView({ story }: StoryViewProps) {
           </div>
         </div>
       </div>
+
+      {/* Footer with LLM metrics */}
+      <ResultFooter
+        tokensUsed={story.tokens_used}
+        cost={story.cost}
+        model={story.model_name}
+      />
     </div>
   );
 }

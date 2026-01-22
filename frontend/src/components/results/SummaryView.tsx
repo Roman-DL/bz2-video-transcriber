@@ -1,5 +1,7 @@
 import type { Summary } from '@/api/types';
 import { Badge } from '@/components/common/Badge';
+import { ResultFooter } from '@/components/common/ResultFooter';
+import { formatNumber, formatTime } from '@/utils/formatUtils';
 
 interface SummaryViewProps {
   summary: Summary;
@@ -68,42 +70,62 @@ export function SummaryView({ summary }: SummaryViewProps) {
   const markdownText = formatSummaryAsMarkdown(summary);
 
   return (
-    <div className="space-y-4">
-      <div className="text-xs text-gray-500 mb-2">
-        Модель: <span className="font-mono">{summary.model_name}</span>
+    <div className="h-full flex flex-col">
+      {/* Header with metrics */}
+      <div className="text-xs text-gray-500 mb-2 shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span>
+          {formatNumber(summary.chars)} симв.
+        </span>
+        <span>
+          {formatNumber(summary.words)} слов
+        </span>
+        {summary.processing_time_sec !== undefined && (
+          <span>
+            {formatTime(summary.processing_time_sec)}
+          </span>
+        )}
       </div>
 
       {/* Summary text as markdown */}
-      <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+      <div className="flex-1 overflow-y-auto text-sm text-gray-700 whitespace-pre-wrap leading-relaxed min-h-0">
         {markdownText}
       </div>
 
-      {/* Metadata footer */}
-      <div className="pt-4 border-t border-gray-100">
-        <div className="flex flex-wrap items-center gap-4 text-sm">
-          {summary.topic_area.length > 0 && (
-            <div>
-              <span className="text-gray-500">Область:</span>{' '}
-              <span className="text-gray-900">
-                {summary.topic_area.join(' / ')}
-              </span>
-            </div>
-          )}
-
-          {summary.tags.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-gray-500">Теги:</span>
-              <div className="flex flex-wrap gap-1">
-                {summary.tags.map((tag) => (
-                  <Badge key={tag} variant="default">
-                    {tag}
-                  </Badge>
-                ))}
+      {/* Tags metadata */}
+      {(summary.topic_area.length > 0 || summary.tags.length > 0) && (
+        <div className="pt-3 border-t border-gray-100 mt-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            {summary.topic_area.length > 0 && (
+              <div>
+                <span className="text-gray-500">Область:</span>{' '}
+                <span className="text-gray-900">
+                  {summary.topic_area.join(' / ')}
+                </span>
               </div>
-            </div>
-          )}
+            )}
+
+            {summary.tags.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">Теги:</span>
+                <div className="flex flex-wrap gap-1">
+                  {summary.tags.map((tag) => (
+                    <Badge key={tag} variant="default">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Footer with LLM metrics */}
+      <ResultFooter
+        tokensUsed={summary.tokens_used}
+        cost={summary.cost}
+        model={summary.model_name}
+      />
     </div>
   );
 }
