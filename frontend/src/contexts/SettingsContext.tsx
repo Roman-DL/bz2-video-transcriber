@@ -3,10 +3,14 @@ import type { ModelSettings } from '@/api/types';
 
 const STORAGE_KEY = 'bz2-transcriber-settings';
 
+export type ProcessingMode = 'step' | 'auto';
+
 interface SettingsContextValue {
   models: ModelSettings;
   setModels: (models: ModelSettings) => void;
   resetModels: () => void;
+  processingMode: ProcessingMode;
+  setProcessingMode: (mode: ProcessingMode) => void;
   isSettingsOpen: boolean;
   openSettings: () => void;
   closeSettings: () => void;
@@ -18,13 +22,17 @@ interface SettingsProviderProps {
   children: ReactNode;
 }
 
+interface StoredSettings {
+  models?: ModelSettings;
+  processingMode?: ProcessingMode;
+}
+
 export function SettingsProvider({ children }: SettingsProviderProps) {
   const [models, setModelsState] = useState<ModelSettings>(() => {
-    // Load from localStorage on mount
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
+        const parsed: StoredSettings = JSON.parse(saved);
         return parsed.models || {};
       }
     } catch (e) {
@@ -33,16 +41,29 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     return {};
   });
 
+  const [processingMode, setProcessingModeState] = useState<ProcessingMode>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed: StoredSettings = JSON.parse(saved);
+        return parsed.processingMode || 'step';
+      }
+    } catch (e) {
+      console.error('Failed to load settings from localStorage:', e);
+    }
+    return 'step';
+  });
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Save to localStorage when models change
+  // Save to localStorage when settings change
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ models }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ models, processingMode }));
     } catch (e) {
       console.error('Failed to save settings to localStorage:', e);
     }
-  }, [models]);
+  }, [models, processingMode]);
 
   const setModels = useCallback((newModels: ModelSettings) => {
     setModelsState(newModels);
@@ -50,6 +71,10 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
 
   const resetModels = useCallback(() => {
     setModelsState({});
+  }, []);
+
+  const setProcessingMode = useCallback((mode: ProcessingMode) => {
+    setProcessingModeState(mode);
   }, []);
 
   const openSettings = useCallback(() => {
@@ -66,6 +91,8 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
         models,
         setModels,
         resetModels,
+        processingMode,
+        setProcessingMode,
         isSettingsOpen,
         openSettings,
         closeSettings,

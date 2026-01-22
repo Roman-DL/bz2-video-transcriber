@@ -4,7 +4,7 @@ import { Layout } from '@/components/layout/Layout';
 import { InboxList } from '@/components/inbox/InboxList';
 import { ArchiveCatalog } from '@/components/archive/ArchiveCatalog';
 import { ProcessingModal } from '@/components/processing/ProcessingModal';
-import { SettingsProvider } from '@/contexts/SettingsContext';
+import { SettingsProvider, type ProcessingMode } from '@/contexts/SettingsContext';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 
 const queryClient = new QueryClient({
@@ -16,17 +16,27 @@ const queryClient = new QueryClient({
   },
 });
 
+interface SelectedVideo {
+  filename: string;
+  mode: ProcessingMode;
+}
+
 function Dashboard() {
-  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<SelectedVideo | null>(null);
+
+  const handleProcessVideo = (filename: string, mode: ProcessingMode) => {
+    setSelectedVideo({ filename, mode });
+  };
 
   return (
     <>
-      <InboxList onProcessVideo={setSelectedVideo} />
+      <InboxList onProcessVideo={handleProcessVideo} />
       <ArchiveCatalog />
 
       <ProcessingModal
         isOpen={selectedVideo !== null}
-        filename={selectedVideo}
+        filename={selectedVideo?.filename ?? null}
+        mode={selectedVideo?.mode ?? 'step'}
         onClose={() => setSelectedVideo(null)}
       />
     </>

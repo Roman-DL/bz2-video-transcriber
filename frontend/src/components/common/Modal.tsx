@@ -33,38 +33,36 @@ export function Modal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-full items-center justify-center p-4">
-        <div
-          className="fixed inset-0 bg-black/50 transition-opacity"
-          onClick={closable ? onClose : undefined}
-        />
-        <div
-          className={clsx(
-            'relative bg-white rounded-lg shadow-xl w-full transform transition-all',
-            {
-              'max-w-sm': size === 'sm',
-              'max-w-md': size === 'md',
-              'max-w-lg': size === 'lg',
-              'max-w-2xl': size === 'xl',
-            }
-          )}
-        >
-          {title && (
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">{title}</h3>
-              {closable && (
-                <button
-                  onClick={onClose}
-                  className="text-gray-400 hover:text-gray-500 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              )}
-            </div>
-          )}
-          <div className="p-4">{children}</div>
-        </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30">
+      <div
+        className="fixed inset-0"
+        onClick={closable ? onClose : undefined}
+      />
+      <div
+        className={clsx(
+          'relative bg-white rounded-2xl shadow-xl w-full transform transition-all overflow-hidden',
+          {
+            'max-w-sm': size === 'sm',
+            'max-w-md': size === 'md',
+            'max-w-lg': size === 'lg',
+            'max-w-2xl': size === 'xl',
+          }
+        )}
+      >
+        {title && (
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+            {closable && (
+              <button
+                onClick={onClose}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+        )}
+        <div className="p-6">{children}</div>
       </div>
     </div>
   );

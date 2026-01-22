@@ -2,13 +2,15 @@ import { useInbox } from '@/api/hooks/useInbox';
 import { Spinner } from '@/components/common/Spinner';
 import { VideoItem } from './VideoItem';
 import { Inbox, RefreshCw } from 'lucide-react';
+import { useSettings, type ProcessingMode } from '@/contexts/SettingsContext';
 
 interface InboxListProps {
-  onProcessVideo: (filename: string) => void;
+  onProcessVideo: (filename: string, mode: ProcessingMode) => void;
 }
 
 export function InboxList({ onProcessVideo }: InboxListProps) {
   const { data: files, isLoading, isError, refetch, isFetching } = useInbox();
+  const { processingMode, setProcessingMode } = useSettings();
 
   return (
     <aside className="w-80 flex flex-col bg-white border-r border-gray-200">
@@ -32,6 +34,16 @@ export function InboxList({ onProcessVideo }: InboxListProps) {
         </button>
       </div>
 
+      {/* Current mode indicator */}
+      <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
+        <div className="flex items-center gap-2 text-xs text-gray-500">
+          <span>Режим по умолчанию:</span>
+          <span className={`font-medium ${processingMode === 'step' ? 'text-blue-600' : 'text-emerald-600'}`}>
+            {processingMode === 'step' ? 'Пошагово' : 'Авто'}
+          </span>
+        </div>
+      </div>
+
       {/* Inbox Files */}
       <div className="flex-1 p-4 space-y-3 overflow-y-auto">
         {isLoading ? (
@@ -47,7 +59,9 @@ export function InboxList({ onProcessVideo }: InboxListProps) {
             <VideoItem
               key={filename}
               filename={filename}
+              defaultMode={processingMode}
               onProcess={onProcessVideo}
+              onModeChange={setProcessingMode}
             />
           ))
         ) : (
