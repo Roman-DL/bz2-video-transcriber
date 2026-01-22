@@ -18,6 +18,7 @@ class ProcessingStatus(str, Enum):
     PARSING = "parsing"
     TRANSCRIBING = "transcribing"
     CLEANING = "cleaning"
+    SLIDES = "slides"  # v0.50+: Slides extraction
     CHUNKING = "chunking"
     LONGREAD = "longread"
     SUMMARIZING = "summarizing"
@@ -942,6 +943,7 @@ class StepLongreadRequest(BaseModel):
 
     v0.25+: Now takes CleanedTranscript instead of chunks.
     Longread is generated directly from cleaned transcript.
+    v0.50+: Added slides_text for slides integration.
     """
 
     cleaned_transcript: CleanedTranscript
@@ -953,6 +955,10 @@ class StepLongreadRequest(BaseModel):
     prompt_overrides: "PromptOverrides | None" = Field(
         default=None,
         description="Override prompt files for longread (v0.32+)",
+    )
+    slides_text: str | None = Field(
+        default=None,
+        description="Extracted text from slides (v0.50+)",
     )
 
 
@@ -991,6 +997,70 @@ class StepStoryRequest(BaseModel):
     prompt_overrides: "PromptOverrides | None" = Field(
         default=None,
         description="Override prompt files for story (v0.32+)",
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Slides Extraction Models (v0.50+)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class SlideInput(BaseModel):
+    """Single slide input for extraction.
+
+    Represents an uploaded slide file (image or PDF page).
+    """
+
+    filename: str = Field(..., description="Original filename")
+    content_type: str = Field(
+        ...,
+        description="MIME type: image/jpeg, image/png, image/webp, application/pdf",
+    )
+    data: str = Field(..., description="Base64 encoded file content")
+
+
+class SlidesExtractionResult(BaseModel):
+    """Result of slides text extraction.
+
+    Contains extracted text and processing metrics.
+    """
+
+    extracted_text: str = Field(..., description="Extracted text in markdown format")
+    slides_count: int = Field(..., ge=0, description="Number of slides processed")
+    chars_count: int = Field(..., ge=0, description="Total character count")
+    words_count: int = Field(..., ge=0, description="Total word count")
+    tables_count: int = Field(..., ge=0, description="Number of tables detected")
+    model: str = Field(..., description="LLM model used for extraction")
+    tokens_used: TokensUsed | None = Field(
+        default=None,
+        description="Token usage from LLM API",
+    )
+    cost: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Estimated cost in USD",
+    )
+    processing_time_sec: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Processing time in seconds",
+    )
+
+
+class StepSlidesRequest(BaseModel):
+    """Request for /step/slides endpoint.
+
+    v0.50+: Extracts text from uploaded slides using vision API.
+    """
+
+    slides: list[SlideInput] = Field(..., min_length=1, description="Slides to process")
+    model: str | None = Field(
+        default=None,
+        description="Override LLM model for extraction (default: claude-haiku-4-5)",
+    )
+    prompt_overrides: "PromptOverrides | None" = Field(
+        default=None,
+        description="Override prompt files for slides extraction",
     )
 
 

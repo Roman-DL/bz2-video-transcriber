@@ -35,6 +35,22 @@ whisper_models:
     name: "large-v3-turbo"
     description: "Быстрее, хорошее качество"
 
+# Slides extraction configuration (v0.50+)
+# Vision models for extracting text from presentation slides
+slides:
+  default: "claude-haiku-4-5"
+  batch_size: 5
+  available:
+    - id: "claude-haiku-4-5"
+      name: "Claude Haiku 4.5"
+      description: "Быстрый и дешёвый. Для текста и простых таблиц."
+    - id: "claude-sonnet-4-5"
+      name: "Claude Sonnet 4.5"
+      description: "Баланс. Для сложных схем и графиков."
+    - id: "claude-opus-4-5"
+      name: "Claude Opus 4.5"
+      description: "Максимальное качество. Для критически важных данных."
+
 
 # =============================================================================
 # Context Profiles

@@ -7,6 +7,7 @@ Each section is generated in parallel with outline as shared context.
 v0.23+: New prompt architecture (system + instructions + template).
 v0.25+: Accepts CleanedTranscript directly (no chunks dependency).
 v0.42+: Added tokens_used, cost, and processing_time_sec metrics.
+v0.50+: Added slides_text parameter for slides integration.
 """
 
 import asyncio
@@ -134,16 +135,19 @@ class LongreadGenerator:
         self,
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
+        slides_text: str | None = None,
     ) -> Longread:
         """
         Generate longread from cleaned transcript.
 
         v0.25+: Accepts CleanedTranscript directly instead of chunks.
+        v0.50+: Added slides_text parameter for slides integration.
         Internally splits text and extracts outline if needed.
 
         Args:
             cleaned_transcript: Cleaned transcript text
             metadata: Video metadata
+            slides_text: Optional extracted text from slides (v0.50+)
 
         Returns:
             Longread with introduction, sections, and conclusion
@@ -155,8 +159,19 @@ class LongreadGenerator:
         self._total_output_tokens = 0
 
         # Phase 0: Split text into parts
-        text_parts = self.text_splitter.split(cleaned_transcript.text)
-        input_chars = len(cleaned_transcript.text)
+        # If slides_text provided, append to transcript for context
+        full_text = cleaned_transcript.text
+        if slides_text:
+            full_text = (
+                f"{cleaned_transcript.text}\n\n"
+                "---\n\n"
+                "## Дополнительная информация со слайдов презентации\n\n"
+                f"{slides_text}"
+            )
+            logger.info(f"Added slides context: {len(slides_text)} chars")
+
+        text_parts = self.text_splitter.split(full_text)
+        input_chars = len(full_text)
 
         logger.info(
             f"Generating longread: {input_chars} chars, "

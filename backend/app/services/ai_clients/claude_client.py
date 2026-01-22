@@ -5,6 +5,7 @@ Provides async client for Anthropic's Claude API with retry logic.
 Implements BaseAIClient protocol for text generation and chat completions.
 
 v0.43+: All methods return tuple[str, ChatUsage] for unified interface.
+v0.50+: Added vision API support for multimodal content (images in messages).
 """
 
 import logging
@@ -168,6 +169,13 @@ class ClaudeClient(BaseAIClientImpl):
         - "system" messages become system parameter
         - "user" and "assistant" messages are passed as-is
 
+        Supports multimodal content (v0.50+):
+        - String content: {"role": "user", "content": "Hello"}
+        - List content for vision: {"role": "user", "content": [
+            {"type": "text", "text": "What is in this image?"},
+            {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "..."}}
+          ]}
+
         Args:
             messages: List of chat messages [{"role": "user", "content": "..."}]
             model: Model name (default: claude-sonnet)
@@ -181,8 +189,19 @@ class ClaudeClient(BaseAIClientImpl):
             AIClientError: If chat completion fails
 
         Example:
+            # Text-only
             content, usage = await client.chat(messages)
-            print(f"Used {usage.input_tokens} in, {usage.output_tokens} out")
+
+            # With image (v0.50+)
+            messages = [{"role": "user", "content": [
+                {"type": "text", "text": "Describe this slide"},
+                {"type": "image", "source": {
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": base64_image_data
+                }}
+            ]}]
+            content, usage = await client.chat(messages)
         """
         if model is None:
             model = self.default_model
@@ -198,14 +217,25 @@ class ClaudeClient(BaseAIClientImpl):
             if msg["role"] == "system":
                 system_content = msg["content"]
             else:
+                # Pass content as-is (supports both string and list for vision)
                 chat_messages.append({
                     "role": msg["role"],
                     "content": msg["content"],
                 })
 
+        # Count images for logging
+        image_count = 0
+        for msg in chat_messages:
+            if isinstance(msg["content"], list):
+                image_count += sum(
+                    1 for item in msg["content"]
+                    if isinstance(item, dict) and item.get("type") == "image"
+                )
+
         logger.debug(
             f"Claude chat: model={model}, messages={len(chat_messages)}, "
-            f"system={'yes' if system_content else 'no'}, max_tokens={num_predict}"
+            f"system={'yes' if system_content else 'no'}, images={image_count}, "
+            f"max_tokens={num_predict}"
         )
 
         try:
@@ -349,6 +379,40 @@ if __name__ == "__main__":
                 response, usage = await client.chat(messages, num_predict=20)
                 print("OK")
                 print(f"  Response: {response.strip()[:100]}")
+                print(f"  Usage: {usage.total_tokens} total tokens")
+            except Exception as e:
+                print(f"FAILED: {e}")
+                return 1
+
+            # Test 4: Vision API (v0.50+)
+            print("\nTest 4: Vision API with minimal image...", end=" ")
+            try:
+                import base64
+                # Create minimal 1x1 PNG (smallest valid PNG)
+                # This is a 1x1 red pixel PNG
+                minimal_png = base64.b64decode(
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4"
+                    "nGP4z8DwHwAFAAH/plybXgAAAABJRU5ErkJggg=="
+                )
+                b64_image = base64.b64encode(minimal_png).decode("utf-8")
+
+                messages = [{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "What color is this image? Reply with just the color."},
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": b64_image,
+                            },
+                        },
+                    ],
+                }]
+                response, usage = await client.chat(messages, num_predict=20)
+                print("OK")
+                print(f"  Response: {response.strip()[:50]}")
                 print(f"  Usage: {usage.total_tokens} total tokens")
             except Exception as e:
                 print(f"FAILED: {e}")

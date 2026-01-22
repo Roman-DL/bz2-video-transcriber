@@ -11,6 +11,7 @@ Modules:
     h2_chunker: Deterministic H2-based markdown chunking (v0.25+)
     media_utils: Media file handling (duration, type detection) (v0.28+)
     pricing_utils: LLM cost calculation (v0.42+)
+    pdf_utils: PDF to image conversion for slides (v0.50+)
 """
 
 from app.utils.chunk_utils import (
@@ -25,6 +26,10 @@ from app.utils.media_utils import (
     get_media_duration,
     is_audio_file,
     is_video_file,
+)
+from app.utils.pdf_utils import (
+    pdf_page_count,
+    pdf_to_images,
 )
 from app.utils.pricing_utils import (
     calculate_cost,
@@ -58,4 +63,7 @@ __all__ = [
     # pricing_utils
     "calculate_cost",
     "get_model_pricing",
+    # pdf_utils
+    "pdf_to_images",
+    "pdf_page_count",
 ]

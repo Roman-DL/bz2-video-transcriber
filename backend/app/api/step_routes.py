@@ -24,11 +24,13 @@ from app.models.schemas import (
     Longread,
     ProcessingStatus,
     RawTranscript,
+    SlidesExtractionResult,
     StepChunkRequest,
     StepCleanRequest,
     StepLongreadRequest,
     StepParseRequest,
     StepSaveRequest,
+    StepSlidesRequest,
     StepStoryRequest,
     StepSummarizeRequest,
     Story,
@@ -36,7 +38,9 @@ from app.models.schemas import (
     TranscriptChunks,
     VideoMetadata,
 )
+from app.services.ai_clients import ClaudeClient
 from app.services.pipeline import PipelineOrchestrator
+from app.services.slides_extractor import SlidesExtractor
 from app.utils import get_media_duration
 from app.services.progress_estimator import ProgressEstimator
 
@@ -341,6 +345,51 @@ async def step_clean(request: StepCleanRequest) -> StreamingResponse:
     )
 
 
+@router.post("/slides")
+async def step_slides(request: StepSlidesRequest) -> StreamingResponse:
+    """
+    Extract text from slides using vision API with SSE progress.
+
+    v0.50+: Processes uploaded slides (images/PDFs) and extracts
+    structured text using Claude Vision API.
+
+    Args:
+        request: StepSlidesRequest with slides and optional model override
+
+    Returns:
+        StreamingResponse with SSE events -> SlidesExtractionResult
+    """
+    settings = get_settings()
+    estimator = ProgressEstimator(settings)
+
+    # Estimate time based on slide count
+    slides_count = len(request.slides)
+    # Approximately 3 seconds per slide for Haiku
+    estimated_seconds = slides_count * 3.0
+
+    async def extract_slides() -> SlidesExtractionResult:
+        async with ClaudeClient.from_settings(settings) as client:
+            extractor = SlidesExtractor(
+                client,
+                settings,
+                prompt_overrides=request.prompt_overrides,
+            )
+            return await extractor.extract(
+                slides=request.slides,
+                model=request.model,
+            )
+
+    return create_sse_response(
+        run_with_sse_progress(
+            stage=ProcessingStatus.SLIDES,
+            estimator=estimator,
+            estimated_seconds=estimated_seconds,
+            message=f"Extracting text from {slides_count} slides",
+            operation=extract_slides,
+        )
+    )
+
+
 @router.post("/chunk", response_model=TranscriptChunks)
 async def step_chunk(request: StepChunkRequest) -> TranscriptChunks:
     """
@@ -399,6 +448,7 @@ async def step_longread(request: StepLongreadRequest) -> StreamingResponse:
                 metadata=request.metadata,
                 model=request.model,
                 prompt_overrides=request.prompt_overrides,
+                slides_text=request.slides_text,  # v0.50+
             ),
         )
     )
