@@ -3,6 +3,20 @@
  * Source: backend/app/models/schemas.py
  */
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Metrics Types (v0.42+)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Token usage from LLM API.
+ * Note: `total` is a computed field in Pydantic and NOT serialized to JSON.
+ * Calculate total as `input + output` when needed.
+ */
+export interface TokensUsed {
+  input: number;
+  output: number;
+}
+
 // Content type determines pipeline flow
 export type ContentType = 'educational' | 'leadership';
 
@@ -41,6 +55,12 @@ export interface RawTranscript {
   whisper_model: string;
   full_text: string;
   text_with_timestamps: string;
+  // Metrics (v0.42+) — computed fields serialize to JSON
+  chars: number;
+  words: number;
+  // Optional metrics
+  confidence?: number; // 0-1 from Whisper avg_logprob
+  processing_time_sec?: number;
 }
 
 /**
@@ -58,6 +78,13 @@ export interface CleanedTranscript {
   original_length: number;
   cleaned_length: number;
   model_name: string;
+  // Metrics (v0.42+) — computed fields serialize to JSON
+  words: number;
+  change_percent: number;
+  // Optional metrics from LLM
+  tokens_used?: TokensUsed;
+  cost?: number;
+  processing_time_sec?: number;
 }
 
 export interface TranscriptChunk {
@@ -73,6 +100,8 @@ export interface TranscriptChunks {
   total_chunks: number;
   avg_chunk_size: number;
   model_name: string;
+  // Metrics (v0.42+)
+  total_tokens?: number;
 }
 
 export interface VideoSummary {
@@ -115,6 +144,12 @@ export interface Longread {
   tags: string[];
   access_level: string; // consultant | leader | personal
   model_name: string;
+  // Metrics (v0.42+) — computed field
+  chars: number;
+  // Optional metrics from LLM
+  tokens_used?: TokensUsed;
+  cost?: number;
+  processing_time_sec?: number;
 }
 
 export interface Summary {
@@ -132,6 +167,13 @@ export interface Summary {
   tags: string[];
   access_level: string; // consultant | leader | personal
   model_name: string;
+  // Metrics (v0.42+) — computed fields
+  chars: number;
+  words: number;
+  // Optional metrics from LLM
+  tokens_used?: TokensUsed;
+  cost?: number;
+  processing_time_sec?: number;
 }
 
 // Leadership story (8 blocks structure)
@@ -164,6 +206,12 @@ export interface Story {
   related: string[];
   total_blocks: number;
   model_name: string;
+  // Metrics (v0.42+) — computed field
+  chars: number;
+  // Optional metrics from LLM
+  tokens_used?: TokensUsed;
+  cost?: number;
+  processing_time_sec?: number;
 }
 
 export interface PartOutline {
