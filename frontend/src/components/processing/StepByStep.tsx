@@ -46,11 +46,9 @@ import {
   Play,
   Save,
   FileText,
-  Zap,
   Layers,
   Clock,
   RefreshCw,
-  X,
   Loader2,
   FileAudio,
   Sparkles,
@@ -58,8 +56,8 @@ import {
   ListChecks,
   FolderOutput,
   Heart,
-  ChevronDown,
-  ChevronUp,
+  ChevronRight,
+  Settings,
 } from 'lucide-react';
 
 interface StepByStepProps {
@@ -109,6 +107,17 @@ const STEP_ICONS: Record<PipelineStep, React.ComponentType<{ className?: string 
   save: FolderOutput,
 };
 
+// Tab icons mapping
+const TAB_ICONS: Record<ResultTab, React.ComponentType<{ className?: string }>> = {
+  metadata: FileText,
+  rawTranscript: FileAudio,
+  cleanedTranscript: Sparkles,
+  longread: BookOpen,
+  summary: ListChecks,
+  story: Heart,
+  chunks: Layers,
+};
+
 export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: StepByStepProps) {
   const [currentStep, setCurrentStep] = useState<PipelineStep>('parse');
   const [data, setData] = useState<StepData>({});
@@ -116,7 +125,7 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
   const [activeTab, setActiveTab] = useState<ResultTab | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [parseError, setParseError] = useState<string | null>(null);
-  const [showRerunSettings, setShowRerunSettings] = useState(false);
+  const [expandedSettings, setExpandedSettings] = useState<PipelineStep | null>(null);
   const [promptOverrides, setPromptOverrides] = useState<StagePromptOverrides>({
     clean: {},
     longread: {},
@@ -370,15 +379,6 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
     setError(null);
   };
 
-  // Handle click on completed step (re-run from that step)
-  const handleStepClick = (step: PipelineStep) => {
-    resetDataFromStep(step);
-    setCurrentStep(step);
-    // Set active tab to the result of the step we're re-running
-    const tabForStep = getTabForStep(step);
-    if (tabForStep) setActiveTab(tabForStep);
-  };
-
   const runStep = async (step: PipelineStep) => {
     setError(null);
 
@@ -517,10 +517,11 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
     }
   };
 
-  const getStepStatus = (step: PipelineStep): 'pending' | 'completed' | 'current' | 'running' => {
+  const getStepStatus = (step: PipelineStep): 'pending' | 'completed' | 'current' | 'next' | 'running' => {
     const stepIndex = pipelineSteps.indexOf(step);
     if (stepIndex < currentStepIndex) return 'completed';
     if (stepIndex === currentStepIndex) return isLoading ? 'running' : 'current';
+    if (stepIndex === currentStepIndex + 1) return 'next';
     return 'pending';
   };
 
@@ -529,13 +530,11 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
     return STAGES_WITH_PROMPTS.includes(step as StageWithPrompts);
   };
 
-  // Find the last completed LLM step before current step
-  const getPreviousCompletedLLMStep = (): StageWithModels | null => {
-    const currentIndex = pipelineSteps.indexOf(currentStep);
-    for (let i = currentIndex - 1; i >= 0; i--) {
+  // Find the last completed LLM step (the "current" one for rerun)
+  const getLastCompletedLLMStep = (): StageWithModels | null => {
+    for (let i = currentStepIndex - 1; i >= 0; i--) {
       const step = pipelineSteps[i];
       if (isLLMStep(step)) {
-        // Check if step is actually completed (has result)
         const hasResult = (() => {
           switch (step) {
             case 'clean': return !!data.cleanedTranscript;
@@ -553,12 +552,13 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
 
   // Rerun a step with current overrides
   const rerunStep = async (step: PipelineStep) => {
+    setExpandedSettings(null);
     resetDataFromStep(step);
     setCurrentStep(step);
     await runStep(step);
   };
 
-  const previousLLMStep = getPreviousCompletedLLMStep();
+  const lastCompletedLLMStep = getLastCompletedLLMStep();
 
   // Get tab for step result
   const getTabForStep = (step: PipelineStep): ResultTab | null => {
@@ -623,15 +623,15 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
   // Loading state during auto-parse
   if (isInitializing) {
     return (
-      <div className="flex items-center justify-center py-24" style={{ fontFamily: 'var(--font-body)' }}>
+      <div className="flex items-center justify-center py-24">
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'var(--color-cream-dark)' }}>
-            <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-accent)' }} />
+          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-blue-50 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
           </div>
-          <h3 className="text-lg font-medium mb-2" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-charcoal)' }}>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
             Анализ метаданных
           </h3>
-          <p className="text-sm" style={{ color: 'var(--color-warm-gray)' }}>
+          <p className="text-sm text-gray-500">
             {filename}
           </p>
         </div>
@@ -642,15 +642,15 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
   // Parse error state
   if (parseError) {
     return (
-      <div className="py-12" style={{ fontFamily: 'var(--font-body)' }}>
+      <div className="py-12">
         <div className="max-w-md mx-auto text-center">
-          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'var(--color-error-light)' }}>
-            <AlertCircle className="w-8 h-8" style={{ color: 'var(--color-error)' }} />
+          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-red-50 flex items-center justify-center">
+            <AlertCircle className="w-8 h-8 text-red-500" />
           </div>
-          <h3 className="text-lg font-medium mb-2" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-charcoal)' }}>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
             Ошибка парсинга
           </h3>
-          <p className="text-sm mb-6" style={{ color: 'var(--color-warm-gray)' }}>
+          <p className="text-sm text-gray-500 mb-6">
             {parseError}
           </p>
           <Button variant="secondary" onClick={onCancel}>
@@ -664,162 +664,168 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
   // Auto-run layout (single column, centered)
   if (autoRun) {
     return (
-      <div className="py-6" style={{ fontFamily: 'var(--font-body)', backgroundColor: 'var(--color-cream)' }}>
+      <div className="flex flex-col h-screen bg-slate-50">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8 px-4">
-          <div>
-            <h2 className="text-xl font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-charcoal)' }}>
-              {isComplete ? 'Обработка завершена' : 'Автоматическая обработка'}
-            </h2>
-            <p className="text-sm mt-1 truncate max-w-md" style={{ color: 'var(--color-warm-gray)' }}>
+        <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+              Автоматическая обработка
+            </span>
+            <h1 className="text-lg font-medium text-gray-900 truncate max-w-xl">
               {filename}
-            </p>
+            </h1>
           </div>
           <button
             onClick={onCancel}
             disabled={isLoading && !isComplete}
-            className="p-2 rounded-lg hover:bg-black/5 transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-gray-600 bg-transparent border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
-            <X className="w-5 h-5" style={{ color: 'var(--color-warm-gray)' }} />
+            Отменить
           </button>
-        </div>
+        </header>
 
-        <div className="max-w-lg mx-auto px-4">
-          {/* Current step card */}
-          {!isComplete && (
-            <div className="rounded-2xl p-6 mb-8" style={{ backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'var(--color-info-light)' }}>
-                  <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--color-info)' }} />
-                </div>
-                <div>
-                  <div className="text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--color-info)' }}>
-                    Выполняется
+        {/* Main content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-lg mx-auto">
+            {/* Current step card */}
+            {!isComplete && (
+              <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                    <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
                   </div>
-                  <div className="font-medium" style={{ color: 'var(--color-charcoal)' }}>
-                    Шаг {currentStepIndex + 1} из {pipelineSteps.length}: {STEP_LABELS[currentStep]}
+                  <div>
+                    <div className="text-xs uppercase tracking-wide font-semibold text-blue-600">
+                      Выполняется
+                    </div>
+                    <div className="font-medium text-gray-900">
+                      Шаг {currentStepIndex + 1} из {pipelineSteps.length}: {STEP_LABELS[currentStep]}
+                    </div>
                   </div>
                 </div>
+
+                <p className="text-sm text-gray-600 mb-4">
+                  {message || getStepDescription(currentStep)}
+                </p>
+
+                {progress !== null && (
+                  <div>
+                    <ProgressBar progress={progress} size="sm" showLabel={false} />
+                    <div className="mt-2 flex justify-between text-xs text-gray-500">
+                      <span>{Math.round(progress)}%</span>
+                      {estimatedSeconds !== null && elapsedSeconds !== null && estimatedSeconds > 0 && (
+                        <span className="text-blue-600">
+                          {formatETA(estimatedSeconds, elapsedSeconds)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
+            )}
 
-              <p className="text-sm mb-4" style={{ color: 'var(--color-warm-gray)' }}>
-                {message || getStepDescription(currentStep)}
-              </p>
-
-              {progress !== null && (
-                <div>
-                  <ProgressBar progress={progress} size="sm" showLabel={false} />
-                  <div className="mt-2 flex justify-between text-xs" style={{ color: 'var(--color-warm-gray)' }}>
-                    <span>{Math.round(progress)}%</span>
-                    {estimatedSeconds !== null && elapsedSeconds !== null && estimatedSeconds > 0 && (
-                      <span style={{ color: 'var(--color-info)' }}>
-                        {formatETA(estimatedSeconds, elapsedSeconds)}
-                      </span>
-                    )}
+            {/* Success card */}
+            {isComplete && data.savedFiles && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 mb-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center">
+                    <CheckCircle className="w-5 h-5 text-emerald-500" />
                   </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Success card */}
-          {isComplete && data.savedFiles && (
-            <div className="rounded-2xl p-6 mb-8" style={{ backgroundColor: 'var(--color-success-light)', border: '1px solid var(--color-success)' }}>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'white' }}>
-                  <CheckCircle className="w-5 h-5" style={{ color: 'var(--color-success)' }} />
-                </div>
-                <div>
-                  <div className="font-medium" style={{ color: 'var(--color-success)' }}>
+                  <div className="font-medium text-emerald-700">
                     Успешно сохранено
                   </div>
                 </div>
+
+                <p className="text-sm text-gray-700 mb-3">
+                  Файлы сохранены в архив:
+                </p>
+                <ul className="text-sm space-y-1 text-gray-600">
+                  {data.savedFiles.map((file) => (
+                    <li key={file} className="flex items-center gap-2">
+                      <span>•</span>
+                      <span className="font-mono">{file}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
+            )}
 
-              <p className="text-sm mb-3" style={{ color: 'var(--color-charcoal)' }}>
-                Файлы сохранены в архив:
-              </p>
-              <ul className="text-sm space-y-1" style={{ color: 'var(--color-warm-gray)' }}>
-                {data.savedFiles.map((file) => (
-                  <li key={file} className="flex items-center gap-2">
-                    <span>•</span>
-                    <span style={{ fontFamily: 'var(--font-mono)' }}>{file}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Error */}
-          {error && (
-            <div className="rounded-2xl p-6 mb-8" style={{ backgroundColor: 'var(--color-error-light)', border: '1px solid var(--color-error)' }}>
-              <div className="flex items-center gap-3">
-                <AlertCircle className="w-5 h-5" style={{ color: 'var(--color-error)' }} />
-                <div className="font-medium" style={{ color: 'var(--color-error)' }}>
-                  Ошибка
+            {/* Error */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-5 mb-6">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-500" />
+                  <div className="font-medium text-red-700">Ошибка</div>
                 </div>
+                <p className="mt-2 text-sm text-gray-700">{error}</p>
               </div>
-              <p className="mt-2 text-sm" style={{ color: 'var(--color-charcoal)' }}>{error}</p>
-            </div>
-          )}
+            )}
 
-          {/* Steps list */}
-          <div className="mb-8">
-            <h3 className="text-sm font-medium mb-4" style={{ color: 'var(--color-charcoal)' }}>
-              Этапы обработки
-            </h3>
-            <div className="space-y-2">
-              {pipelineSteps.map((step, index) => {
-                const status = getStepStatus(step);
-                const stats = getStepStats(step);
-                const Icon = STEP_ICONS[step];
+            {/* Steps list */}
+            <div className="mb-8">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-4">
+                Этапы обработки
+              </h3>
+              <div className="flex flex-col">
+                {pipelineSteps.map((step, index) => {
+                  const status = getStepStatus(step);
+                  const stats = getStepStats(step);
+                  const Icon = STEP_ICONS[step];
 
-                return (
-                  <div
-                    key={step}
-                    className="flex items-center gap-3 py-2"
-                  >
-                    <div className="w-6 h-6 flex items-center justify-center">
-                      {status === 'completed' ? (
-                        <CheckCircle className="w-5 h-5" style={{ color: 'var(--color-success)' }} />
-                      ) : status === 'running' ? (
-                        <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--color-info)' }} />
-                      ) : status === 'current' ? (
-                        <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-info)', color: 'white' }}>
-                          <span className="text-xs font-medium">{index + 1}</span>
+                  return (
+                    <div key={step} className="relative">
+                      <div className="flex items-start gap-3 px-3 py-2.5">
+                        <div className="relative flex flex-col items-center pt-0.5">
+                          {status === 'completed' ? (
+                            <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                          ) : status === 'running' ? (
+                            <Loader2 className="w-5 h-5 text-blue-500 animate-spin flex-shrink-0" />
+                          ) : status === 'current' ? (
+                            <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                              <ChevronRight className="w-3 h-3 text-white" />
+                            </div>
+                          ) : (
+                            <Circle className="w-5 h-5 text-gray-300 flex-shrink-0" />
+                          )}
+                          {index < pipelineSteps.length - 1 && (
+                            <div className={`absolute top-6 left-1/2 -translate-x-1/2 w-0.5 h-8 ${
+                              status === 'completed' ? 'bg-emerald-500' : 'bg-gray-200'
+                            }`} />
+                          )}
                         </div>
-                      ) : (
-                        <Circle className="w-5 h-5" style={{ color: 'var(--color-accent-light)' }} />
-                      )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Icon className={`w-4 h-4 ${
+                              status === 'pending' ? 'text-gray-300' : 'text-gray-400'
+                            }`} />
+                            <span className={`text-sm font-medium ${
+                              status === 'pending' ? 'text-gray-400' : 'text-gray-900'
+                            }`}>
+                              {STEP_LABELS[step]}
+                            </span>
+                          </div>
+                        </div>
+                        {stats && (
+                          <span className="text-xs text-gray-400 font-mono">
+                            {stats}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <span style={{ color: status === 'pending' ? 'var(--color-accent-light)' : 'var(--color-warm-gray)' }}>
-                      <Icon className="w-4 h-4" />
-                    </span>
-                    <span
-                      className="flex-1 text-sm"
-                      style={{ color: status === 'pending' ? 'var(--color-accent-light)' : 'var(--color-charcoal)' }}
-                    >
-                      {STEP_LABELS[step]}
-                    </span>
-                    {stats && (
-                      <span className="text-xs" style={{ color: 'var(--color-warm-gray)', fontFamily: 'var(--font-mono)' }}>
-                        {stats}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          {/* Actions */}
-          {isComplete && (
-            <div className="flex justify-center">
-              <Button onClick={onComplete}>
-                Закрыть
-              </Button>
-            </div>
-          )}
+            {/* Actions */}
+            {isComplete && (
+              <div className="flex justify-center">
+                <Button onClick={onComplete}>
+                  Закрыть
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -829,440 +835,434 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
   const availableTabs = getAvailableTabs();
 
   return (
-    <div style={{ fontFamily: 'var(--font-body)', backgroundColor: 'var(--color-cream)' }} className="h-full">
+    <div className="flex flex-col h-screen bg-slate-50">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--color-cream-dark)' }}>
-        <div className="flex items-center gap-4">
-          <h2 className="text-xl font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-charcoal)' }}>
+      <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
             Пошаговая обработка
-          </h2>
+          </span>
+          <h1 className="text-lg font-medium text-gray-900 truncate max-w-2xl">
+            {filename}
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
           {contentType === 'leadership' && (
-            <span className="px-2 py-1 rounded-md text-xs font-medium" style={{ backgroundColor: 'var(--color-accent-light)', color: 'var(--color-charcoal)' }}>
+            <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-700">
               Лидерская история
             </span>
           )}
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm truncate max-w-xs" style={{ color: 'var(--color-warm-gray)' }}>
-            {filename}
-          </span>
           <button
             onClick={onCancel}
-            className="p-2 rounded-lg hover:bg-black/5 transition-colors"
+            className="px-4 py-2 text-sm font-medium text-gray-600 bg-transparent border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
-            <X className="w-5 h-5" style={{ color: 'var(--color-warm-gray)' }} />
+            Отменить
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* Main content: split view */}
-      <div className="flex" style={{ height: 'calc(100vh - 200px)', minHeight: '500px' }}>
-        {/* Left panel: Pipeline Control */}
-        <div className="w-[340px] shrink-0 border-r overflow-y-auto" style={{ borderColor: 'var(--color-cream-dark)', backgroundColor: 'white' }}>
-          <div className="p-6">
-            {/* Next step card */}
-            {!isComplete && (
-              <div className="rounded-xl p-5 mb-6" style={{ backgroundColor: 'var(--color-cream)', border: '1px solid var(--color-cream-dark)' }}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{ backgroundColor: isLoading ? 'var(--color-info-light)' : 'var(--color-accent-light)' }}
-                  >
-                    {isLoading ? (
-                      <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--color-info)' }} />
-                    ) : (
-                      <span className="text-lg font-semibold" style={{ color: 'var(--color-accent)' }}>
-                        {currentStepIndex + 1}
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <div className="text-xs uppercase tracking-wide font-medium" style={{ color: isLoading ? 'var(--color-info)' : 'var(--color-accent)' }}>
-                      {isLoading ? 'Выполняется' : 'Следующий шаг'}
-                    </div>
-                    <div className="font-medium" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-charcoal)' }}>
-                      {STEP_LABELS[currentStep]}
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-sm mb-4" style={{ color: 'var(--color-warm-gray)' }}>
-                  {message || getStepDescription(currentStep)}
-                </p>
-
-                {/* Progress for long-running steps */}
-                {isLoading && progress !== null && (
-                  <div className="mb-4">
-                    <ProgressBar progress={progress} size="sm" showLabel={false} />
-                    <div className="mt-2 flex justify-between text-xs" style={{ color: 'var(--color-warm-gray)' }}>
-                      <span>{Math.round(progress)}%</span>
-                      {estimatedSeconds !== null && elapsedSeconds !== null && estimatedSeconds > 0 && (
-                        <span style={{ color: 'var(--color-info)' }}>
-                          {formatETA(estimatedSeconds, elapsedSeconds)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Execute button */}
-                {!isLoading && (
-                  <Button
-                    onClick={() => runStep(currentStep)}
-                    className="w-full flex items-center justify-center gap-2"
-                  >
-                    {currentStep === 'save' ? (
-                      <Save className="w-4 h-4" />
-                    ) : (
-                      <Play className="w-4 h-4" />
-                    )}
-                    Выполнить
-                  </Button>
-                )}
+      {/* Main content area */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left Panel - Pipeline Control */}
+        <aside className="w-80 flex flex-col gap-5 p-5 bg-white border-r border-gray-200 overflow-y-auto">
+          {/* Next Step Action - Primary CTA */}
+          {!isComplete && (
+            <div className="p-5 bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-blue-400" />
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-blue-600 bg-white px-2 py-1 rounded">
+                  {isLoading ? 'Выполняется' : 'Следующий'}
+                </span>
+                <span className="text-xs text-blue-700 font-medium">
+                  Шаг {currentStepIndex + 1}
+                </span>
               </div>
-            )}
-
-            {/* Success card */}
-            {isComplete && data.savedFiles && (
-              <div className="rounded-xl p-5 mb-6" style={{ backgroundColor: 'var(--color-success-light)', border: '1px solid var(--color-success)' }}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'white' }}>
-                    <CheckCircle className="w-5 h-5" style={{ color: 'var(--color-success)' }} />
-                  </div>
-                  <div className="font-medium" style={{ color: 'var(--color-success)' }}>
-                    Успешно сохранено
-                  </div>
-                </div>
-                <ul className="text-sm space-y-1 mb-4" style={{ color: 'var(--color-charcoal)' }}>
-                  {data.savedFiles.map((file) => (
-                    <li key={file} className="flex items-center gap-2">
-                      <span>•</span>
-                      <span style={{ fontFamily: 'var(--font-mono)' }}>{file}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Button onClick={onComplete} className="w-full">
-                  Закрыть
-                </Button>
-              </div>
-            )}
-
-            {/* Error */}
-            {error && (
-              <div className="rounded-xl p-4 mb-6" style={{ backgroundColor: 'var(--color-error-light)', border: '1px solid var(--color-error)' }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertCircle className="w-4 h-4" style={{ color: 'var(--color-error)' }} />
-                  <span className="font-medium text-sm" style={{ color: 'var(--color-error)' }}>Ошибка</span>
-                </div>
-                <p className="text-sm" style={{ color: 'var(--color-charcoal)' }}>{error}</p>
-              </div>
-            )}
-
-            {/* Steps list */}
-            <div className="mb-6">
-              <h3 className="text-xs uppercase tracking-wide font-medium mb-4" style={{ color: 'var(--color-warm-gray)' }}>
-                Этапы обработки
+              <h3 className="text-base font-semibold text-gray-900 mb-1">
+                {STEP_LABELS[currentStep]}
               </h3>
-              <div className="space-y-1">
-                {pipelineSteps.map((step, index) => {
-                  const status = getStepStatus(step);
-                  const stats = getStepStats(step);
-                  const Icon = STEP_ICONS[step];
-                  const isClickable = status === 'completed' && !isLoading;
+              <p className="text-sm text-gray-600 mb-4 leading-relaxed">
+                {message || getStepDescription(currentStep)}
+              </p>
 
-                  return (
-                    <button
-                      key={step}
-                      onClick={() => isClickable && handleStepClick(step)}
-                      disabled={!isClickable}
-                      className={`w-full flex items-center gap-3 py-2.5 px-3 rounded-lg text-left transition-colors ${
-                        isClickable ? 'hover:bg-black/5 cursor-pointer' : 'cursor-default'
-                      } ${status === 'current' || status === 'running' ? 'bg-black/[0.03]' : ''}`}
-                    >
-                      <div className="w-6 h-6 flex items-center justify-center shrink-0">
-                        {status === 'completed' ? (
-                          <CheckCircle className="w-5 h-5" style={{ color: 'var(--color-success)' }} />
-                        ) : status === 'running' ? (
-                          <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--color-info)' }} />
-                        ) : status === 'current' ? (
-                          <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-info)', color: 'white' }}>
-                            <span className="text-xs font-medium">{index + 1}</span>
-                          </div>
-                        ) : (
-                          <Circle className="w-5 h-5" style={{ color: 'var(--color-accent-light)' }} />
-                        )}
-                      </div>
-                      <span
-                        className="shrink-0"
-                        style={{ color: status === 'pending' ? 'var(--color-accent-light)' : 'var(--color-warm-gray)' }}
-                      >
-                        <Icon className="w-4 h-4" />
+              {/* Progress for long-running steps */}
+              {isLoading && progress !== null && (
+                <div className="mb-4">
+                  <ProgressBar progress={progress} size="sm" showLabel={false} />
+                  <div className="mt-2 flex justify-between text-xs text-gray-500">
+                    <span>{Math.round(progress)}%</span>
+                    {estimatedSeconds !== null && elapsedSeconds !== null && estimatedSeconds > 0 && (
+                      <span className="text-blue-600">
+                        {formatETA(estimatedSeconds, elapsedSeconds)}
                       </span>
-                      <span
-                        className="flex-1 text-sm"
-                        style={{ color: status === 'pending' ? 'var(--color-accent-light)' : 'var(--color-charcoal)' }}
-                      >
-                        {STEP_LABELS[step]}
-                      </span>
-                      {stats && (
-                        <span
-                          className="text-xs shrink-0"
-                          style={{ color: 'var(--color-warm-gray)', fontFamily: 'var(--font-mono)' }}
-                        >
-                          {stats}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Rerun settings for previous LLM step */}
-            {previousLLMStep && !isLoading && !isComplete && (
-              <div className="border-t pt-4" style={{ borderColor: 'var(--color-cream-dark)' }}>
-                <button
-                  onClick={() => setShowRerunSettings(!showRerunSettings)}
-                  className="w-full flex items-center justify-between py-2 text-sm hover:opacity-80 transition-opacity"
-                >
-                  <span className="flex items-center gap-2" style={{ color: 'var(--color-warm-gray)' }}>
-                    <RefreshCw className="w-4 h-4" />
-                    Перезапустить {STEP_LABELS[previousLLMStep]}
-                  </span>
-                  {showRerunSettings ? (
-                    <ChevronUp className="w-4 h-4" style={{ color: 'var(--color-warm-gray)' }} />
-                  ) : (
-                    <ChevronDown className="w-4 h-4" style={{ color: 'var(--color-warm-gray)' }} />
-                  )}
-                </button>
-
-                {showRerunSettings && (
-                  <div className="mt-3 p-4 rounded-lg space-y-4" style={{ backgroundColor: 'var(--color-cream)' }}>
-                    {/* Model selector */}
-                    {llmOptions.length > 0 && (() => {
-                      const settingsKey = previousLLMStep === 'story' ? 'summarize' : previousLLMStep;
-                      return (
-                        <ModelSelector
-                          label="Модель"
-                          value={modelOverrides[previousLLMStep]}
-                          defaultValue={defaultModels?.[settingsKey] || models[settingsKey] || ''}
-                          options={llmOptions}
-                          onChange={(value) => setModelOverrides((prev) => ({ ...prev, [previousLLMStep]: value }))}
-                          compact
-                        />
-                      );
-                    })()}
-
-                    {/* Prompt selectors */}
-                    {hasSelectablePrompts(getPromptsForStep(previousLLMStep)) && (
-                      <>
-                        <div className="border-t border-dashed" style={{ borderColor: 'var(--color-cream-dark)' }} />
-                        <div>
-                          <span className="text-xs mb-2 block" style={{ color: 'var(--color-warm-gray)' }}>Промпты:</span>
-                          <div className="grid grid-cols-2 gap-2">
-                            {getPromptsForStep(previousLLMStep)?.components.map((comp) => (
-                              <ComponentPromptSelector
-                                key={comp.component}
-                                label={comp.component}
-                                componentData={comp}
-                                value={promptOverrides[previousLLMStep]?.[comp.component as keyof PromptOverrides]}
-                                onChange={(value) =>
-                                  updatePromptOverride(
-                                    previousLLMStep,
-                                    comp.component as keyof PromptOverrides,
-                                    value
-                                  )
-                                }
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </>
                     )}
-
-                    {/* Rerun button */}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => rerunStep(previousLLMStep)}
-                      className="w-full flex items-center justify-center gap-2"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      Перезапустить
-                    </Button>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+                </div>
+              )}
 
-        {/* Right panel: Results Viewer */}
-        <div className="flex-1 flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--color-cream)' }}>
-          {/* Tabs */}
-          {availableTabs.length > 0 && (
-            <div className="shrink-0 border-b px-6 pt-4" style={{ borderColor: 'var(--color-cream-dark)', backgroundColor: 'white' }}>
-              <div className="flex gap-1 -mb-px">
-                {availableTabs.map((tab) => {
-                  const isActive = activeTab === tab;
-                  return (
-                    <button
-                      key={tab}
-                      onClick={() => setActiveTab(tab)}
-                      className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
-                        isActive
-                          ? 'bg-[var(--color-cream)] border border-b-0'
-                          : 'hover:bg-black/5'
-                      }`}
-                      style={{
-                        borderColor: isActive ? 'var(--color-cream-dark)' : 'transparent',
-                        color: isActive ? 'var(--color-charcoal)' : 'var(--color-warm-gray)',
-                      }}
-                    >
-                      {TAB_LABELS[tab]}
-                    </button>
-                  );
-                })}
-              </div>
+              {!isLoading && (
+                <button
+                  className="flex items-center justify-center gap-2 w-full px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
+                  disabled={isLoading}
+                  onClick={() => runStep(currentStep)}
+                >
+                  {currentStep === 'save' ? (
+                    <Save className="w-4 h-4" />
+                  ) : (
+                    <Play className="w-4 h-4" />
+                  )}
+                  Выполнить
+                </button>
+              )}
+
+              {isLoading && (
+                <div className="flex items-center justify-center gap-2 w-full px-5 py-3 text-sm font-semibold text-blue-600 bg-white/50 rounded-lg">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Выполняется...
+                </div>
+              )}
             </div>
           )}
 
-          {/* Tab content */}
-          <div className="flex-1 overflow-y-auto p-6">
-            {activeTab === 'metadata' && data.metadata && (
-              <div className="rounded-xl p-6" style={{ backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-                <div className="flex items-center gap-3 mb-4">
-                  <FileText className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-                  <h3 className="font-medium" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-charcoal)' }}>
-                    Метаданные
-                  </h3>
-                  {data.metadata.duration_seconds && (
-                    <span className="ml-auto flex items-center gap-1 text-sm" style={{ color: 'var(--color-warm-gray)' }}>
-                      <Clock className="w-3.5 h-3.5" />
-                      {formatDuration(data.metadata.duration_seconds)}
-                    </span>
-                  )}
+          {/* Success card */}
+          {isComplete && data.savedFiles && (
+            <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center">
+                  <CheckCircle className="w-5 h-5 text-emerald-500" />
                 </div>
-                <MetadataView metadata={data.metadata} />
+                <div className="font-semibold text-emerald-700">
+                  Успешно сохранено
+                </div>
               </div>
-            )}
+              <ul className="text-sm space-y-1 text-gray-700 mb-4">
+                {data.savedFiles.map((file) => (
+                  <li key={file} className="flex items-center gap-2">
+                    <span>•</span>
+                    <span className="font-mono text-xs">{file}</span>
+                  </li>
+                ))}
+              </ul>
+              <Button onClick={onComplete} className="w-full">
+                Закрыть
+              </Button>
+            </div>
+          )}
 
-            {activeTab === 'rawTranscript' && data.rawTranscript && (
-              <div className="rounded-xl p-6" style={{ backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-                <div className="flex items-center gap-3 mb-4">
-                  <FileAudio className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-                  <h3 className="font-medium" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-charcoal)' }}>
-                    Сырая транскрипция
-                  </h3>
-                  <div className="ml-auto flex items-center gap-3 text-sm" style={{ color: 'var(--color-warm-gray)' }}>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" />
-                      {formatDuration(data.rawTranscript.duration_seconds)}
-                    </span>
-                    <span>{data.rawTranscript.segments.length} сегментов</span>
-                  </div>
-                </div>
-                <RawTranscriptView transcript={data.rawTranscript} displayText={data.displayText || ''} />
+          {/* Error */}
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertCircle className="w-4 h-4 text-red-500" />
+                <span className="font-medium text-sm text-red-700">Ошибка</span>
               </div>
-            )}
+              <p className="text-sm text-gray-700">{error}</p>
+            </div>
+          )}
 
-            {activeTab === 'cleanedTranscript' && data.cleanedTranscript && (
-              <div className="rounded-xl p-6" style={{ backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-                <div className="flex items-center gap-3 mb-4">
-                  <Zap className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-                  <h3 className="font-medium" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-charcoal)' }}>
-                    Очищенная транскрипция
-                  </h3>
-                  <div className="ml-auto flex items-center gap-3 text-sm" style={{ color: 'var(--color-warm-gray)' }}>
-                    <span>{data.cleanedTranscript.cleaned_length.toLocaleString()} симв.</span>
-                    <span>
-                      -{Math.round(((data.cleanedTranscript.original_length - data.cleanedTranscript.cleaned_length) / data.cleanedTranscript.original_length) * 100)}%
-                    </span>
-                  </div>
-                </div>
-                <CleanedTranscriptView transcript={data.cleanedTranscript} />
-              </div>
-            )}
+          {/* Pipeline Steps */}
+          <div className="flex-1">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">
+              Этапы обработки
+            </h4>
+            <div className="flex flex-col">
+              {pipelineSteps.map((step, index) => {
+                const status = getStepStatus(step);
+                const Icon = STEP_ICONS[step];
+                const isExpanded = expandedSettings === step;
+                const isCurrent = step === lastCompletedLLMStep && status === 'completed';
+                const hasSettings = isLLMStep(step) && isCurrent;
 
-            {activeTab === 'longread' && data.longread && (
-              <div className="rounded-xl p-6" style={{ backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-                <div className="flex items-center gap-3 mb-4">
-                  <BookOpen className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-                  <h3 className="font-medium" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-charcoal)' }}>
-                    Лонгрид
-                  </h3>
-                  <div className="ml-auto flex items-center gap-3 text-sm" style={{ color: 'var(--color-warm-gray)' }}>
-                    <span>{data.longread.total_sections} секций</span>
-                    <span>{data.longread.total_word_count} слов</span>
-                  </div>
-                </div>
-                <LongreadView longread={data.longread} />
-              </div>
-            )}
+                return (
+                  <div key={step} className="relative">
+                    <div
+                      className={`flex items-start gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+                        (status === 'completed') ? 'hover:bg-gray-50' : ''
+                      }`}
+                      onClick={() => {
+                        if (status === 'completed') {
+                          const tabForStep = getTabForStep(step);
+                          if (tabForStep) setActiveTab(tabForStep);
+                        }
+                      }}
+                    >
+                      <div className="relative flex flex-col items-center pt-0.5">
+                        {status === 'completed' ? (
+                          <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                        ) : status === 'running' ? (
+                          <Loader2 className="w-5 h-5 text-blue-500 animate-spin flex-shrink-0" />
+                        ) : status === 'current' || status === 'next' ? (
+                          <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                            <ChevronRight className="w-3 h-3 text-white" />
+                          </div>
+                        ) : (
+                          <Circle className="w-5 h-5 text-gray-300 flex-shrink-0" />
+                        )}
+                        {index < pipelineSteps.length - 1 && (
+                          <div className={`absolute top-6 left-1/2 -translate-x-1/2 w-0.5 h-8 ${
+                            status === 'completed' ? 'bg-emerald-500' : 'bg-gray-200'
+                          }`} />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Icon className={`w-4 h-4 ${
+                            status === 'current' || status === 'running' ? 'text-blue-500' :
+                            status === 'completed' ? 'text-gray-500' : 'text-gray-300'
+                          }`} />
+                          <span className={`text-sm font-medium ${
+                            status === 'pending' ? 'text-gray-400' : 'text-gray-900'
+                          }`}>
+                            {STEP_LABELS[step]}
+                          </span>
+                          {isCurrent && (
+                            <span className="text-xs font-semibold uppercase tracking-wide text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                              текущий
+                            </span>
+                          )}
+                        </div>
+                        {hasSettings && (
+                          <button
+                            className="flex items-center gap-1 mt-1.5 px-2 py-1 text-xs font-medium text-gray-500 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedSettings(isExpanded ? null : step);
+                            }}
+                          >
+                            <Settings className="w-3 h-3" />
+                            <span>Настройки</span>
+                            <ChevronRight className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                          </button>
+                        )}
+                      </div>
+                      {isCurrent && (
+                        <button
+                          className="p-1.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            rerunStep(step);
+                          }}
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
 
-            {activeTab === 'summary' && data.summary && (
-              <div className="rounded-xl p-6" style={{ backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-                <div className="flex items-center gap-3 mb-4">
-                  <ListChecks className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-                  <h3 className="font-medium" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-charcoal)' }}>
-                    Конспект
-                  </h3>
-                  <div className="ml-auto flex items-center gap-3 text-sm" style={{ color: 'var(--color-warm-gray)' }}>
-                    <span>{data.summary.key_concepts.length} концепций</span>
-                    <span>{data.summary.quotes.length} цитат</span>
-                  </div>
-                </div>
-                <SummaryView summary={data.summary} />
-              </div>
-            )}
+                    {/* Expanded Settings Panel */}
+                    {isExpanded && hasSettings && isLLMStep(step) && (
+                      <div className="ml-8 mt-2 mb-2 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        {/* Model selector */}
+                        {llmOptions.length > 0 && (() => {
+                          const settingsKey = step === 'story' ? 'summarize' : step;
+                          return (
+                            <div className="flex flex-col gap-1.5 mb-3">
+                              <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">Модель</label>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-mono">
+                                  {(modelOverrides[step] || defaultModels?.[settingsKey] || models[settingsKey] || '').includes('claude') ? 'cloud' : 'local'}
+                                </span>
+                                <ModelSelector
+                                  value={modelOverrides[step]}
+                                  defaultValue={defaultModels?.[settingsKey] || models[settingsKey] || ''}
+                                  options={llmOptions}
+                                  onChange={(value) => setModelOverrides((prev) => ({ ...prev, [step]: value }))}
+                                  compact
+                                />
+                              </div>
+                            </div>
+                          );
+                        })()}
 
-            {activeTab === 'story' && data.story && (
-              <div className="rounded-xl p-6" style={{ backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-                <div className="flex items-center gap-3 mb-4">
-                  <Heart className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-                  <h3 className="font-medium" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-charcoal)' }}>
-                    Лидерская история
-                  </h3>
-                  <div className="ml-auto flex items-center gap-3 text-sm" style={{ color: 'var(--color-warm-gray)' }}>
-                    <span>{data.story.total_blocks} блоков</span>
-                    <span>{data.story.speed}</span>
-                  </div>
-                </div>
-                <StoryView story={data.story} />
-              </div>
-            )}
+                        {/* Prompt selectors */}
+                        {hasSelectablePrompts(getPromptsForStep(step)) && (
+                          <>
+                            <div className="h-px bg-gray-200 my-3" />
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">Промпты</label>
+                              <div className="grid grid-cols-2 gap-2">
+                                {getPromptsForStep(step)?.components.map((comp) => (
+                                  <ComponentPromptSelector
+                                    key={comp.component}
+                                    label={comp.component}
+                                    componentData={comp}
+                                    value={promptOverrides[step]?.[comp.component as keyof PromptOverrides]}
+                                    onChange={(value) =>
+                                      updatePromptOverride(
+                                        step,
+                                        comp.component as keyof PromptOverrides,
+                                        value
+                                      )
+                                    }
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </>
+                        )}
 
-            {activeTab === 'chunks' && data.chunks && (
-              <div className="rounded-xl p-6" style={{ backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-                <div className="flex items-center gap-3 mb-4">
-                  <Layers className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
-                  <h3 className="font-medium" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-charcoal)' }}>
-                    Семантические чанки
-                  </h3>
-                  <div className="ml-auto flex items-center gap-3 text-sm" style={{ color: 'var(--color-warm-gray)' }}>
-                    <span>{data.chunks.total_chunks} чанков</span>
-                    <span>~{data.chunks.avg_chunk_size} слов/чанк</span>
+                        {/* Rerun button */}
+                        <button
+                          className="flex items-center justify-center gap-2 w-full mt-3 px-3 py-2 text-xs font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
+                          onClick={() => rerunStep(step)}
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          Перезапустить
+                        </button>
+                      </div>
+                    )}
                   </div>
-                </div>
-                <ChunksView chunks={data.chunks} />
-              </div>
-            )}
-
-            {/* Empty state */}
-            {availableTabs.length === 0 && (
-              <div className="h-full flex items-center justify-center text-center">
-                <div>
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'var(--color-cream-dark)' }}>
-                    <FileText className="w-8 h-8" style={{ color: 'var(--color-accent-light)' }} />
-                  </div>
-                  <p className="text-sm" style={{ color: 'var(--color-warm-gray)' }}>
-                    Результаты обработки появятся здесь
-                  </p>
-                </div>
-              </div>
-            )}
+                );
+              })}
+            </div>
           </div>
-        </div>
+        </aside>
+
+        {/* Right Panel - Results Viewer */}
+        <main className="flex-1 flex flex-col bg-slate-50 overflow-hidden">
+          {availableTabs.length > 0 ? (
+            <>
+              {/* Tabs */}
+              <div className="flex gap-1 px-5 py-3 bg-white border-b border-gray-200 overflow-x-auto">
+                {availableTabs.map(tab => {
+                  const Icon = TAB_ICONS[tab];
+                  return (
+                    <button
+                      key={tab}
+                      className={`flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
+                        activeTab === tab
+                          ? 'text-blue-600 bg-blue-50 border border-blue-200'
+                          : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-transparent'
+                      }`}
+                      onClick={() => setActiveTab(tab)}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{TAB_LABELS[tab]}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Content Area */}
+              <div className="flex-1 p-5 overflow-y-auto">
+                {activeTab === 'metadata' && data.metadata && (
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
+                      <h3 className="text-lg font-semibold text-gray-900">Метаданные</h3>
+                      {data.metadata.duration_seconds && (
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <Clock className="w-3 h-3" />
+                          {formatDuration(data.metadata.duration_seconds)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-5">
+                      <MetadataView metadata={data.metadata} />
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'rawTranscript' && data.rawTranscript && (
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
+                      <h3 className="text-lg font-semibold text-gray-900">Сырая транскрипция</h3>
+                      <div className="flex items-center gap-3 text-xs text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatDuration(data.rawTranscript.duration_seconds)}
+                        </span>
+                        <span>{data.rawTranscript.segments.length} сегментов</span>
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      <RawTranscriptView transcript={data.rawTranscript} displayText={data.displayText || ''} />
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'cleanedTranscript' && data.cleanedTranscript && (
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
+                      <h3 className="text-lg font-semibold text-gray-900">Очищенная транскрипция</h3>
+                      <div className="flex items-center gap-3 text-xs text-gray-500">
+                        <span>{data.cleanedTranscript.cleaned_length.toLocaleString()} симв.</span>
+                        <span className="text-emerald-600">
+                          -{Math.round(((data.cleanedTranscript.original_length - data.cleanedTranscript.cleaned_length) / data.cleanedTranscript.original_length) * 100)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      <CleanedTranscriptView transcript={data.cleanedTranscript} />
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'longread' && data.longread && (
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
+                      <h3 className="text-lg font-semibold text-gray-900">Лонгрид</h3>
+                      <div className="flex items-center gap-3 text-xs text-gray-500">
+                        <span>{data.longread.total_sections} секций</span>
+                        <span>{data.longread.total_word_count} слов</span>
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      <LongreadView longread={data.longread} />
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'summary' && data.summary && (
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
+                      <h3 className="text-lg font-semibold text-gray-900">Конспект</h3>
+                      <div className="flex items-center gap-3 text-xs text-gray-500">
+                        <span>{data.summary.key_concepts.length} концепций</span>
+                        <span>{data.summary.quotes.length} цитат</span>
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      <SummaryView summary={data.summary} />
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'story' && data.story && (
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
+                      <h3 className="text-lg font-semibold text-gray-900">Лидерская история</h3>
+                      <div className="flex items-center gap-3 text-xs text-gray-500">
+                        <span>{data.story.total_blocks} блоков</span>
+                        <span>{data.story.speed}</span>
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      <StoryView story={data.story} />
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'chunks' && data.chunks && (
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
+                      <h3 className="text-lg font-semibold text-gray-900">Чанки</h3>
+                      <div className="flex items-center gap-3 text-xs text-gray-500">
+                        <span>{data.chunks.total_chunks} чанков</span>
+                        <span>~{data.chunks.avg_chunk_size} слов/чанк</span>
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      <ChunksView chunks={data.chunks} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
+              <FileText className="w-12 h-12 mb-3 opacity-40" />
+              <p>Результаты появятся после выполнения первого шага</p>
+            </div>
+          )}
+        </main>
       </div>
     </div>
   );
