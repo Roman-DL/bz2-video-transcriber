@@ -1,13 +1,17 @@
 import { useState } from 'react';
 import { Film, Music, Zap, ListOrdered, ChevronDown, Check } from 'lucide-react';
 import { isAudioFile } from '@/utils/fileUtils';
+import { SlidesAttachment } from '@/components/slides/SlidesAttachment';
 import type { ProcessingMode } from '@/contexts/SettingsContext';
+import type { SlideFile } from '@/api/types';
 
 interface VideoItemProps {
   filename: string;
   defaultMode: ProcessingMode;
+  slides: SlideFile[];
   onProcess: (filename: string, mode: ProcessingMode) => void;
   onModeChange: (mode: ProcessingMode) => void;
+  onOpenSlidesModal: () => void;
 }
 
 /**
@@ -120,7 +124,14 @@ function ProcessButton({ filename, defaultMode, onProcess, onModeChange }: Proce
   );
 }
 
-export function VideoItem({ filename, defaultMode, onProcess, onModeChange }: VideoItemProps) {
+export function VideoItem({
+  filename,
+  defaultMode,
+  slides,
+  onProcess,
+  onModeChange,
+  onOpenSlidesModal,
+}: VideoItemProps) {
   const { name, speaker } = parseFilename(filename);
   const isAudio = isAudioFile(filename);
   const FileIcon = isAudio ? Music : Film;
@@ -141,6 +152,11 @@ export function VideoItem({ filename, defaultMode, onProcess, onModeChange }: Vi
           </h3>
           {speaker && <p className="text-xs text-gray-400">{speaker}</p>}
         </div>
+      </div>
+
+      {/* Slides attachment section */}
+      <div className="mb-3 pt-3 border-t border-gray-100">
+        <SlidesAttachment slides={slides} onOpenModal={onOpenSlidesModal} />
       </div>
 
       <div className="flex items-center justify-end">

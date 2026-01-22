@@ -461,3 +461,62 @@ export interface PromptOverrides {
   instructions?: string;
   template?: string;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Slides Types (v0.52+)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Frontend representation of a slide file.
+ * Used in InboxCard for slides attachment.
+ */
+export interface SlideFile {
+  id: string;
+  name: string;
+  size: number;
+  type: 'image' | 'pdf';
+  file?: File;
+  preview?: string; // data URL for image preview
+}
+
+/**
+ * Backend slide input format for API.
+ * Source: backend/app/models/schemas.py
+ */
+export interface SlideInput {
+  filename: string;
+  content_type: string; // image/jpeg, image/png, application/pdf
+  data: string; // base64 encoded
+}
+
+/**
+ * Result from /api/step/slides endpoint.
+ * Source: backend/app/models/schemas.py
+ */
+export interface SlidesExtractionResult {
+  extracted_text: string;
+  slides_count: number;
+  chars_count: number;
+  words_count: number;
+  tables_count: number;
+  model: string;
+  tokens_used?: TokensUsed;
+  cost?: number;
+  processing_time_sec?: number;
+}
+
+/**
+ * Request for /api/step/slides endpoint.
+ */
+export interface StepSlidesRequest {
+  slides: SlideInput[];
+  model?: string;
+  prompt_overrides?: PromptOverrides;
+}
+
+// Slides limits for validation
+export const SLIDES_LIMITS = {
+  MAX_FILES: 50,
+  MAX_FILE_SIZE: 10 * 1024 * 1024, // 10 MB
+  MAX_TOTAL_SIZE: 100 * 1024 * 1024, // 100 MB
+} as const;

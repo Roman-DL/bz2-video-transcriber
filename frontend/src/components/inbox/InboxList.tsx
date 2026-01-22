@@ -1,16 +1,68 @@
+import { useState, useCallback } from 'react';
 import { useInbox } from '@/api/hooks/useInbox';
 import { Spinner } from '@/components/common/Spinner';
 import { VideoItem } from './VideoItem';
+import { SlidesModal } from '@/components/slides/SlidesModal';
 import { Inbox, RefreshCw } from 'lucide-react';
 import { useSettings, type ProcessingMode } from '@/contexts/SettingsContext';
+import type { SlideFile } from '@/api/types';
 
 interface InboxListProps {
-  onProcessVideo: (filename: string, mode: ProcessingMode) => void;
+  onProcessVideo: (filename: string, mode: ProcessingMode, slides: SlideFile[]) => void;
 }
 
 export function InboxList({ onProcessVideo }: InboxListProps) {
   const { data: files, isLoading, isError, refetch, isFetching } = useInbox();
   const { processingMode, setProcessingMode } = useSettings();
+
+  // Slides state: Map<filename, SlideFile[]>
+  const [slidesMap, setSlidesMap] = useState<Record<string, SlideFile[]>>({});
+
+  // Modal state
+  const [modalFilename, setModalFilename] = useState<string | null>(null);
+
+  // Get slides for a specific file
+  const getSlidesForFile = useCallback(
+    (filename: string): SlideFile[] => slidesMap[filename] || [],
+    [slidesMap]
+  );
+
+  // Update slides for a specific file
+  const updateSlidesForFile = useCallback((filename: string, slides: SlideFile[]) => {
+    setSlidesMap((prev) => ({
+      ...prev,
+      [filename]: slides,
+    }));
+  }, []);
+
+  // Handle process with slides
+  const handleProcess = useCallback(
+    (filename: string, mode: ProcessingMode) => {
+      const slides = getSlidesForFile(filename);
+      onProcessVideo(filename, mode, slides);
+    },
+    [getSlidesForFile, onProcessVideo]
+  );
+
+  // Open slides modal for a file
+  const openSlidesModal = useCallback((filename: string) => {
+    setModalFilename(filename);
+  }, []);
+
+  // Close slides modal
+  const closeSlidesModal = useCallback(() => {
+    setModalFilename(null);
+  }, []);
+
+  // Handle slides change from modal
+  const handleSlidesChange = useCallback(
+    (slides: SlideFile[]) => {
+      if (modalFilename) {
+        updateSlidesForFile(modalFilename, slides);
+      }
+    },
+    [modalFilename, updateSlidesForFile]
+  );
 
   return (
     <aside className="w-80 flex flex-col bg-white border-r border-gray-200">
@@ -60,8 +112,10 @@ export function InboxList({ onProcessVideo }: InboxListProps) {
               key={filename}
               filename={filename}
               defaultMode={processingMode}
-              onProcess={onProcessVideo}
+              slides={getSlidesForFile(filename)}
+              onProcess={handleProcess}
               onModeChange={setProcessingMode}
+              onOpenSlidesModal={() => openSlidesModal(filename)}
             />
           ))
         ) : (
@@ -71,6 +125,15 @@ export function InboxList({ onProcessVideo }: InboxListProps) {
           </div>
         )}
       </div>
+
+      {/* Slides Modal */}
+      <SlidesModal
+        isOpen={modalFilename !== null}
+        onClose={closeSlidesModal}
+        slides={modalFilename ? getSlidesForFile(modalFilename) : []}
+        onSlidesChange={handleSlidesChange}
+        fileName={modalFilename || ''}
+      />
     </aside>
   );
 }

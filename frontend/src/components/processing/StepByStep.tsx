@@ -60,13 +60,17 @@ import {
   Heart,
   ChevronRight,
   Settings,
+  Paperclip,
 } from 'lucide-react';
+
+import type { SlideFile } from '@/api/types';
 
 interface StepByStepProps {
   filename: string;
   onComplete: () => void;
   onCancel: () => void;
   autoRun?: boolean;
+  initialSlides?: SlideFile[];
 }
 
 interface StepData {
@@ -120,7 +124,9 @@ const TAB_ICONS: Record<ResultTab, React.ComponentType<{ className?: string }>> 
   chunks: Layers,
 };
 
-export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: StepByStepProps) {
+export function StepByStep({ filename, onComplete, onCancel, autoRun = false, initialSlides = [] }: StepByStepProps) {
+  // Track initial slides for future use in slides step (Phase 3)
+  const hasSlides = initialSlides.length > 0;
   const [currentStep, setCurrentStep] = useState<PipelineStep>('parse');
   const [data, setData] = useState<StepData>({});
   const [error, setError] = useState<string | null>(null);
@@ -885,6 +891,12 @@ export function StepByStep({ filename, onComplete, onCancel, autoRun = false }: 
           {contentType === 'leadership' && (
             <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 shrink-0">
               Лидерская история
+            </span>
+          )}
+          {hasSlides && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 shrink-0">
+              <Paperclip className="w-3 h-3" />
+              {initialSlides.length} слайдов
             </span>
           )}
         </div>
