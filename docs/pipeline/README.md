@@ -55,18 +55,19 @@
 
 | # | Этап | Документ | Инструмент | Вход | Выход |
 |---|------|----------|------------|------|-------|
-| 1 | Parse Filename | [01-parse.md](01-parse.md) | Python regex | `*.mp4` filename | `VideoMetadata` |
-| 2 | Transcribe | [02-transcribe.md](02-transcribe.md) | Whisper API | `*.mp4` file | `RawTranscript` |
-| 3 | Clean | [03-clean.md](03-clean.md) | Claude + Glossary | `RawTranscript` | `CleanedTranscript` |
-| 4 | **Slides** | (опционально) | Claude Vision | Изображения/PDF | `SlidesExtractionResult` |
-| 5 | Longread | [05-longread.md](05-longread.md) | Claude | `CleanedTranscript` + Slides | `Longread` (EDUCATIONAL) |
-| 5b | **Story** | [05b-story.md](05b-story.md) | Claude | `CleanedTranscript` | `Story` (LEADERSHIP) |
-| 6 | Summarize | [06-summarize.md](06-summarize.md) | Claude | Longread | `Summary` (EDUCATIONAL) |
-| 7 | Chunk | [04-chunk.md](04-chunk.md) | Python (H2 parse) | Longread/Story | `TranscriptChunks` |
-| 8 | Save | [07-save.md](07-save.md) | Python | All data | Files in archive |
+| 1 | Parse Filename | [01-parse.md](01-parse.md) | Python regex | `video_path` (Path) | `VideoMetadata` |
+| 2 | Transcribe | [02-transcribe.md](02-transcribe.md) | Whisper API | `VideoMetadata`, `video_path` | `Tuple[RawTranscript, Path]` |
+| 3 | Clean | [03-clean.md](03-clean.md) | Claude + Glossary | `RawTranscript`, `VideoMetadata` | `CleanedTranscript` |
+| 4 | **Slides** | (опционально, API) | Claude Vision | Изображения/PDF | `SlidesExtractionResult` |
+| 5 | Longread | [05-longread.md](05-longread.md) | Claude | `CleanedTranscript`, `VideoMetadata` | `Longread` (EDUCATIONAL) |
+| 5b | **Story** | [05b-story.md](05b-story.md) | Claude | `CleanedTranscript`, `VideoMetadata` | `Story` (LEADERSHIP) |
+| 6 | Summarize | [06-summarize.md](06-summarize.md) | Claude | `CleanedTranscript`, `VideoMetadata` | `Summary` (EDUCATIONAL) |
+| 7 | Chunk | [04-chunk.md](04-chunk.md) | Python (H2 parse) | `Longread` / `Story`, `VideoMetadata` | `TranscriptChunks` |
+| 8 | Save | [07-save.md](07-save.md) | Python | All stage results | `list[str]` (filenames) |
 
+> **v0.24+:** Summarize генерирует из `CleanedTranscript` (не из Longread) для доступа к полному контексту.
 > **v0.29+:** Все LLM-этапы по умолчанию используют Claude (требуется `ANTHROPIC_API_KEY`).
-> **Slides:** Опциональный шаг — появляется если пользователь прикрепил слайды презентации.
+> **Slides:** Опциональный шаг через отдельный API endpoint (`/api/step/slides`), не входит в stage abstraction.
 > **Chunk:** Детерминированный парсинг H2-заголовков (без LLM).
 
 ## Оркестрация и API
