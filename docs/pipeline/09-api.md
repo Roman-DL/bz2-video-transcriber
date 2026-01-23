@@ -26,122 +26,115 @@ uvicorn app.main:app --reload --port 8801
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
 | GET | `/health` | Базовый health check |
-| GET | `/health/services` | Статус AI сервисов (Whisper, Ollama) |
+| GET | `/health/services` | Статус AI сервисов (Whisper, Ollama, Claude) |
 
-### Full Pipeline
+### Archive
 
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
-| POST | `/api/process` | Запуск полного pipeline |
-| GET | `/api/jobs` | Список всех jobs |
-| GET | `/api/jobs/{job_id}` | Статус конкретного job |
 | GET | `/api/inbox` | Список файлов в inbox |
-| WS | `/ws/{job_id}` | Real-time progress |
+| GET | `/api/archive` | Структура архива (tree) |
+| GET | `/api/archive/results` | Результаты pipeline по видео |
 
 ### Step-by-Step
 
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
 | POST | `/api/step/parse` | Парсинг имени файла |
-| POST | `/api/step/transcribe` | Транскрипция (долго) |
-| POST | `/api/step/clean` | Очистка через LLM |
-| POST | `/api/step/chunk` | Семантическое разбиение |
-| POST | `/api/step/longread` | Генерация лонгрида из чанков |
-| POST | `/api/step/summarize` | Генерация конспекта из лонгрида |
+| POST | `/api/step/transcribe` | Транскрипция через Whisper (SSE) |
+| POST | `/api/step/clean` | Очистка через LLM (SSE) |
+| POST | `/api/step/slides` | Извлечение текста со слайдов (SSE, v0.50+) |
+| POST | `/api/step/longread` | Генерация лонгрида (SSE) |
+| POST | `/api/step/summarize` | Генерация конспекта (SSE) |
+| POST | `/api/step/story` | Генерация лидерской истории (SSE, v0.23+) |
+| POST | `/api/step/chunk` | H2 разбиение markdown |
 | POST | `/api/step/save` | Сохранение результатов |
+
+### Models API
+
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| GET | `/api/models/available` | Доступные модели (Ollama, Claude, Whisper) |
+| GET | `/api/models/default` | Модели по умолчанию для каждого этапа |
+| GET | `/api/models/config` | Конфигурация моделей из models.yaml |
+
+### Prompts API (v0.31+)
+
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| GET | `/api/prompts/{stage}` | Варианты промптов для этапа |
 
 ### Cache API (v0.18+)
 
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
 | GET | `/api/cache/{video_id}` | Информация о кэше видео |
-| POST | `/api/cache/rerun` | Перезапуск этапа с другой моделью |
+| GET | `/api/cache/{video_id}/{stage}` | Кэшированный результат этапа |
+| POST | `/api/cache/rerun` | Перезапуск этапа с другой моделью (SSE) |
 | POST | `/api/cache/version` | Установка текущей версии результата |
 
 > **Подробнее:** [ADR-005: Result Caching](../adr/005-result-caching.md)
 
 ---
 
-## Полный Pipeline
+## Archive API
 
-### POST /api/process
+### GET /api/inbox
 
-Запуск обработки видео с real-time progress через WebSocket.
+Список медиа-файлов в inbox директории.
 
-**Request:**
-```bash
-curl -X POST http://localhost:8801/api/process \
-  -H "Content-Type: application/json" \
-  -d '{"video_filename": "2025.01.09 ПШ.SV Title (Speaker).mp4"}'
+**Response:**
+```json
+["2025.01.09 ПШ.SV Title (Speaker).mp4", "recording.mp3"]
 ```
+
+**Поддерживаемые форматы:**
+- Видео: mp4, mkv, avi, mov, webm
+- Аудио: mp3, wav, m4a, flac, aac, ogg
+
+### GET /api/archive
+
+Структура архива в виде дерева.
 
 **Response:**
 ```json
 {
-  "job_id": "abc123",
-  "video_path": "/data/inbox/2025.01.09 ПШ.SV Title (Speaker).mp4",
-  "status": "pending",
-  "progress": 0,
-  "current_stage": "",
-  "created_at": "2025-01-09T12:00:00"
+  "tree": {
+    "2025": {
+      "01.22 ПШ": [
+        {"title": "SV Topic", "speaker": "Speaker", "event_type": "ПШ", "mid_folder": "01.22"}
+      ],
+      "Форум Табтим": [
+        {"title": "Leadership Story", "speaker": "Name", "event_type": "Выездные", "mid_folder": "Форум Табтим"}
+      ]
+    }
+  },
+  "total": 42
 }
 ```
 
-### WebSocket /ws/{job_id}
+### GET /api/archive/results
 
-Real-time progress updates.
+Получение результатов pipeline для архивного видео.
 
-**Python client:**
-```python
-import asyncio
-import websockets
-import json
+**Query params:**
+- `year` — год (2025)
+- `event_type` — тип события (ПШ, Выездные)
+- `mid_folder` — папка даты/события (01.22, Форум Табтим)
+- `topic_folder` — папка темы (SV Topic (Speaker))
 
-async def monitor_job(job_id: str):
-    uri = f"ws://localhost:8801/ws/{job_id}"
-    async with websockets.connect(uri) as ws:
-        async for message in ws:
-            data = json.loads(message)
-            print(f"[{data['status']}] {data['progress']:.0f}% - {data['message']}")
-
-            if data['status'] in ('completed', 'failed'):
-                if 'result' in data:
-                    print(f"Result: {data['result']}")
-                break
-
-asyncio.run(monitor_job("abc123"))
-```
-
-**Messages:**
+**Response:**
 ```json
-// Progress update
 {
-  "status": "transcribing",
-  "progress": 25.5,
-  "message": "Transcribing: video.mp4",
-  "timestamp": "2025-01-09T12:00:05"
-}
-
-// Completion
-{
-  "status": "completed",
-  "progress": 100,
-  "message": "Saved 4 files",
-  "timestamp": "2025-01-09T12:05:00",
-  "result": {
-    "video_id": "2025-01-09_ПШ-SV_title",
-    "chunks_count": 12,
-    "files_created": ["raw.json", "chunks.json", "summary.json", "summary.md"]
+  "available": true,
+  "data": {
+    "metadata": {...},
+    "rawTranscript": {...},
+    "cleanedTranscript": {...},
+    "longread": {...},
+    "summary": {...},
+    "chunks": {...}
   }
-}
-
-// Failure
-{
-  "status": "failed",
-  "progress": 25,
-  "message": "[transcribing] Whisper API error",
-  "timestamp": "2025-01-09T12:00:30",
-  "error": "Connection refused"
 }
 ```
 
@@ -207,113 +200,479 @@ import requests
 
 BASE = "http://localhost:8801/api/step"
 
-# 1. Parse (быстро)
+# 1. Parse (быстро, без SSE)
 r = requests.post(f"{BASE}/parse", json={"video_filename": "video.mp4"})
 metadata = r.json()
 
-# 2. Transcribe (долго - один раз)
-r = requests.post(f"{BASE}/transcribe", json={"video_filename": "video.mp4"})
-result = r.json()
-raw_transcript = result["raw_transcript"]
-audio_path = result["audio_path"]
+# 2. Transcribe (долго, SSE) - один раз
+r = requests.post(f"{BASE}/transcribe", json={"video_filename": "video.mp4"}, stream=True)
+for line in r.iter_lines():
+    if line:
+        event = json.loads(line.decode().removeprefix("data: "))
+        if event["type"] == "result":
+            raw_transcript = event["data"]["rawTranscript"]
+            audio_path = event["data"]["audioPath"]
+            break
 
-# 3. Clean
+# 3. Clean (SSE)
 r = requests.post(f"{BASE}/clean", json={
-    "raw_transcript": raw_transcript,
+    "rawTranscript": raw_transcript,
     "metadata": metadata
-})
-cleaned = r.json()
+}, stream=True)
+# ... parse SSE for cleaned_transcript
 
-# 4. Chunk
+# 4. Slides (опционально, SSE) - если есть слайды
+r = requests.post(f"{BASE}/slides", json={
+    "slides": [
+        {"filename": "slide1.jpg", "contentType": "image/jpeg", "data": "base64..."}
+    ]
+}, stream=True)
+# ... parse SSE for slides_text
+
+# 5a. Longread (EDUCATIONAL, SSE) - из cleaned_transcript
+r = requests.post(f"{BASE}/longread", json={
+    "cleanedTranscript": cleaned_transcript,
+    "metadata": metadata,
+    "slidesText": slides_text  # опционально
+}, stream=True)
+# ... parse SSE for longread
+
+# 5b. Story (LEADERSHIP, SSE) - из cleaned_transcript
+r = requests.post(f"{BASE}/story", json={
+    "cleanedTranscript": cleaned_transcript,
+    "metadata": metadata,
+    "slidesText": slides_text  # опционально
+}, stream=True)
+# ... parse SSE for story
+
+# 6. Summarize (EDUCATIONAL, SSE) - из cleaned_transcript
+r = requests.post(f"{BASE}/summarize", json={
+    "cleanedTranscript": cleaned_transcript,
+    "metadata": metadata
+}, stream=True)
+# ... parse SSE for summary
+
+# 7. Chunk (быстро, без SSE) - H2 парсинг markdown
+markdown_content = longread["markdown"] if metadata["content_type"] == "educational" else story["markdown"]
 r = requests.post(f"{BASE}/chunk", json={
-    "cleaned_transcript": cleaned,
+    "markdownContent": markdown_content,
     "metadata": metadata
 })
 chunks = r.json()
 
-# 5. Longread (генерация из чанков)
-r = requests.post(f"{BASE}/longread", json={
-    "chunks": chunks,
-    "metadata": metadata
-})
-longread = r.json()
-print(f"Longread: {longread['total_sections']} sections, {longread['total_word_count']} words")
-
-# 6. Summarize (конспект из лонгрида)
-r = requests.post(f"{BASE}/summarize", json={
-    "longread": longread,
-    "metadata": metadata
-})
-summary = r.json()
-print(f"Summary: {len(summary['key_concepts'])} concepts, {len(summary['quotes'])} quotes")
-
-# 7. Save
+# 8. Save (быстро, без SSE)
 r = requests.post(f"{BASE}/save", json={
     "metadata": metadata,
-    "raw_transcript": raw_transcript,
-    "cleaned_transcript": cleaned,
+    "rawTranscript": raw_transcript,
+    "cleanedTranscript": cleaned_transcript,
     "chunks": chunks,
-    "longread": longread,
-    "summary": summary,
-    "audio_path": audio_path
+    "longread": longread,      # для EDUCATIONAL
+    "summary": summary,        # для EDUCATIONAL
+    "story": story,            # для LEADERSHIP
+    "audioPath": audio_path,
+    "slidesExtraction": slides_extraction  # опционально
 })
 files = r.json()
 print(f"Saved: {files}")
 ```
 
-### POST /api/step/longread
+---
 
-Генерация лонгрида из чанков.
+## Step Endpoints
 
-**Request:**
+### POST /api/step/parse
+
+**Input:** `StepParseRequest`
+```json
+{"videoFilename": "2025.01.09 ПШ.SV Title (Speaker).mp4"}
+```
+
+**Output:** `VideoMetadata`
 ```json
 {
-  "chunks": {...},
-  "metadata": {...},
-  "model": "qwen2.5:14b"  // optional override
+  "date": "2025-01-09",
+  "eventType": "ПШ",
+  "stream": "SV",
+  "title": "Title",
+  "speaker": "Speaker",
+  "videoId": "2025-01-09_ПШ-SV_title",
+  "contentType": "educational",
+  "eventCategory": "regular",
+  "durationSeconds": 3600.5
 }
 ```
 
-**Response:** `Longread` с introduction, sections, conclusion.
+### POST /api/step/transcribe
+
+**Input:** `StepParseRequest`
+```json
+{"videoFilename": "video.mp4"}
+```
+
+**Output (SSE):** `TranscribeResult`
+```json
+{
+  "rawTranscript": {
+    "segments": [...],
+    "fullText": "...",
+    "textWithTimestamps": "..."
+  },
+  "audioPath": "/data/inbox/video.mp3",
+  "displayText": "..."
+}
+```
+
+### POST /api/step/clean
+
+**Input:** `StepCleanRequest`
+```json
+{
+  "rawTranscript": {...},
+  "metadata": {...},
+  "model": "claude-sonnet-4-5",
+  "promptOverrides": {"system": "system_v2"}
+}
+```
+
+**Output (SSE):** `CleanedTranscript`
+```json
+{
+  "text": "...",
+  "tokensUsed": {"input": 1000, "output": 500, "total": 1500},
+  "cost": 0.015,
+  "processingTimeSec": 12.5,
+  "words": 5000,
+  "changePercent": 15.2
+}
+```
+
+### POST /api/step/slides (v0.50+)
+
+Извлечение текста со слайдов через Claude Vision API.
+
+**Input:** `StepSlidesRequest`
+```json
+{
+  "slides": [
+    {"filename": "slide1.jpg", "contentType": "image/jpeg", "data": "base64..."},
+    {"filename": "presentation.pdf", "contentType": "application/pdf", "data": "base64..."}
+  ],
+  "model": "claude-haiku-4-5",
+  "promptOverrides": {}
+}
+```
+
+**Output (SSE):** `SlidesExtractionResult`
+```json
+{
+  "extractedText": "# Slide 1\n\nContent...",
+  "slidesCount": 15,
+  "charsCount": 5000,
+  "wordsCount": 800,
+  "tablesCount": 3,
+  "model": "claude-haiku-4-5",
+  "tokensUsed": {"input": 2000, "output": 1000, "total": 3000},
+  "cost": 0.007,
+  "processingTimeSec": 45.0
+}
+```
+
+### POST /api/step/longread
+
+Генерация лонгрида из очищенного транскрипта (для `content_type=educational`).
+
+**Input:** `StepLongreadRequest`
+```json
+{
+  "cleanedTranscript": {...},
+  "metadata": {...},
+  "model": "claude-sonnet-4-5",
+  "promptOverrides": {},
+  "slidesText": "..."
+}
+```
+
+**Output (SSE):** `Longread`
+```json
+{
+  "markdown": "# Title\n\n## Introduction\n...",
+  "totalSections": 8,
+  "totalWordCount": 3500,
+  "tokensUsed": {...},
+  "cost": 0.045,
+  "processingTimeSec": 60.0,
+  "chars": 25000
+}
+```
 
 ### POST /api/step/summarize
 
-Генерация конспекта из лонгрида.
+Генерация конспекта из очищенного транскрипта (для `content_type=educational`).
 
-**Request:**
+**Input:** `StepSummarizeRequest`
 ```json
 {
-  "longread": {...},
+  "cleanedTranscript": {...},
   "metadata": {...},
-  "model": "qwen2.5:14b"  // optional override
+  "model": "claude-sonnet-4-5",
+  "promptOverrides": {}
 }
 ```
 
-**Response:** `Summary` с essence, key_concepts, practical_tools, quotes, insight, actions.
+**Output (SSE):** `Summary`
+```json
+{
+  "markdown": "# Конспект\n\n## Суть\n...",
+  "tokensUsed": {...},
+  "cost": 0.025,
+  "processingTimeSec": 30.0,
+  "chars": 8000,
+  "words": 1200
+}
+```
+
+### POST /api/step/story (v0.23+)
+
+Генерация лидерской истории из очищенного транскрипта (для `content_type=leadership`).
+
+**Input:** `StepStoryRequest`
+```json
+{
+  "cleanedTranscript": {...},
+  "metadata": {...},
+  "model": "claude-sonnet-4-5",
+  "promptOverrides": {},
+  "slidesText": "..."
+}
+```
+
+**Output (SSE):** `Story`
+```json
+{
+  "markdown": "# История\n\n## Блок 1: Контекст\n...",
+  "tokensUsed": {...},
+  "cost": 0.035,
+  "processingTimeSec": 45.0,
+  "chars": 12000
+}
+```
+
+### POST /api/step/chunk
+
+Детерминированное разбиение markdown по H2 заголовкам (без LLM).
+
+**Input:** `StepChunkRequest`
+```json
+{
+  "markdownContent": "# Title\n\n## Section 1\n...",
+  "metadata": {...}
+}
+```
+
+**Output:** `TranscriptChunks`
+```json
+{
+  "chunks": [
+    {"id": "chunk-001", "title": "Section 1", "content": "...", "tokens": 500}
+  ],
+  "totalTokens": 3500
+}
+```
+
+### POST /api/step/save
+
+**Input:** `StepSaveRequest`
+```json
+{
+  "metadata": {...},
+  "rawTranscript": {...},
+  "cleanedTranscript": {...},
+  "chunks": {...},
+  "longread": {...},
+  "summary": {...},
+  "story": {...},
+  "audioPath": "/data/inbox/video.mp3",
+  "slidesExtraction": {...}
+}
+```
+
+**Output:** `list[str]`
+```json
+["raw.json", "cleaned.json", "chunks.json", "longread.md", "summary.md", "pipeline_results.json"]
+```
+
+---
+
+## Models API
+
+### GET /api/models/available
+
+**Response:** `AvailableModelsResponse`
+```json
+{
+  "ollamaModels": ["gemma2:9b", "qwen2.5:14b"],
+  "whisperModels": [
+    {"id": "Systran/faster-whisper-large-v3", "name": "large-v3"}
+  ],
+  "claudeModels": [
+    {"id": "claude-sonnet-4-5", "name": "Claude Sonnet 4.5", "pricing": {"input": 3.0, "output": 15.0}}
+  ],
+  "providers": {
+    "local": {"available": true, "name": "Ollama"},
+    "cloud": {"available": true, "name": "Claude API"}
+  }
+}
+```
+
+### GET /api/models/default
+
+**Response:** `DefaultModelsResponse`
+```json
+{
+  "transcribe": "Systran/faster-whisper-large-v3",
+  "clean": "claude-sonnet-4-5",
+  "longread": "claude-sonnet-4-5",
+  "summarize": "claude-sonnet-4-5"
+}
+```
+
+---
+
+## Prompts API
+
+### GET /api/prompts/{stage}
+
+Получение доступных вариантов промптов для этапа pipeline.
+
+**Stages:** `cleaning`, `longread`, `summary`, `story`
+
+**Response:** `StagePromptsResponse`
+```json
+{
+  "stage": "cleaning",
+  "components": [
+    {
+      "component": "system",
+      "default": "system",
+      "variants": [
+        {"name": "system", "source": "builtin", "filename": "system.md"},
+        {"name": "system_v2", "source": "external", "filename": "system_v2.md"}
+      ]
+    },
+    {
+      "component": "user",
+      "default": "user",
+      "variants": [
+        {"name": "user", "source": "builtin", "filename": "user.md"}
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## Cache API
+
+### GET /api/cache/{video_id}
+
+**Response:** `CacheInfo`
+```json
+{
+  "videoId": "2025-01-09_ПШ-SV_title",
+  "stages": {
+    "cleaning": {
+      "currentVersion": 2,
+      "versions": [
+        {"version": 1, "model": "gemma2:9b", "createdAt": "2025-01-09T10:00:00"},
+        {"version": 2, "model": "claude-sonnet-4-5", "createdAt": "2025-01-09T11:00:00"}
+      ]
+    }
+  }
+}
+```
+
+### GET /api/cache/{video_id}/{stage}
+
+Получение кэшированного результата этапа.
+
+**Query params:**
+- `version` — номер версии (опционально, по умолчанию текущая)
+
+**Response:** Результат этапа (CleanedTranscript, Longread, Summary и т.д.)
+
+### POST /api/cache/rerun
+
+Перезапуск этапа с другой моделью. Создаёт новую версию в кэше.
+
+**Input:** `RerunRequest`
+```json
+{
+  "videoId": "2025-01-09_ПШ-SV_title",
+  "stage": "cleaning",
+  "model": "claude-sonnet-4-5"
+}
+```
+
+**Output (SSE):** `RerunResponse`
+```json
+{
+  "videoId": "2025-01-09_ПШ-SV_title",
+  "stage": "cleaning",
+  "newVersion": 3,
+  "modelName": "claude-sonnet-4-5"
+}
+```
+
+### POST /api/cache/version
+
+Установка конкретной версии как текущей.
+
+**Query params:**
+- `video_id` — идентификатор видео
+- `stage` — название этапа
+- `version` — номер версии
+
+**Response:** `CacheVersionResponse`
+```json
+{
+  "status": "ok",
+  "stage": "cleaning",
+  "version": 1
+}
+```
 
 ---
 
 ## Архитектура
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         FastAPI App                              │
-│                                                                  │
-│  ┌───────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐  │
-│  │  routes   │ │ step_routes │ │cache_routes │ │  websocket  │  │
-│  │ /api/*    │ │ /api/step/* │ │ /api/cache/*│ │  /ws/*      │  │
-│  └─────┬─────┘ └──────┬──────┘ └──────┬──────┘ └──────┬──────┘  │
-│        │              │               │               │          │
-│        └──────────────┴───────────────┴───────────────┘          │
-│                               │                                  │
-│                        ┌──────▼──────┐                           │
-│                        │ JobManager  │ ← in-memory dict          │
-│                        └──────┬──────┘                           │
-│                               │                                  │
-│                        ┌──────▼──────┐                           │
-│                        │ Orchestrator│                           │
-│                        └─────────────┘                           │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                           FastAPI App                                │
+│                                                                      │
+│  ┌───────────┐ ┌─────────────┐ ┌──────────────┐ ┌────────────────┐  │
+│  │  routes   │ │ step_routes │ │ cache_routes │ │ models_routes  │  │
+│  │ /api/*    │ │ /api/step/* │ │ /api/cache/* │ │ /api/models/*  │  │
+│  └─────┬─────┘ └──────┬──────┘ └──────┬───────┘ └───────┬────────┘  │
+│        │              │               │                  │           │
+│        │       ┌──────────────┐       │                  │           │
+│        │       │prompts_routes│       │                  │           │
+│        │       │/api/prompts/*│       │                  │           │
+│        │       └──────┬───────┘       │                  │           │
+│        │              │               │                  │           │
+│        └──────────────┴───────────────┴──────────────────┘           │
+│                               │                                      │
+│                        ┌──────▼──────┐                               │
+│                        │ Orchestrator│                               │
+│                        └──────┬──────┘                               │
+│                               │                                      │
+│              ┌────────────────┼────────────────┐                     │
+│              ▼                ▼                ▼                     │
+│       ┌────────────┐   ┌────────────┐   ┌────────────┐               │
+│       │ AI Clients │   │StageCache  │   │  Services  │               │
+│       │Claude/Ollama│   │VersionMgr │   │Parser/Saver│               │
+│       └────────────┘   └────────────┘   └────────────┘               │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -322,9 +681,9 @@ print(f"Saved: {files}")
 
 | Файл | Описание |
 |------|----------|
-| `backend/app/main.py` | FastAPI приложение |
-| `backend/app/api/routes.py` | HTTP endpoints |
-| `backend/app/api/step_routes.py` | Пошаговый режим |
+| `backend/app/main.py` | FastAPI приложение, health endpoints |
+| `backend/app/api/routes.py` | Archive API (inbox, archive, results) |
+| `backend/app/api/step_routes.py` | Step-by-step режим с SSE |
 | `backend/app/api/cache_routes.py` | Cache API (v0.18+) |
-| `backend/app/api/websocket.py` | WebSocket handler |
-| `backend/app/services/job_manager.py` | In-memory job store |
+| `backend/app/api/models_routes.py` | Models API |
+| `backend/app/api/prompts_routes.py` | Prompts API (v0.31+) |
