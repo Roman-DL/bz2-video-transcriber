@@ -105,6 +105,62 @@ event_types:
 
 ---
 
+## JSON API сериализация (v0.59+)
+
+С версии v0.59 все JSON ответы API и файл `pipeline_results.json` используют **camelCase** для ключей.
+
+### Преобразование форматов
+
+| Python (snake_case) | JSON/TypeScript (camelCase) |
+|---------------------|----------------------------|
+| `raw_transcript` | `rawTranscript` |
+| `cleaned_transcript` | `cleanedTranscript` |
+| `slides_extraction` | `slidesExtraction` |
+| `tokens_used` | `tokensUsed` |
+| `processing_time_sec` | `processingTimeSec` |
+| `original_length` | `originalLength` |
+| `cleaned_length` | `cleanedLength` |
+| `change_percent` | `changePercent` |
+| `model_name` | `modelName` |
+| `video_id` | `videoId` |
+| `word_count` | `wordCount` |
+| `chars_count` | `charsCount` |
+| `total_chunks` | `totalChunks` |
+| `avg_chunk_size` | `avgChunkSize` |
+
+### Реализация (backend)
+
+Все Pydantic модели наследуют от `CamelCaseModel`:
+
+```python
+from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
+
+class CamelCaseModel(BaseModel):
+    """Python: snake_case, JSON: camelCase."""
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,  # принимает оба формата на входе
+    )
+
+# Пример модели
+class CleanedTranscript(CamelCaseModel):
+    text: str
+    original_length: int  # → JSON: originalLength
+    cleaned_length: int   # → JSON: cleanedLength
+    model_name: str       # → JSON: modelName
+```
+
+### Обратная совместимость
+
+- `populate_by_name=True` позволяет **принимать** оба формата (snake_case и camelCase)
+- **Ответы** API всегда в camelCase
+- Старые `pipeline_results.json` в snake_case требуют обработки или пересохранения
+
+Подробнее: [ADR-013: CamelCase сериализация](adr/013-api-camelcase-serialization.md)
+
+---
+
 ## Выходные файлы
 
 ### 1. transcript_chunks.json

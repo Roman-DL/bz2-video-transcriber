@@ -1221,3 +1221,103 @@ class PromptOverrides(BaseModel):
     user: str | None = Field(default=None, description="Override for user prompt")
     instructions: str | None = Field(default=None, description="Override for instructions prompt")
     template: str | None = Field(default=None, description="Override for template prompt")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# API Response Models (v0.59+)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class WhisperModelConfig(CamelCaseModel):
+    """Whisper model configuration from models.yaml."""
+
+    id: str = Field(..., description="Model identifier (e.g., 'Systran/faster-whisper-large-v3')")
+    name: str = Field(..., description="Display name (e.g., 'large-v3')")
+    description: str = Field(default="", description="Model description")
+
+
+class ModelPricing(CamelCaseModel):
+    """Pricing information for a model (per 1M tokens)."""
+
+    input: float = Field(..., ge=0, description="Cost per 1M input tokens in USD")
+    output: float = Field(..., ge=0, description="Cost per 1M output tokens in USD")
+
+
+class ClaudeModelConfig(CamelCaseModel):
+    """Claude model configuration from models.yaml."""
+
+    id: str = Field(..., description="Model identifier (e.g., 'claude-sonnet-4-5')")
+    name: str = Field(..., description="Display name")
+    description: str | None = Field(default=None, description="Model description")
+    pricing: ModelPricing | None = Field(default=None, description="Pricing per 1M tokens")
+
+
+class ProviderStatus(CamelCaseModel):
+    """Status of a model provider."""
+
+    available: bool = Field(..., description="Whether provider is accessible")
+    name: str = Field(..., description="Provider display name")
+
+
+class ProvidersInfo(CamelCaseModel):
+    """Information about available providers."""
+
+    local: ProviderStatus = Field(..., description="Local provider (Ollama)")
+    cloud: ProviderStatus = Field(..., description="Cloud provider (Claude API)")
+
+
+class AvailableModelsResponse(CamelCaseModel):
+    """Response for GET /api/models/available."""
+
+    ollama_models: list[str] = Field(default_factory=list, description="Available Ollama models")
+    whisper_models: list[WhisperModelConfig] = Field(
+        default_factory=list, description="Available Whisper models"
+    )
+    claude_models: list[ClaudeModelConfig] = Field(
+        default_factory=list, description="Available Claude models"
+    )
+    providers: ProvidersInfo = Field(..., description="Provider availability info")
+
+
+class DefaultModelsResponse(CamelCaseModel):
+    """Response for GET /api/models/default."""
+
+    transcribe: str = Field(..., description="Default Whisper model")
+    clean: str = Field(..., description="Default model for cleaning")
+    longread: str = Field(..., description="Default model for longread")
+    summarize: str = Field(..., description="Default model for summary")
+
+
+class ArchiveItem(CamelCaseModel):
+    """Single item in archive tree."""
+
+    title: str = Field(..., description="Topic title")
+    speaker: str = Field(..., description="Speaker name")
+    event_type: str = Field(..., description="Event type code")
+    mid_folder: str = Field(..., description="Date or event folder name")
+
+
+class ArchiveResponse(CamelCaseModel):
+    """Response for GET /api/archive."""
+
+    tree: dict[str, dict[str, list[ArchiveItem]]] = Field(
+        default_factory=dict,
+        description="Year -> event_folder -> items",
+    )
+    total: int = Field(default=0, ge=0, description="Total number of items")
+
+
+class PipelineResultsResponse(CamelCaseModel):
+    """Response for GET /api/archive/results."""
+
+    available: bool = Field(..., description="Whether results are available")
+    message: str | None = Field(default=None, description="Error message if not available")
+    data: PipelineResults | None = Field(default=None, description="Pipeline results data")
+
+
+class CacheVersionResponse(CamelCaseModel):
+    """Response for POST /api/cache/version."""
+
+    status: str = Field(default="ok", description="Operation status")
+    stage: str = Field(..., description="Stage name")
+    version: int = Field(..., ge=1, description="Activated version number")

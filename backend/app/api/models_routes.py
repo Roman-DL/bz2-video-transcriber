@@ -10,6 +10,14 @@ import httpx
 from fastapi import APIRouter
 
 from app.config import get_settings, load_models_config
+from app.models.schemas import (
+    AvailableModelsResponse,
+    ClaudeModelConfig,
+    DefaultModelsResponse,
+    ProvidersInfo,
+    ProviderStatus,
+    WhisperModelConfig,
+)
 from app.services.pipeline import ProcessingStrategy
 from app.services.pipeline.processing_strategy import ProviderType
 
@@ -18,7 +26,7 @@ router = APIRouter(prefix="/api/models", tags=["models"])
 
 
 @router.get("/available")
-async def get_available_models() -> dict:
+async def get_available_models() -> AvailableModelsResponse:
     """
     Get list of available models from Ollama, Claude API, and config.
 
@@ -28,7 +36,7 @@ async def get_available_models() -> dict:
     Claude models are shown only when ANTHROPIC_API_KEY is set and valid.
 
     Returns:
-        Dict with ollama_models, whisper_models, claude_models, and providers
+        AvailableModelsResponse with ollama_models, whisper_models, claude_models, and providers
     """
     settings = get_settings()
     ollama_models: list[str] = []
@@ -63,21 +71,15 @@ async def get_available_models() -> dict:
         claude_models = config.get("claude_models", [])
         logger.debug(f"Loaded {len(claude_models)} Claude models from config")
 
-    return {
-        "ollama_models": sorted(ollama_models),
-        "whisper_models": whisper_models,
-        "claude_models": claude_models,
-        "providers": {
-            "local": {
-                "available": local_available,
-                "name": "Ollama",
-            },
-            "cloud": {
-                "available": cloud_available,
-                "name": "Claude API",
-            },
-        },
-    }
+    return AvailableModelsResponse(
+        ollama_models=sorted(ollama_models),
+        whisper_models=[WhisperModelConfig(**m) for m in whisper_models],
+        claude_models=[ClaudeModelConfig(**m) for m in claude_models],
+        providers=ProvidersInfo(
+            local=ProviderStatus(available=local_available, name="Ollama"),
+            cloud=ProviderStatus(available=cloud_available, name="Claude API"),
+        ),
+    )
 
 
 def _resolve_whisper_model_id(short_name: str, config: dict) -> str:
@@ -102,12 +104,12 @@ def _resolve_whisper_model_id(short_name: str, config: dict) -> str:
 
 
 @router.get("/default")
-async def get_default_models() -> dict:
+async def get_default_models() -> DefaultModelsResponse:
     """
     Get current default models from settings.
 
     Returns:
-        Dict with default model for each pipeline stage
+        DefaultModelsResponse with default model for each pipeline stage
     """
     settings = get_settings()
     config = load_models_config()
@@ -115,12 +117,12 @@ async def get_default_models() -> dict:
     # Resolve whisper model short name to full ID
     transcribe_model = _resolve_whisper_model_id(settings.whisper_model, config)
 
-    return {
-        "transcribe": transcribe_model,
-        "clean": settings.cleaner_model,
-        "longread": settings.longread_model,
-        "summarize": settings.summarizer_model,
-    }
+    return DefaultModelsResponse(
+        transcribe=transcribe_model,
+        clean=settings.cleaner_model,
+        longread=settings.longread_model,
+        summarize=settings.summarizer_model,
+    )
 
 
 @router.get("/config")

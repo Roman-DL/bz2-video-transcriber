@@ -310,10 +310,17 @@ class TokensUsed(CamelCaseModel):  # v0.58+: camelCase сериализация
 # TranscriptChunks: total_tokens
 ```
 
-### CamelCaseModel (v0.58+)
+### API Serialization Rules (v0.59+)
 
-Базовая модель для унификации API сериализации:
+**Правило:** Все API endpoints должны возвращать Pydantic модели, не `dict`.
 
+| Слой | Формат | Пример |
+|------|--------|--------|
+| Python код | snake_case | `raw_transcript`, `tokens_used` |
+| API JSON | camelCase | `rawTranscript`, `tokensUsed` |
+| TypeScript | camelCase | `rawTranscript`, `tokensUsed` |
+
+**Базовая модель:**
 ```python
 from app.models.schemas import CamelCaseModel
 
@@ -321,12 +328,29 @@ class CamelCaseModel(BaseModel):
     """Python: snake_case, JSON: camelCase."""
     model_config = ConfigDict(
         alias_generator=to_camel,
-        populate_by_name=True,
+        populate_by_name=True,  # принимает оба формата на входе
     )
 
 # Все модели результатов наследуют от CamelCaseModel
 # API возвращает camelCase: {"rawTranscript": {...}, "cleanedTranscript": {...}}
 ```
+
+**Как добавить новый endpoint:**
+1. Создать response модель наследующую от `CamelCaseModel` в `schemas.py`:
+   ```python
+   class MyNewResponse(CamelCaseModel):
+       some_field: str
+       another_field: int
+   ```
+2. Указать return type в endpoint:
+   ```python
+   @router.get("/my-endpoint")
+   async def my_endpoint() -> MyNewResponse:
+       return MyNewResponse(some_field="value", another_field=42)
+   ```
+3. Добавить импорт модели в файл routes
+
+Подробнее: [docs/adr/013-api-camelcase-serialization.md](docs/adr/013-api-camelcase-serialization.md)
 
 ### Вкладка "Статистика" (v0.58+)
 

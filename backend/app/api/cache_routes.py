@@ -21,6 +21,7 @@ from app.models.cache import (
     RerunResponse,
 )
 from app.models.schemas import (
+    CacheVersionResponse,
     CleanedTranscript,
     Longread,
     ProcessingStatus,
@@ -302,7 +303,7 @@ async def set_current_version(
     video_id: str,
     stage: CacheStageName,
     version: int,
-) -> dict:
+) -> CacheVersionResponse:
     """
     Set specific version as current for a stage.
 
@@ -312,7 +313,7 @@ async def set_current_version(
         version: Version number to activate
 
     Returns:
-        Success status
+        CacheVersionResponse with status, stage, and version
 
     Raises:
         404: Video or version not found
@@ -334,7 +335,7 @@ async def set_current_version(
             detail=f"Version {version} not found for stage {stage.value}",
         )
 
-    return {"status": "ok", "stage": stage.value, "version": version}
+    return CacheVersionResponse(status="ok", stage=stage.value, version=version)
 
 
 @router.get("/{video_id}/{stage}")

@@ -12,6 +12,12 @@ import logging
 from fastapi import APIRouter
 
 from app.config import get_settings
+from app.models.schemas import (
+    ArchiveItem,
+    ArchiveResponse,
+    PipelineResults,
+    PipelineResultsResponse,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["pipeline"])
@@ -46,7 +52,7 @@ async def list_inbox_files() -> list[str]:
 
 
 @router.get("/archive")
-async def list_archive() -> dict:
+async def list_archive() -> ArchiveResponse:
     """
     List archive folder structure.
 
@@ -55,16 +61,16 @@ async def list_archive() -> dict:
     - Offsite: archive/{year}/Выездные/{event_name}/{topic_folder}/
 
     Returns:
-        Tree structure: year -> event_folder -> items
+        ArchiveResponse with tree structure: year -> event_folder -> items
         Each item contains: title, speaker, event_type, mid_folder
     """
     settings = get_settings()
     archive_dir = settings.archive_dir
 
     if not archive_dir.exists():
-        return {"tree": {}, "total": 0}
+        return ArchiveResponse(tree={}, total=0)
 
-    tree: dict = {}
+    tree: dict[str, dict[str, list[ArchiveItem]]] = {}
     total = 0
 
     # Scan 4 levels: archive/{year}/{event_type}/{mid_folder}/{topic_folder}/
@@ -96,7 +102,7 @@ async def list_archive() -> dict:
 
                     # Parse topic folder: "[stream] title (speaker)" or "title (speaker)"
                     folder_name = topic_dir.name
-                    speaker = None
+                    speaker = ""
                     title = folder_name
 
                     # Extract speaker from parentheses at the end
@@ -105,15 +111,17 @@ async def list_archive() -> dict:
                         speaker = folder_name[idx + 1 : -1]
                         title = folder_name[:idx].strip()
 
-                    tree[year][event_folder].append({
-                        "title": title,
-                        "speaker": speaker,
-                        "event_type": event_type,
-                        "mid_folder": mid_folder,
-                    })
+                    tree[year][event_folder].append(
+                        ArchiveItem(
+                            title=title,
+                            speaker=speaker,
+                            event_type=event_type,
+                            mid_folder=mid_folder,
+                        )
+                    )
                     total += 1
 
-    return {"tree": tree, "total": total}
+    return ArchiveResponse(tree=tree, total=total)
 
 
 @router.get("/archive/results")
@@ -122,7 +130,7 @@ async def get_archive_results(
     event_type: str,
     mid_folder: str,
     topic_folder: str,
-) -> dict:
+) -> PipelineResultsResponse:
     """
     Get pipeline results for archived video.
 
@@ -135,8 +143,7 @@ async def get_archive_results(
         topic_folder: Topic folder (e.g., "SV Тестовая запись (Тест)")
 
     Returns:
-        - {"available": true, "data": {...}} if file exists
-        - {"available": false, "message": "..."} if file missing or read error
+        PipelineResultsResponse with available flag and data/message
     """
     settings = get_settings()
     archive_path = settings.archive_dir / year / event_type / mid_folder / topic_folder
@@ -144,19 +151,22 @@ async def get_archive_results(
 
     if not results_file.exists():
         logger.debug(f"Pipeline results not found: {results_file}")
-        return {
-            "available": False,
-            "message": "Результаты обработки недоступны для этого файла",
-        }
+        return PipelineResultsResponse(
+            available=False,
+            message="Результаты обработки недоступны для этого файла",
+        )
 
     try:
         with open(results_file, "r", encoding="utf-8") as f:
             data = json.load(f)
     except (json.JSONDecodeError, IOError) as e:
         logger.warning(f"Failed to read pipeline results: {results_file}, error: {e}")
-        return {
-            "available": False,
-            "message": "Ошибка чтения файла результатов",
-        }
+        return PipelineResultsResponse(
+            available=False,
+            message="Ошибка чтения файла результатов",
+        )
 
-    return {"available": True, "data": data}
+    return PipelineResultsResponse(
+        available=True,
+        data=PipelineResults.model_validate(data),
+    )

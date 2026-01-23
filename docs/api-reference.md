@@ -5,6 +5,45 @@
 
 ---
 
+## API соглашения (v0.59+)
+
+### JSON сериализация
+
+Все ответы Backend API используют **camelCase** для ключей JSON:
+
+| Слой | Формат | Пример |
+|------|--------|--------|
+| Python код | snake_case | `raw_transcript` |
+| API JSON | camelCase | `rawTranscript` |
+| TypeScript | camelCase | `rawTranscript` |
+
+**Запросы** принимают оба формата (camelCase и snake_case) для обратной совместимости.
+
+### Типизированные endpoints
+
+Все API endpoints возвращают Pydantic модели (не `dict`):
+
+| Endpoint | Метод | Response Model | Описание |
+|----------|-------|----------------|----------|
+| `/api/models/available` | GET | `AvailableModelsResponse` | Список доступных моделей |
+| `/api/models/default` | GET | `DefaultModelsResponse` | Модели по умолчанию |
+| `/api/models/config` | GET | `dict` (raw YAML) | Конфигурация моделей |
+| `/api/archive` | GET | `ArchiveResponse` | Список файлов архива |
+| `/api/archive/results` | GET | `PipelineResultsResponse` | Результаты обработки |
+| `/api/cache/{video_id}` | GET | `CacheInfo` | Информация о кэше |
+| `/api/cache/rerun` | POST | `RerunResponse` (SSE) | Перезапуск этапа |
+| `/api/cache/version` | POST | `CacheVersionResponse` | Установка версии |
+| `/api/prompts/{stage}` | GET | `PromptsResponse` | Варианты промптов |
+| `/api/step/slides` | POST | `SlidesExtractionResult` (SSE) | Извлечение со слайдов |
+| `/api/step/clean` | POST | `CleanedTranscript` (SSE) | Очистка транскрипта |
+| `/api/step/longread` | POST | `Longread` (SSE) | Генерация лонгрида |
+| `/api/step/summarize` | POST | `Summary` (SSE) | Генерация конспекта |
+| `/api/step/story` | POST | `Story` (SSE) | Генерация истории |
+
+Подробнее: [ADR-013: CamelCase сериализация](adr/013-api-camelcase-serialization.md)
+
+---
+
 ## Whisper API (faster-whisper-server)
 
 **Base URL:** `http://100.64.0.1:9000`
@@ -359,11 +398,11 @@ def call_ollama(prompt: str, model: str = "qwen2.5:14b") -> str:
 Список доступных моделей. Ollama модели получаются динамически, Whisper и Claude модели — из `config/models.yaml`.
 Claude модели показываются только если `ANTHROPIC_API_KEY` установлен и валиден.
 
-**Response:**
+**Response (camelCase, v0.59+):**
 ```json
 {
-  "ollama_models": ["gemma2:9b", "qwen2.5:14b", "qwen2.5:7b"],
-  "whisper_models": [
+  "ollamaModels": ["gemma2:9b", "qwen2.5:14b", "qwen2.5:7b"],
+  "whisperModels": [
     {
       "id": "Systran/faster-whisper-large-v3",
       "name": "large-v3",
@@ -375,7 +414,7 @@ Claude модели показываются только если `ANTHROPIC_AP
       "description": "Быстрее, хорошее качество"
     }
   ],
-  "claude_models": [
+  "claudeModels": [
     {
       "id": "claude-sonnet-4-5",
       "name": "Claude Sonnet 4.5",
