@@ -16,20 +16,20 @@ function formatSummaryAsMarkdown(summary: Summary): string {
   lines.push('');
 
   // Ключевые концепции
-  if (summary.key_concepts.length > 0) {
+  if (summary.keyConcepts.length > 0) {
     lines.push('## Ключевые концепции');
     lines.push('');
-    for (const concept of summary.key_concepts) {
+    for (const concept of summary.keyConcepts) {
       lines.push(`• ${concept}`);
     }
     lines.push('');
   }
 
   // Инструменты и методы
-  if (summary.practical_tools.length > 0) {
+  if (summary.practicalTools.length > 0) {
     lines.push('## Инструменты и методы');
     lines.push('');
-    for (const tool of summary.practical_tools) {
+    for (const tool of summary.practicalTools) {
       lines.push(`• ${tool}`);
     }
     lines.push('');
@@ -87,9 +87,9 @@ export function SummaryView({ summary }: SummaryViewProps) {
 
       {/* Footer with LLM metrics */}
       <ResultFooter
-        tokensUsed={summary.tokens_used}
+        tokensUsed={summary.tokensUsed}
         cost={summary.cost}
-        model={summary.model_name}
+        model={summary.modelName}
       />
     </div>
   );

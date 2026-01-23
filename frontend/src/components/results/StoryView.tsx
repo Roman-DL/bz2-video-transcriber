@@ -22,15 +22,15 @@ function formatStoryAsMarkdown(story: Story): string {
   const lines: string[] = [];
 
   // Main insight as quote
-  if (story.main_insight) {
-    lines.push(`> ${story.main_insight}`);
+  if (story.mainInsight) {
+    lines.push(`> ${story.mainInsight}`);
     lines.push('');
   }
 
   // Blocks
   for (const block of story.blocks) {
-    const blockName = block.block_name || BLOCK_NAMES[block.block_number] || `Блок ${block.block_number}`;
-    lines.push(`## ${block.block_number}. ${blockName}`);
+    const blockName = block.blockName || BLOCK_NAMES[block.blockNumber] || `Блок ${block.blockNumber}`;
+    lines.push(`## ${block.blockNumber}. ${blockName}`);
     lines.push('');
     lines.push(block.content);
     lines.push('');
@@ -50,11 +50,11 @@ export function StoryView({ story }: StoryViewProps) {
           {formatNumber(story.chars)} симв.
         </span>
         <span>
-          {story.total_blocks} блоков
+          {story.totalBlocks} блоков
         </span>
-        {story.processing_time_sec !== undefined && (
+        {story.processingTimeSec !== undefined && (
           <span>
-            {formatTime(story.processing_time_sec)}
+            {formatTime(story.processingTimeSec)}
           </span>
         )}
       </div>
@@ -69,16 +69,16 @@ export function StoryView({ story }: StoryViewProps) {
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <div>
             <span className="text-gray-500">Уровень доступа:</span>{' '}
-            <span className="text-gray-900">{story.access_level}</span>
+            <span className="text-gray-900">{story.accessLevel}</span>
           </div>
         </div>
       </div>
 
       {/* Footer with LLM metrics */}
       <ResultFooter
-        tokensUsed={story.tokens_used}
+        tokensUsed={story.tokensUsed}
         cost={story.cost}
-        model={story.model_name}
+        model={story.modelName}
       />
     </div>
   );

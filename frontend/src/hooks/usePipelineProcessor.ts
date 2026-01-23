@@ -170,7 +170,7 @@ export function usePipelineProcessor({
   // ─────────────────────────────────────────────────────────────────────────
   // Derived State
   // ─────────────────────────────────────────────────────────────────────────
-  const contentType: ContentType = data.metadata?.content_type || 'educational';
+  const contentType: ContentType = data.metadata?.contentType || 'educational';
 
   const pipelineSteps = useMemo(() => {
     const baseSteps = contentType === 'leadership' ? LEADERSHIP_STEPS : EDUCATIONAL_STEPS;
@@ -365,8 +365,8 @@ export function usePipelineProcessor({
       switch (step) {
         case 'parse': {
           const metadata = await stepParse.mutateAsync({
-            video_filename: filename,
-            whisper_model: models.transcribe,
+            videoFilename: filename,
+            whisperModel: models.transcribe,
           });
           setData(prev => ({ ...prev, metadata }));
           setCurrentStep('transcribe');
@@ -376,8 +376,8 @@ export function usePipelineProcessor({
 
         case 'transcribe': {
           const transcribeResult = await stepTranscribe.mutate({
-            video_filename: filename,
-            whisper_model: models.transcribe,
+            videoFilename: filename,
+            whisperModel: models.transcribe,
           });
           const newData = {
             ...data,
@@ -394,10 +394,10 @@ export function usePipelineProcessor({
         case 'clean': {
           if (!data.rawTranscript || !data.metadata) return;
           const cleanedTranscript = await stepClean.mutate({
-            raw_transcript: data.rawTranscript,
+            rawTranscript: data.rawTranscript,
             metadata: data.metadata,
             model: getModelForStage('clean'),
-            prompt_overrides: getPromptOverridesForApi('clean'),
+            promptOverrides: getPromptOverridesForApi('clean'),
           });
           const newData = { ...data, cleanedTranscript };
           setData(newData);
@@ -418,7 +418,7 @@ export function usePipelineProcessor({
               const base64 = await fileToBase64(slide.file);
               return {
                 filename: slide.name,
-                content_type: slide.file.type,
+                contentType: slide.file.type,
                 data: base64,
               };
             })
@@ -436,11 +436,11 @@ export function usePipelineProcessor({
         case 'longread': {
           if (!data.cleanedTranscript || !data.metadata) return;
           const longread = await stepLongread.mutate({
-            cleaned_transcript: data.cleanedTranscript,
+            cleanedTranscript: data.cleanedTranscript,
             metadata: data.metadata,
             model: getModelForStage('longread'),
-            prompt_overrides: getPromptOverridesForApi('longread'),
-            slides_text: data.slidesExtraction?.extracted_text,
+            promptOverrides: getPromptOverridesForApi('longread'),
+            slidesText: data.slidesExtraction?.extractedText,
           });
           const newData = { ...data, longread };
           setData(newData);
@@ -452,10 +452,10 @@ export function usePipelineProcessor({
         case 'summarize': {
           if (!data.cleanedTranscript || !data.metadata) return;
           const summary = await stepSummarize.mutate({
-            cleaned_transcript: data.cleanedTranscript,
+            cleanedTranscript: data.cleanedTranscript,
             metadata: data.metadata,
             model: getModelForStage('summarize'),
-            prompt_overrides: getPromptOverridesForApi('summarize'),
+            promptOverrides: getPromptOverridesForApi('summarize'),
           });
           const newData = { ...data, summary };
           setData(newData);
@@ -467,11 +467,11 @@ export function usePipelineProcessor({
         case 'story': {
           if (!data.cleanedTranscript || !data.metadata) return;
           const story = await stepStory.mutate({
-            cleaned_transcript: data.cleanedTranscript,
+            cleanedTranscript: data.cleanedTranscript,
             metadata: data.metadata,
             model: getModelForStage('story'),
-            prompt_overrides: getPromptOverridesForApi('story'),
-            slides_text: data.slidesExtraction?.extracted_text,
+            promptOverrides: getPromptOverridesForApi('story'),
+            slidesText: data.slidesExtraction?.extractedText,
           });
           const newData = { ...data, story };
           setData(newData);
@@ -486,7 +486,7 @@ export function usePipelineProcessor({
           if (contentType === 'leadership') {
             if (!data.story) return;
             markdownContent = data.story.blocks
-              .map(b => `## ${b.block_number}️⃣ ${b.block_name}\n\n${b.content}`)
+              .map(b => `## ${b.blockNumber}️⃣ ${b.blockName}\n\n${b.content}`)
               .join('\n\n');
           } else {
             if (!data.longread) return;
@@ -495,7 +495,7 @@ export function usePipelineProcessor({
               .join('\n\n');
           }
           const chunks = await stepChunk.mutateAsync({
-            markdown_content: markdownContent,
+            markdownContent: markdownContent,
             metadata: data.metadata,
           });
           const newData = { ...data, chunks };
@@ -510,12 +510,12 @@ export function usePipelineProcessor({
             if (!data.metadata || !data.rawTranscript || !data.cleanedTranscript || !data.chunks || !data.story) return;
             const savedFiles = await stepSave.mutateAsync({
               metadata: data.metadata,
-              raw_transcript: data.rawTranscript,
-              cleaned_transcript: data.cleanedTranscript,
+              rawTranscript: data.rawTranscript,
+              cleanedTranscript: data.cleanedTranscript,
               chunks: data.chunks,
               story: data.story,
-              audio_path: data.audioPath,
-              slides_extraction: data.slidesExtraction,
+              audioPath: data.audioPath,
+              slidesExtraction: data.slidesExtraction,
             });
             const newData = { ...data, savedFiles };
             setData(newData);
@@ -524,13 +524,13 @@ export function usePipelineProcessor({
             if (!data.metadata || !data.rawTranscript || !data.cleanedTranscript || !data.chunks || !data.longread || !data.summary) return;
             const savedFiles = await stepSave.mutateAsync({
               metadata: data.metadata,
-              raw_transcript: data.rawTranscript,
-              cleaned_transcript: data.cleanedTranscript,
+              rawTranscript: data.rawTranscript,
+              cleanedTranscript: data.cleanedTranscript,
               chunks: data.chunks,
               longread: data.longread,
               summary: data.summary,
-              audio_path: data.audioPath,
-              slides_extraction: data.slidesExtraction,
+              audioPath: data.audioPath,
+              slidesExtraction: data.slidesExtraction,
             });
             const newData = { ...data, savedFiles };
             setData(newData);
@@ -577,8 +577,8 @@ export function usePipelineProcessor({
     const autoParse = async () => {
       try {
         const metadata = await stepParse.mutateAsync({
-          video_filename: filename,
-          whisper_model: models.transcribe,
+          videoFilename: filename,
+          whisperModel: models.transcribe,
         });
         if (mounted) {
           setData({ metadata });
@@ -631,42 +631,42 @@ export function usePipelineProcessor({
     let totalOutputTokens = 0;
     let totalCost = 0;
 
-    if (data.rawTranscript?.processing_time_sec) {
-      totalTime += data.rawTranscript.processing_time_sec;
+    if (data.rawTranscript?.processingTimeSec) {
+      totalTime += data.rawTranscript.processingTimeSec;
     }
 
     if (data.cleanedTranscript) {
-      totalTime += data.cleanedTranscript.processing_time_sec || 0;
-      totalInputTokens += data.cleanedTranscript.tokens_used?.input || 0;
-      totalOutputTokens += data.cleanedTranscript.tokens_used?.output || 0;
+      totalTime += data.cleanedTranscript.processingTimeSec || 0;
+      totalInputTokens += data.cleanedTranscript.tokensUsed?.input || 0;
+      totalOutputTokens += data.cleanedTranscript.tokensUsed?.output || 0;
       totalCost += data.cleanedTranscript.cost || 0;
     }
 
     if (data.slidesExtraction) {
-      totalTime += data.slidesExtraction.processing_time_sec || 0;
-      totalInputTokens += data.slidesExtraction.tokens_used?.input || 0;
-      totalOutputTokens += data.slidesExtraction.tokens_used?.output || 0;
+      totalTime += data.slidesExtraction.processingTimeSec || 0;
+      totalInputTokens += data.slidesExtraction.tokensUsed?.input || 0;
+      totalOutputTokens += data.slidesExtraction.tokensUsed?.output || 0;
       totalCost += data.slidesExtraction.cost || 0;
     }
 
     if (data.longread) {
-      totalTime += data.longread.processing_time_sec || 0;
-      totalInputTokens += data.longread.tokens_used?.input || 0;
-      totalOutputTokens += data.longread.tokens_used?.output || 0;
+      totalTime += data.longread.processingTimeSec || 0;
+      totalInputTokens += data.longread.tokensUsed?.input || 0;
+      totalOutputTokens += data.longread.tokensUsed?.output || 0;
       totalCost += data.longread.cost || 0;
     }
 
     if (data.summary) {
-      totalTime += data.summary.processing_time_sec || 0;
-      totalInputTokens += data.summary.tokens_used?.input || 0;
-      totalOutputTokens += data.summary.tokens_used?.output || 0;
+      totalTime += data.summary.processingTimeSec || 0;
+      totalInputTokens += data.summary.tokensUsed?.input || 0;
+      totalOutputTokens += data.summary.tokensUsed?.output || 0;
       totalCost += data.summary.cost || 0;
     }
 
     if (data.story) {
-      totalTime += data.story.processing_time_sec || 0;
-      totalInputTokens += data.story.tokens_used?.input || 0;
-      totalOutputTokens += data.story.tokens_used?.output || 0;
+      totalTime += data.story.processingTimeSec || 0;
+      totalInputTokens += data.story.tokensUsed?.input || 0;
+      totalOutputTokens += data.story.tokensUsed?.output || 0;
       totalCost += data.story.cost || 0;
     }
 
@@ -805,19 +805,19 @@ export function formatETA(estimatedSeconds: number, elapsedSeconds: number): str
 export function getStepStats(step: PipelineStep, data: StepData): string | null {
   switch (step) {
     case 'transcribe':
-      return data.rawTranscript ? formatDuration(data.rawTranscript.duration_seconds) : null;
+      return data.rawTranscript ? formatDuration(data.rawTranscript.durationSeconds) : null;
     case 'clean':
-      return data.cleanedTranscript ? `${data.cleanedTranscript.cleaned_length.toLocaleString()} симв.` : null;
+      return data.cleanedTranscript ? `${data.cleanedTranscript.cleanedLength.toLocaleString()} симв.` : null;
     case 'slides':
-      return data.slidesExtraction ? `${data.slidesExtraction.slides_count} слайдов` : null;
+      return data.slidesExtraction ? `${data.slidesExtraction.slidesCount} слайдов` : null;
     case 'longread':
-      return data.longread ? `${data.longread.total_sections} секций` : null;
+      return data.longread ? `${data.longread.totalSections} секций` : null;
     case 'summarize':
-      return data.summary ? `${data.summary.key_concepts.length} концепций` : null;
+      return data.summary ? `${data.summary.keyConcepts.length} концепций` : null;
     case 'story':
-      return data.story ? `${data.story.total_blocks} блоков` : null;
+      return data.story ? `${data.story.totalBlocks} блоков` : null;
     case 'chunk':
-      return data.chunks ? `${data.chunks.total_chunks} чанков` : null;
+      return data.chunks ? `${data.chunks.totalChunks} чанков` : null;
     case 'save':
       return data.savedFiles ? `${data.savedFiles.length} файлов` : null;
     default:

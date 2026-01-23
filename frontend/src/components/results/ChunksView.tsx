@@ -16,20 +16,20 @@ export function ChunksView({ chunks }: ChunksViewProps) {
       {/* Header with metrics */}
       <div className="text-xs text-gray-500 mb-3 shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1">
         <span>
-          {chunks.total_chunks} чанков
+          {chunks.totalChunks} чанков
         </span>
-        {chunks.total_tokens !== undefined && (
+        {chunks.totalTokens !== undefined && (
           <span>
-            {formatNumber(chunks.total_tokens)} токенов
+            {formatNumber(chunks.totalTokens)} токенов
           </span>
         )}
-        {chunks.avg_chunk_size !== undefined && (
+        {chunks.avgChunkSize !== undefined && (
           <span>
-            ~{chunks.avg_chunk_size} слов/чанк
+            ~{chunks.avgChunkSize} слов/чанк
           </span>
         )}
         <span className="ml-auto font-mono text-gray-400">
-          {chunks.model_name}
+          {chunks.modelName}
         </span>
       </div>
 
@@ -55,7 +55,7 @@ export function ChunksView({ chunks }: ChunksViewProps) {
                     {chunk.topic}
                   </span>
                   <span className="text-xs text-gray-400 ml-auto flex-shrink-0">
-                    {formatNumber(chunk.word_count)} слов
+                    {formatNumber(chunk.wordCount)} слов
                   </span>
                 </div>
               </div>

@@ -151,10 +151,10 @@ export function ModelSelector({
       {/* Model config info */}
       {config && (
         <div className="mt-2 p-3 bg-gray-50 rounded-lg text-xs text-gray-600">
-          {config.context_tokens && (
+          {config.contextTokens && (
             <div className="flex items-center gap-1 mb-1">
               <span className="font-medium">Контекст:</span>
-              <span>{formatTokens(config.context_tokens)}</span>
+              <span>{formatTokens(config.contextTokens)}</span>
             </div>
           )}
           {stageConfig && (
@@ -166,7 +166,7 @@ export function ModelSelector({
               ))}
             </div>
           )}
-          {!config.context_tokens && !stageConfig && (
+          {!config.contextTokens && !stageConfig && (
             <span className="text-gray-400">Параметры по умолчанию</span>
           )}
         </div>

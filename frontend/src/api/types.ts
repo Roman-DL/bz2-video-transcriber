@@ -1,6 +1,8 @@
 /**
  * TypeScript types matching backend Pydantic models.
  * Source: backend/app/models/schemas.py
+ *
+ * v0.58+: All fields use camelCase to match backend CamelCaseModel serialization.
  */
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -25,49 +27,48 @@ export type EventCategory = 'regular' | 'offsite';
 
 export interface VideoMetadata {
   date: string;
-  event_type: string;
+  eventType: string;
   stream: string;
   title: string;
   speaker: string;
-  original_filename: string;
-  video_id: string;
-  source_path: string;
-  archive_path: string;
-  stream_full: string;
-  duration_seconds: number | null;
-  content_type: ContentType;
-  event_category: EventCategory;
-  event_name: string;
+  originalFilename: string;
+  videoId: string;
+  sourcePath: string;
+  archivePath: string;
+  streamFull: string;
+  durationSeconds: number | null;
+  contentType: ContentType;
+  eventCategory: EventCategory;
+  eventName: string;
 }
 
 export interface TranscriptSegment {
   start: number;
   end: number;
   text: string;
-  start_time: string;
-  end_time: string;
+  startTime: string;
+  endTime: string;
 }
 
 export interface RawTranscript {
   segments: TranscriptSegment[];
   language: string;
-  duration_seconds: number;
-  whisper_model: string;
-  full_text: string;
-  text_with_timestamps: string;
+  durationSeconds: number;
+  whisperModel: string;
+  fullText: string;
+  textWithTimestamps: string;
   // Metrics (v0.42+) — computed fields serialize to JSON
   chars: number;
   words: number;
   // Optional metrics
   confidence?: number; // 0-1 from Whisper avg_logprob
-  processing_time_sec?: number;
+  processingTimeSec?: number;
 }
 
 /**
  * Result from /step/transcribe endpoint.
  * Contains both transcript and path to extracted audio.
  */
-// v0.58+: API returns camelCase
 export interface TranscribeResult {
   rawTranscript: RawTranscript;
   audioPath: string;
@@ -76,16 +77,16 @@ export interface TranscribeResult {
 
 export interface CleanedTranscript {
   text: string;
-  original_length: number;
-  cleaned_length: number;
-  model_name: string;
+  originalLength: number;
+  cleanedLength: number;
+  modelName: string;
   // Metrics (v0.42+) — computed fields serialize to JSON
   words: number;
-  change_percent: number;
+  changePercent: number;
   // Optional metrics from LLM
-  tokens_used?: TokensUsed;
+  tokensUsed?: TokensUsed;
   cost?: number;
-  processing_time_sec?: number;
+  processingTimeSec?: number;
 }
 
 export interface TranscriptChunk {
@@ -93,29 +94,29 @@ export interface TranscriptChunk {
   index: number;
   topic: string;
   text: string;
-  word_count: number;
+  wordCount: number;
 }
 
 export interface TranscriptChunks {
   chunks: TranscriptChunk[];
-  total_chunks: number;
-  avg_chunk_size: number;
-  model_name: string;
+  totalChunks: number;
+  avgChunkSize: number;
+  modelName: string;
   // Metrics (v0.42+)
-  total_tokens?: number;
+  totalTokens?: number;
 }
 
 export interface VideoSummary {
   summary: string;
-  key_points: string[];
+  keyPoints: string[];
   recommendations: string[];
-  target_audience: string;
-  questions_answered: string[];
+  targetAudience: string;
+  questionsAnswered: string[];
   section: string;
   subsection: string;
   tags: string[];
-  access_level: number;
-  model_name: string;
+  accessLevel: number;
+  modelName: string;
 }
 
 // New models for v0.13 step-by-step pipeline
@@ -124,171 +125,175 @@ export interface LongreadSection {
   index: number;
   title: string;
   content: string;
-  source_chunks: number[];
-  word_count: number;
+  sourceChunks: number[];
+  wordCount: number;
 }
 
 export interface Longread {
-  video_id: string;
+  videoId: string;
   title: string;
   speaker: string;
-  speaker_status: string;
+  speakerStatus: string;
   date: string;
-  event_type: string;
+  eventType: string;
   stream: string;
   introduction: string;
   sections: LongreadSection[];
   conclusion: string;
-  total_sections: number;
-  total_word_count: number;
-  topic_area: string[];
+  totalSections: number;
+  totalWordCount: number;
+  topicArea: string[];
   tags: string[];
-  access_level: string; // consultant | leader | personal
-  model_name: string;
+  accessLevel: string; // consultant | leader | personal
+  modelName: string;
   // Metrics (v0.42+) — computed field
   chars: number;
   // Optional metrics from LLM
-  tokens_used?: TokensUsed;
+  tokensUsed?: TokensUsed;
   cost?: number;
-  processing_time_sec?: number;
+  processingTimeSec?: number;
 }
 
 export interface Summary {
-  video_id: string;
+  videoId: string;
   title: string;
   speaker: string;
   date: string;
   essence: string;
-  key_concepts: string[];
-  practical_tools: string[];
+  keyConcepts: string[];
+  practicalTools: string[];
   quotes: string[];
   insight: string;
   actions: string[];
-  topic_area: string[];
+  topicArea: string[];
   tags: string[];
-  access_level: string; // consultant | leader | personal
-  model_name: string;
+  accessLevel: string; // consultant | leader | personal
+  modelName: string;
   // Metrics (v0.42+) — computed fields
   chars: number;
   words: number;
   // Optional metrics from LLM
-  tokens_used?: TokensUsed;
+  tokensUsed?: TokensUsed;
   cost?: number;
-  processing_time_sec?: number;
+  processingTimeSec?: number;
 }
 
 // Leadership story (8 blocks structure)
 export interface StoryBlock {
-  block_number: number;
-  block_name: string;
+  blockNumber: number;
+  blockName: string;
   content: string;
 }
 
 export interface Story {
-  video_id: string;
+  videoId: string;
   names: string;
-  current_status: string;
-  event_name: string;
+  currentStatus: string;
+  eventName: string;
   date: string;
-  main_insight: string;
+  mainInsight: string;
   blocks: StoryBlock[];
-  time_in_business: string;
-  time_to_status: string;
+  timeInBusiness: string;
+  timeToStatus: string;
   speed: string; // быстро | средне | долго | очень долго
-  business_format: string; // клуб | онлайн | гибрид
-  is_family: boolean;
-  had_stagnation: boolean;
-  stagnation_years: number;
-  had_restart: boolean;
-  key_pattern: string;
+  businessFormat: string; // клуб | онлайн | гибрид
+  isFamily: boolean;
+  hadStagnation: boolean;
+  stagnationYears: number;
+  hadRestart: boolean;
+  keyPattern: string;
   mentor: string;
   tags: string[];
-  access_level: string; // consultant | leader | personal
+  accessLevel: string; // consultant | leader | personal
   related: string[];
-  total_blocks: number;
-  model_name: string;
+  totalBlocks: number;
+  modelName: string;
   // Metrics (v0.42+) — computed field
   chars: number;
   // Optional metrics from LLM
-  tokens_used?: TokensUsed;
+  tokensUsed?: TokensUsed;
   cost?: number;
-  processing_time_sec?: number;
+  processingTimeSec?: number;
 }
 
 export interface PartOutline {
-  part_index: number;
+  partIndex: number;
   topics: string[];
-  key_points: string[];
+  keyPoints: string[];
   summary: string;
 }
 
 export interface TranscriptOutline {
   parts: PartOutline[];
-  all_topics: string[];
-  total_parts: number;
+  allTopics: string[];
+  totalParts: number;
 }
 
 export interface ServicesHealth {
   whisper: boolean;
   ollama: boolean;
-  whisper_url: string;
-  ollama_url: string;
-  whisper_include_timestamps: boolean;
+  whisperUrl: string;
+  ollamaUrl: string;
+  whisperIncludeTimestamps: boolean;
 }
 
-// Request types
+// ═══════════════════════════════════════════════════════════════════════════
+// Request types (sent TO backend)
+// Note: Backend uses populate_by_name=True, so camelCase works for requests too
+// ═══════════════════════════════════════════════════════════════════════════
+
 export interface StepParseRequest {
-  video_filename: string;
-  whisper_model?: string;
+  videoFilename: string;
+  whisperModel?: string;
 }
 
 export interface StepCleanRequest {
-  raw_transcript: RawTranscript;
+  rawTranscript: RawTranscript;
   metadata: VideoMetadata;
   model?: string;
-  prompt_overrides?: PromptOverrides;
+  promptOverrides?: PromptOverrides;
 }
 
 export interface StepChunkRequest {
-  markdown_content: string;
+  markdownContent: string;
   metadata: VideoMetadata;
 }
 
 export interface StepLongreadRequest {
-  cleaned_transcript: CleanedTranscript;
+  cleanedTranscript: CleanedTranscript;
   metadata: VideoMetadata;
   model?: string;
-  prompt_overrides?: PromptOverrides;
-  slides_text?: string;
+  promptOverrides?: PromptOverrides;
+  slidesText?: string;
 }
 
 export interface StepSummarizeRequest {
-  cleaned_transcript: CleanedTranscript;
+  cleanedTranscript: CleanedTranscript;
   metadata: VideoMetadata;
   model?: string;
-  prompt_overrides?: PromptOverrides;
+  promptOverrides?: PromptOverrides;
 }
 
 export interface StepStoryRequest {
-  cleaned_transcript: CleanedTranscript;
+  cleanedTranscript: CleanedTranscript;
   metadata: VideoMetadata;
   model?: string;
-  prompt_overrides?: PromptOverrides;
-  slides_text?: string;
+  promptOverrides?: PromptOverrides;
+  slidesText?: string;
 }
 
 export interface StepSaveRequest {
   metadata: VideoMetadata;
-  raw_transcript: RawTranscript;
-  cleaned_transcript: CleanedTranscript;
+  rawTranscript: RawTranscript;
+  cleanedTranscript: CleanedTranscript;
   chunks: TranscriptChunks;
   // Educational content (optional)
   longread?: Longread;
   summary?: Summary;
   // Leadership content (optional)
   story?: Story;
-  audio_path?: string;
-  slides_extraction?: SlidesExtractionResult; // v0.55+
+  audioPath?: string;
+  slidesExtraction?: SlidesExtractionResult;
 }
 
 // Pipeline step names for UI
@@ -334,8 +339,8 @@ export const LEADERSHIP_STEPS: PipelineStep[] = [
 export interface ArchiveItem {
   title: string;
   speaker: string | null;
-  event_type: string;
-  mid_folder: string;
+  eventType: string;
+  midFolder: string;
 }
 
 // Tree structure: year -> event_folder -> items[]
@@ -400,9 +405,9 @@ export interface ProviderStatus {
 }
 
 export interface AvailableModelsResponse {
-  ollama_models: string[];
-  whisper_models: WhisperModelConfig[];
-  claude_models?: ClaudeModelConfig[];
+  ollamaModels: string[];
+  whisperModels: WhisperModelConfig[];
+  claudeModels?: ClaudeModelConfig[];
   providers?: {
     local: ProviderStatus;
     cloud: ProviderStatus;
@@ -417,22 +422,22 @@ export interface DefaultModelsResponse {
 }
 
 export interface StageConfig {
-  chunk_size?: number;
-  chunk_overlap?: number;
-  small_text_threshold?: number;
-  large_text_threshold?: number;
-  min_chunk_words?: number;
-  target_chunk_words?: number;
-  part_size?: number;
-  overlap_size?: number;
-  min_part_size?: number;
+  chunkSize?: number;
+  chunkOverlap?: number;
+  smallTextThreshold?: number;
+  largeTextThreshold?: number;
+  minChunkWords?: number;
+  targetChunkWords?: number;
+  partSize?: number;
+  overlapSize?: number;
+  minPartSize?: number;
 }
 
 export interface ModelConfig {
-  context_tokens?: number;
+  contextTokens?: number;
   cleaner?: StageConfig;
   chunker?: StageConfig;
-  text_splitter?: StageConfig;
+  textSplitter?: StageConfig;
 }
 
 export interface ModelsConfigResponse {
@@ -495,7 +500,7 @@ export interface SlideFile {
  */
 export interface SlideInput {
   filename: string;
-  content_type: string; // image/jpeg, image/png, application/pdf
+  contentType: string; // image/jpeg, image/png, application/pdf
   data: string; // base64 encoded
 }
 
@@ -504,15 +509,15 @@ export interface SlideInput {
  * Source: backend/app/models/schemas.py
  */
 export interface SlidesExtractionResult {
-  extracted_text: string;
-  slides_count: number;
-  chars_count: number;
-  words_count: number;
-  tables_count: number;
+  extractedText: string;
+  slidesCount: number;
+  charsCount: number;
+  wordsCount: number;
+  tablesCount: number;
   model: string;
-  tokens_used?: TokensUsed;
+  tokensUsed?: TokensUsed;
   cost?: number;
-  processing_time_sec?: number;
+  processingTimeSec?: number;
 }
 
 /**
@@ -521,7 +526,7 @@ export interface SlidesExtractionResult {
 export interface StepSlidesRequest {
   slides: SlideInput[];
   model?: string;
-  prompt_overrides?: PromptOverrides;
+  promptOverrides?: PromptOverrides;
 }
 
 // Slides limits for validation
@@ -530,3 +535,15 @@ export const SLIDES_LIMITS = {
   MAX_FILE_SIZE: 10 * 1024 * 1024, // 10 MB
   MAX_TOTAL_SIZE: 100 * 1024 * 1024, // 100 MB
 } as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Saved Files Types (v0.58+)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface SavedFiles {
+  longread?: string;
+  summary?: string;
+  story?: string;
+  transcript?: string;
+  pipelineResults?: string;
+}

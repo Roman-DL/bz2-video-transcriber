@@ -74,7 +74,7 @@ export function LongreadView({
           {formatNumber(longread.chars)} симв.
         </span>
         <span>
-          {formatNumber(longread.total_word_count)} слов
+          {formatNumber(longread.totalWordCount)} слов
         </span>
         {reductionPercent !== null && (
           <span className={reductionPercent > 0 ? 'text-emerald-600' : 'text-amber-600'}>
@@ -103,9 +103,9 @@ export function LongreadView({
 
       {/* Footer with LLM metrics */}
       <ResultFooter
-        tokensUsed={longread.tokens_used}
+        tokensUsed={longread.tokensUsed}
         cost={longread.cost}
-        model={longread.model_name}
+        model={longread.modelName}
       />
     </div>
   );

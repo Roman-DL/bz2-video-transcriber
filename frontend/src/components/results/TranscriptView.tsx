@@ -40,7 +40,7 @@ export function RawTranscriptView({ transcript, displayText }: RawTranscriptView
           </span>
         )}
         <span className="ml-auto font-mono text-gray-400">
-          {transcript.whisper_model}
+          {transcript.whisperModel}
         </span>
       </div>
 
@@ -66,8 +66,8 @@ export function CleanedTranscriptView({
   onToggleDiff,
 }: CleanedTranscriptViewProps) {
   // Calculate change percent correctly: negative = reduction, positive = increase
-  const changePercent = transcript.original_length > 0
-    ? ((transcript.cleaned_length - transcript.original_length) / transcript.original_length) * 100
+  const changePercent = transcript.originalLength > 0
+    ? ((transcript.cleanedLength - transcript.originalLength) / transcript.originalLength) * 100
     : 0;
 
   // Show diff view if enabled
@@ -88,7 +88,7 @@ export function CleanedTranscriptView({
       {/* Header with metrics */}
       <div className="text-xs text-gray-500 mb-2 shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1">
         <span>
-          {formatNumber(transcript.cleaned_length)} симв.
+          {formatNumber(transcript.cleanedLength)} симв.
         </span>
         <span>
           {formatNumber(transcript.words)} слов
@@ -121,9 +121,9 @@ export function CleanedTranscriptView({
 
       {/* Footer with LLM metrics */}
       <ResultFooter
-        tokensUsed={transcript.tokens_used}
+        tokensUsed={transcript.tokensUsed}
         cost={transcript.cost}
-        model={transcript.model_name}
+        model={transcript.modelName}
       />
     </div>
   );

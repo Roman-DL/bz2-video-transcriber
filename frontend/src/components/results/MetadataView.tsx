@@ -14,7 +14,7 @@ export function MetadataView({ metadata }: MetadataViewProps) {
 
       <div className="flex gap-4">
         <dt className="text-gray-500 w-28 shrink-0">Мероприятие</dt>
-        <dd className="text-gray-900 font-medium">{metadata.event_type}</dd>
+        <dd className="text-gray-900 font-medium">{metadata.eventType}</dd>
       </div>
 
       {metadata.stream && (
@@ -36,23 +36,23 @@ export function MetadataView({ metadata }: MetadataViewProps) {
 
       <div className="flex gap-4">
         <dt className="text-gray-500 w-28 shrink-0">Video ID</dt>
-        <dd className="text-gray-900 font-mono text-xs">{metadata.video_id}</dd>
+        <dd className="text-gray-900 font-mono text-xs">{metadata.videoId}</dd>
       </div>
 
-      {metadata.content_type && (
+      {metadata.contentType && (
         <div className="flex gap-4">
           <dt className="text-gray-500 w-28 shrink-0">Тип контента</dt>
           <dd className="text-gray-900 font-medium">
-            {metadata.content_type === 'educational' ? 'Обучающий' : 'Лидерская история'}
+            {metadata.contentType === 'educational' ? 'Обучающий' : 'Лидерская история'}
           </dd>
         </div>
       )}
 
-      {metadata.event_category && (
+      {metadata.eventCategory && (
         <div className="flex gap-4">
           <dt className="text-gray-500 w-28 shrink-0">Категория</dt>
           <dd className="text-gray-900 font-medium">
-            {metadata.event_category === 'regular' ? 'Регулярное' : 'Выездное'}
+            {metadata.eventCategory === 'regular' ? 'Регулярное' : 'Выездное'}
           </dd>
         </div>
       )}

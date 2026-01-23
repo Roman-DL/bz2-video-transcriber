@@ -19,10 +19,10 @@ function formatSummaryAsMarkdown(summary: VideoSummary): string {
   lines.push('');
 
   // Ключевые тезисы
-  if (summary.key_points.length > 0) {
+  if (summary.keyPoints.length > 0) {
     lines.push('## Ключевые тезисы');
     lines.push('');
-    for (const point of summary.key_points) {
+    for (const point of summary.keyPoints) {
       lines.push(`• ${point}`);
     }
     lines.push('');
@@ -41,14 +41,14 @@ function formatSummaryAsMarkdown(summary: VideoSummary): string {
   // Для кого полезно
   lines.push('## Для кого полезно');
   lines.push('');
-  lines.push(summary.target_audience);
+  lines.push(summary.targetAudience);
   lines.push('');
 
   // Вопросы
-  if (summary.questions_answered.length > 0) {
+  if (summary.questionsAnswered.length > 0) {
     lines.push('## Вопросы, на которые отвечает видео');
     lines.push('');
-    for (const q of summary.questions_answered) {
+    for (const q of summary.questionsAnswered) {
       lines.push(`• ${q}`);
     }
   }
@@ -62,7 +62,7 @@ export function VideoSummaryView({ summary }: VideoSummaryViewProps) {
   return (
     <div className="space-y-4">
       <div className="text-xs text-gray-500 mb-2">
-        Модель: <span className="font-mono">{summary.model_name}</span>
+        Модель: <span className="font-mono">{summary.modelName}</span>
       </div>
       {/* Summary text as markdown */}
       <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">

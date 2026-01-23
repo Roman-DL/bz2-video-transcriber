@@ -108,8 +108,8 @@ export function ArchiveResultsModal({
 
   const { data, isLoading, isError } = useArchiveResults(
     item?.year ?? null,
-    item?.event_type ?? null,
-    item?.mid_folder ?? null,
+    item?.eventType ?? null,
+    item?.midFolder ?? null,
     item?.topicFolder ?? null
   );
 
@@ -196,10 +196,10 @@ export function ArchiveResultsModal({
               <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                   <h3 className="text-sm font-semibold text-gray-900">Метаданные</h3>
-                  {results.metadata.duration_seconds && (
+                  {results.metadata.durationSeconds && (
                     <div className="flex items-center gap-1 text-xs text-gray-500">
                       <Clock className="w-3 h-3" />
-                      {formatDuration(results.metadata.duration_seconds)}
+                      {formatDuration(results.metadata.durationSeconds)}
                     </div>
                   )}
                 </div>
@@ -213,16 +213,16 @@ export function ArchiveResultsModal({
               <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                   <h3 className="text-sm font-semibold text-gray-900">Сырая транскрипция</h3>
-                  {results.rawTranscript.processing_time_sec !== undefined && (
+                  {results.rawTranscript.processingTimeSec !== undefined && (
                     <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
-                      {formatTime(results.rawTranscript.processing_time_sec)}
+                      {formatTime(results.rawTranscript.processingTimeSec)}
                     </span>
                   )}
                 </div>
                 <div className="p-4 flex-1 overflow-hidden min-h-0">
                   <RawTranscriptView
                     transcript={results.rawTranscript}
-                    displayText={results.displayText || results.rawTranscript.full_text}
+                    displayText={results.displayText || results.rawTranscript.fullText}
                   />
                 </div>
               </div>
@@ -233,9 +233,9 @@ export function ArchiveResultsModal({
                 {!showCleanedDiff && (
                   <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                     <h3 className="text-sm font-semibold text-gray-900">Очищенная транскрипция</h3>
-                    {results.cleanedTranscript.processing_time_sec !== undefined && (
+                    {results.cleanedTranscript.processingTimeSec !== undefined && (
                       <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
-                        {formatTime(results.cleanedTranscript.processing_time_sec)}
+                        {formatTime(results.cleanedTranscript.processingTimeSec)}
                       </span>
                     )}
                   </div>
@@ -255,9 +255,9 @@ export function ArchiveResultsModal({
               <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                   <h3 className="text-sm font-semibold text-gray-900">Извлечённый текст слайдов</h3>
-                  {results.slidesExtraction.processing_time_sec !== undefined && (
+                  {results.slidesExtraction.processingTimeSec !== undefined && (
                     <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
-                      {formatTime(results.slidesExtraction.processing_time_sec)}
+                      {formatTime(results.slidesExtraction.processingTimeSec)}
                     </span>
                   )}
                 </div>
@@ -272,9 +272,9 @@ export function ArchiveResultsModal({
                 {!showLongreadDiff && (
                   <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                     <h3 className="text-sm font-semibold text-gray-900">Лонгрид</h3>
-                    {results.longread.processing_time_sec !== undefined && (
+                    {results.longread.processingTimeSec !== undefined && (
                       <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
-                        {formatTime(results.longread.processing_time_sec)}
+                        {formatTime(results.longread.processingTimeSec)}
                       </span>
                     )}
                   </div>
@@ -283,7 +283,7 @@ export function ArchiveResultsModal({
                   <LongreadView
                     longread={results.longread}
                     cleanedText={results.cleanedTranscript?.text}
-                    cleanedChars={results.cleanedTranscript?.cleaned_length}
+                    cleanedChars={results.cleanedTranscript?.cleanedLength}
                     showDiff={showLongreadDiff}
                     onToggleDiff={() => setShowLongreadDiff(!showLongreadDiff)}
                   />
@@ -295,9 +295,9 @@ export function ArchiveResultsModal({
               <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                   <h3 className="text-sm font-semibold text-gray-900">Конспект</h3>
-                  {results.summary.processing_time_sec !== undefined && (
+                  {results.summary.processingTimeSec !== undefined && (
                     <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
-                      {formatTime(results.summary.processing_time_sec)}
+                      {formatTime(results.summary.processingTimeSec)}
                     </span>
                   )}
                 </div>
@@ -312,7 +312,7 @@ export function ArchiveResultsModal({
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                   <h3 className="text-sm font-semibold text-gray-900">Лидерская история</h3>
                   <div className="flex items-center gap-3 text-xs text-gray-500">
-                    <span>{results.story.total_blocks} блоков</span>
+                    <span>{results.story.totalBlocks} блоков</span>
                     <span>{results.story.speed}</span>
                   </div>
                 </div>

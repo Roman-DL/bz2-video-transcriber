@@ -41,16 +41,16 @@ export function SettingsModal() {
 
   // Whisper options
   const whisperOptions = useMemo(() => {
-    if (!availableModels?.whisper_models.length) {
+    if (!availableModels?.whisperModels.length) {
       // Fallback to default model if no config
       return defaultModels ? [{ value: defaultModels.transcribe, label: defaultModels.transcribe }] : [];
     }
-    return whisperToOptions(availableModels.whisper_models);
+    return whisperToOptions(availableModels.whisperModels);
   }, [availableModels, defaultModels]);
 
   // Combined LLM options: Ollama (local) + Claude (cloud)
   const llmOptions = useMemo(() => {
-    return buildLLMOptions(availableModels?.ollama_models, availableModels?.claude_models);
+    return buildLLMOptions(availableModels?.ollamaModels, availableModels?.claudeModels);
   }, [availableModels]);
 
   const handleSave = () => {

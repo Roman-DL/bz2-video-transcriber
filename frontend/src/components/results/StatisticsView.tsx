@@ -97,23 +97,23 @@ function buildStepStats(data: StatisticsData): StepStats[] {
       id: 'transcribe',
       name: 'Транскрипция',
       icon: FileAudio,
-      time: data.rawTranscript.processing_time_sec,
-      model: data.rawTranscript.whisper_model,
+      time: data.rawTranscript.processingTimeSec,
+      model: data.rawTranscript.whisperModel,
       modelType: 'local',
     });
   }
 
   // Clean step
   if (data.cleanedTranscript) {
-    const model = data.cleanedTranscript.model_name;
+    const model = data.cleanedTranscript.modelName;
     steps.push({
       id: 'clean',
       name: 'Очистка текста',
       icon: Sparkles,
-      time: data.cleanedTranscript.processing_time_sec,
+      time: data.cleanedTranscript.processingTimeSec,
       model,
       modelType: isCloudModel(model) ? 'cloud' : 'local',
-      tokens: data.cleanedTranscript.tokens_used,
+      tokens: data.cleanedTranscript.tokensUsed,
       cost: data.cleanedTranscript.cost,
     });
   }
@@ -124,10 +124,10 @@ function buildStepStats(data: StatisticsData): StepStats[] {
       id: 'slides',
       name: 'Извлечение слайдов',
       icon: Presentation,
-      time: data.slidesExtraction.processing_time_sec,
+      time: data.slidesExtraction.processingTimeSec,
       model: data.slidesExtraction.model,
       modelType: 'cloud',
-      tokens: data.slidesExtraction.tokens_used,
+      tokens: data.slidesExtraction.tokensUsed,
       cost: data.slidesExtraction.cost,
     });
   }
@@ -136,42 +136,42 @@ function buildStepStats(data: StatisticsData): StepStats[] {
   const isLeadership = data.contentType === 'leadership' || data.story;
 
   if (isLeadership && data.story) {
-    const model = data.story.model_name;
+    const model = data.story.modelName;
     steps.push({
       id: 'story',
       name: 'Генерация истории',
       icon: Heart,
-      time: data.story.processing_time_sec,
+      time: data.story.processingTimeSec,
       model,
       modelType: isCloudModel(model) ? 'cloud' : 'local',
-      tokens: data.story.tokens_used,
+      tokens: data.story.tokensUsed,
       cost: data.story.cost,
     });
   } else {
     if (data.longread) {
-      const model = data.longread.model_name;
+      const model = data.longread.modelName;
       steps.push({
         id: 'longread',
         name: 'Генерация лонгрида',
         icon: BookOpen,
-        time: data.longread.processing_time_sec,
+        time: data.longread.processingTimeSec,
         model,
         modelType: isCloudModel(model) ? 'cloud' : 'local',
-        tokens: data.longread.tokens_used,
+        tokens: data.longread.tokensUsed,
         cost: data.longread.cost,
       });
     }
 
     if (data.summary) {
-      const model = data.summary.model_name;
+      const model = data.summary.modelName;
       steps.push({
         id: 'summary',
         name: 'Генерация конспекта',
         icon: ListChecks,
-        time: data.summary.processing_time_sec,
+        time: data.summary.processingTimeSec,
         model,
         modelType: isCloudModel(model) ? 'cloud' : 'local',
-        tokens: data.summary.tokens_used,
+        tokens: data.summary.tokensUsed,
         cost: data.summary.cost,
       });
     }

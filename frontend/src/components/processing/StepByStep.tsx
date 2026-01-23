@@ -191,7 +191,7 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
   const { data: defaultModels } = useDefaultModels(true);
 
   const llmOptions = useMemo(() => {
-    return buildLLMOptions(availableModels?.ollama_models, availableModels?.claude_models);
+    return buildLLMOptions(availableModels?.ollamaModels, availableModels?.claudeModels);
   }, [availableModels]);
 
   const { data: cleanPrompts } = useStagePrompts('cleaning', true);
@@ -597,10 +597,10 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                   <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                     <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                       <h3 className="text-sm font-semibold text-gray-900">Метаданные</h3>
-                      {data.metadata.duration_seconds && (
+                      {data.metadata.durationSeconds && (
                         <div className="flex items-center gap-1 text-xs text-gray-500">
                           <Clock className="w-3 h-3" />
-                          {formatDuration(data.metadata.duration_seconds)}
+                          {formatDuration(data.metadata.durationSeconds)}
                         </div>
                       )}
                     </div>
@@ -614,9 +614,9 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                   <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                     <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                       <h3 className="text-sm font-semibold text-gray-900">Сырая транскрипция</h3>
-                      {data.rawTranscript.processing_time_sec !== undefined && (
+                      {data.rawTranscript.processingTimeSec !== undefined && (
                         <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
-                          {formatTime(data.rawTranscript.processing_time_sec)}
+                          {formatTime(data.rawTranscript.processingTimeSec)}
                         </span>
                       )}
                     </div>
@@ -631,9 +631,9 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                     {!showCleanedDiff && (
                       <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                         <h3 className="text-sm font-semibold text-gray-900">Очищенная транскрипция</h3>
-                        {data.cleanedTranscript.processing_time_sec !== undefined && (
+                        {data.cleanedTranscript.processingTimeSec !== undefined && (
                           <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
-                            {formatTime(data.cleanedTranscript.processing_time_sec)}
+                            {formatTime(data.cleanedTranscript.processingTimeSec)}
                           </span>
                         )}
                       </div>
@@ -653,9 +653,9 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                   <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                     <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                       <h3 className="text-sm font-semibold text-gray-900">Извлечённые данные со слайдов</h3>
-                      {data.slidesExtraction.processing_time_sec !== undefined && (
+                      {data.slidesExtraction.processingTimeSec !== undefined && (
                         <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
-                          {formatTime(data.slidesExtraction.processing_time_sec)}
+                          {formatTime(data.slidesExtraction.processingTimeSec)}
                         </span>
                       )}
                     </div>
@@ -670,9 +670,9 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                     {!showLongreadDiff && (
                       <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                         <h3 className="text-sm font-semibold text-gray-900">Лонгрид</h3>
-                        {data.longread.processing_time_sec !== undefined && (
+                        {data.longread.processingTimeSec !== undefined && (
                           <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
-                            {formatTime(data.longread.processing_time_sec)}
+                            {formatTime(data.longread.processingTimeSec)}
                           </span>
                         )}
                       </div>
@@ -681,7 +681,7 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                       <LongreadView
                         longread={data.longread}
                         cleanedText={data.cleanedTranscript?.text}
-                        cleanedChars={data.cleanedTranscript?.cleaned_length}
+                        cleanedChars={data.cleanedTranscript?.cleanedLength}
                         showDiff={showLongreadDiff}
                         onToggleDiff={() => setShowLongreadDiff(!showLongreadDiff)}
                       />
@@ -693,9 +693,9 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                   <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                     <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                       <h3 className="text-sm font-semibold text-gray-900">Конспект</h3>
-                      {data.summary.processing_time_sec !== undefined && (
+                      {data.summary.processingTimeSec !== undefined && (
                         <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
-                          {formatTime(data.summary.processing_time_sec)}
+                          {formatTime(data.summary.processingTimeSec)}
                         </span>
                       )}
                     </div>
@@ -710,7 +710,7 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                     <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                       <h3 className="text-sm font-semibold text-gray-900">Лидерская история</h3>
                       <div className="flex items-center gap-3 text-xs text-gray-500">
-                        <span>{data.story.total_blocks} блоков</span>
+                        <span>{data.story.totalBlocks} блоков</span>
                         <span>{data.story.speed}</span>
                       </div>
                     </div>
@@ -747,7 +747,7 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                           story: data.story,
                           chunks: data.chunks,
                           savedFiles: data.savedFiles,
-                          contentType: data.metadata?.content_type,
+                          contentType: data.metadata?.contentType,
                         }}
                       />
                     </div>

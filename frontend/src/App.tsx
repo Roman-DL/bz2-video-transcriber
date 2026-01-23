@@ -33,32 +33,32 @@ interface SelectedVideo {
  */
 function metadataToArchiveItem(metadata: VideoMetadata): ArchiveItemWithPath {
   const year = metadata.date.split('-')[0];
-  const isOffsite = metadata.event_category === 'offsite';
+  const isOffsite = metadata.eventCategory === 'offsite';
 
-  // mid_folder: date "01.22" for regular, event_name for offsite
+  // midFolder: date "01.22" for regular, eventName for offsite
   let midFolder: string;
   if (isOffsite) {
-    midFolder = metadata.event_name;
+    midFolder = metadata.eventName;
   } else {
     const [, month, day] = metadata.date.split('-');
     midFolder = `${month}.${day}`;
   }
 
-  // topic_folder: "{stream} {title} ({speaker})" or "{title} ({speaker})"
+  // topicFolder: "{stream} {title} ({speaker})" or "{title} ({speaker})"
   const topicFolder = metadata.stream
     ? `${metadata.stream} ${metadata.title} (${metadata.speaker})`
     : `${metadata.title} (${metadata.speaker})`;
 
-  // event_folder for display: "01.22 ПШ" for regular, event_name for offsite
+  // eventFolder for display: "01.22 ПШ" for regular, eventName for offsite
   const eventFolder = isOffsite
     ? midFolder
-    : `${midFolder} ${metadata.event_type}`;
+    : `${midFolder} ${metadata.eventType}`;
 
   return {
     title: metadata.title,
     speaker: metadata.speaker,
-    event_type: isOffsite ? 'Выездные' : metadata.event_type,
-    mid_folder: midFolder,
+    eventType: isOffsite ? 'Выездные' : metadata.eventType,
+    midFolder: midFolder,
     year,
     eventFolder,
     topicFolder,
