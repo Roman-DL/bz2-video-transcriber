@@ -77,9 +77,10 @@ export function SlidesModal({
 
   const totalSize = slides.reduce((acc, s) => acc + s.size, 0);
 
-  // Reset error when modal opens/closes
+  // Reset error when modal opens (valid sync pattern for modal state)
   useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(null);
     }
   }, [isOpen]);

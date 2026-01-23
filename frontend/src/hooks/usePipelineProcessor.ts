@@ -584,6 +584,7 @@ export function usePipelineProcessor({
           setData({ metadata });
           setCurrentStep('transcribe');
           setIsInitializing(false);
+          onStepComplete?.('parse', { metadata });
         }
       } catch (err) {
         if (mounted) {
@@ -596,10 +597,12 @@ export function usePipelineProcessor({
     autoParse();
 
     return () => { mounted = false; };
+    // Intentionally only depend on filename - we want to parse once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filename]);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Auto-run effect
+  // Auto-run effect (for autoRun mode - automatically executes pipeline steps)
   // ─────────────────────────────────────────────────────────────────────────
   const isRunningRef = useRef(false);
 

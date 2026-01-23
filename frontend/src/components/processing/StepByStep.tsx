@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useStagePrompts } from '@/api/hooks/usePrompts';
 import { useAvailableModels, useDefaultModels } from '@/api/hooks/useModels';
 import type {
@@ -105,16 +105,55 @@ const TAB_LABELS: Record<ResultTab, string> = {
   chunks: 'Чанки',
 };
 
+// Map pipeline step to result tab
+function getTabForStep(step: PipelineStep): ResultTab | null {
+  switch (step) {
+    case 'parse': return 'metadata';
+    case 'transcribe': return 'rawTranscript';
+    case 'clean': return 'cleanedTranscript';
+    case 'slides': return 'slides';
+    case 'longread': return 'longread';
+    case 'summarize': return 'summary';
+    case 'story': return 'story';
+    case 'chunk': return 'chunks';
+    default: return null;
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Component
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] }: StepByStepProps) {
+  // ─────────────────────────────────────────────────────────────────────────
+  // Local UI State
+  // ─────────────────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<ResultTab | null>(null);
+  const [expandedSettings, setExpandedSettings] = useState<PipelineStep | null>(null);
+  const [showCleanedDiff, setShowCleanedDiff] = useState(false);
+  const [showLongreadDiff, setShowLongreadDiff] = useState(false);
+
+  // Wrapper that resets diff mode when switching tabs
+  const switchTab = useCallback((tab: ResultTab | null) => {
+    setActiveTab(tab);
+    setShowCleanedDiff(false);
+    setShowLongreadDiff(false);
+  }, []);
+
+  // Auto-switch tab when step completes
+  const handleStepComplete = useCallback((step: PipelineStep) => {
+    const tabForStep = getTabForStep(step);
+    if (tabForStep) {
+      switchTab(tabForStep);
+    }
+  }, [switchTab]);
+
   // Use shared pipeline processor hook (step-by-step mode)
   const processor = usePipelineProcessor({
     filename,
     initialSlides,
     autoRun: false,
+    onStepComplete: handleStepComplete,
   });
 
   const {
@@ -140,14 +179,6 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
     getStepStatus,
     calculateTotals,
   } = processor;
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Local UI State
-  // ─────────────────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<ResultTab | null>(null);
-  const [expandedSettings, setExpandedSettings] = useState<PipelineStep | null>(null);
-  const [showCleanedDiff, setShowCleanedDiff] = useState(false);
-  const [showLongreadDiff, setShowLongreadDiff] = useState(false);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Model & Prompt Hooks (step-by-step specific)
@@ -186,20 +217,6 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
     return STAGES_WITH_PROMPTS.includes(step as StageWithPrompts);
   };
 
-  const getTabForStep = (step: PipelineStep): ResultTab | null => {
-    switch (step) {
-      case 'parse': return 'metadata';
-      case 'transcribe': return 'rawTranscript';
-      case 'clean': return 'cleanedTranscript';
-      case 'slides': return 'slides';
-      case 'longread': return 'longread';
-      case 'summarize': return 'summary';
-      case 'story': return 'story';
-      case 'chunk': return 'chunks';
-      default: return null;
-    }
-  };
-
   const getAvailableTabs = (): ResultTab[] => {
     const tabs: ResultTab[] = [];
     if (data.metadata) tabs.push('metadata');
@@ -218,19 +235,6 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
     setExpandedSettings(null);
     resetDataFromStep(step);
   };
-
-  // Reset diff mode when tab changes
-  useEffect(() => {
-    setShowCleanedDiff(false);
-    setShowLongreadDiff(false);
-  }, [activeTab]);
-
-  // Set active tab when data becomes available
-  useEffect(() => {
-    if (data.metadata && !activeTab) {
-      setActiveTab('metadata');
-    }
-  }, [data.metadata, activeTab]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Loading State
@@ -418,7 +422,7 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                       onClick={() => {
                         if (status === 'completed') {
                           const tabForStep = getTabForStep(step);
-                          if (tabForStep) setActiveTab(tabForStep);
+                          if (tabForStep) switchTab(tabForStep);
                         }
                       }}
                     >
@@ -573,7 +577,7 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                           ? 'text-blue-600 bg-blue-50 border border-blue-200'
                           : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-transparent'
                       }`}
-                      onClick={() => setActiveTab(tab)}
+                      onClick={() => switchTab(tab)}
                     >
                       <Icon className="w-3.5 h-3.5" />
                       <span>{TAB_LABELS[tab]}</span>

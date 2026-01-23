@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Modal } from '@/components/common/Modal';
 import { Spinner } from '@/components/common/Spinner';
 import { Button } from '@/components/common/Button';
@@ -107,28 +107,32 @@ export function ArchiveResultsModal({
   const title = item?.title || 'Результаты обработки';
   const results = data?.data;
 
-  // Get available tabs
-  const availableTabs = results ? getAvailableTabs(results) : [];
+  // Get available tabs (memoized to avoid re-creating on every render)
+  const availableTabs = useMemo(() => {
+    return results ? getAvailableTabs(results) : [];
+  }, [results]);
 
-  // Auto-select first available tab when data loads
+  // Wrapper that resets diff mode when switching tabs
+  const switchTab = useCallback((tab: ResultTab) => {
+    setActiveTab(tab);
+    setShowCleanedDiff(false);
+    setShowLongreadDiff(false);
+  }, []);
+
+  // Auto-select preferred tab when data loads (valid sync pattern)
   useEffect(() => {
     if (availableTabs.length > 0 && !availableTabs.includes(activeTab)) {
       // Select summary/longread/story if available, otherwise first tab
       const preferredTab = availableTabs.find(t =>
         t === 'summary' || t === 'longread' || t === 'story'
       );
-      setActiveTab(preferredTab || availableTabs[0]);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      switchTab(preferredTab || availableTabs[0]);
     }
-  }, [availableTabs, activeTab]);
-
-  // Reset diff modes when tab changes
-  useEffect(() => {
-    setShowCleanedDiff(false);
-    setShowLongreadDiff(false);
-  }, [activeTab]);
+  }, [availableTabs, activeTab, switchTab]);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} size="xl">
+    <Modal isOpen={isOpen} onClose={onClose} title={title} size="2xl">
       {isLoading && (
         <div className="flex items-center justify-center py-12">
           <Spinner />
@@ -168,7 +172,7 @@ export function ArchiveResultsModal({
                       ? 'text-blue-600 bg-blue-50 border border-blue-200'
                       : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50 border border-transparent'
                   }`}
-                  onClick={() => setActiveTab(tab)}
+                  onClick={() => switchTab(tab)}
                 >
                   <Icon className="w-3.5 h-3.5" />
                   <span>{TAB_LABELS[tab]}</span>

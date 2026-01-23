@@ -16,12 +16,13 @@ export function SettingsModal() {
   const { data: defaultModels, isLoading: isLoadingDefault } = useDefaultModels();
   const { data: modelsConfig, isLoading: isLoadingConfig } = useModelsConfig();
 
-  // Local state for editing
-  const [localModels, setLocalModels] = useState<ModelSettings>({});
+  // Local state for editing (initialized from context when modal opens)
+  const [localModels, setLocalModels] = useState<ModelSettings>(models);
 
-  // Reset local state when modal opens
+  // Reset to current models when modal opens (valid sync pattern)
   useEffect(() => {
     if (isSettingsOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocalModels(models);
     }
   }, [isSettingsOpen, models]);
