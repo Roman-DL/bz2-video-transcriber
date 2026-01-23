@@ -888,6 +888,58 @@ class Summary(CamelCaseModel):
         return "\n".join(lines)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Slides Extraction Models (v0.50+)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class SlideInput(CamelCaseModel):
+    """Single slide input for extraction.
+
+    Represents an uploaded slide file (image or PDF page).
+    """
+
+    filename: str = Field(..., description="Original filename")
+    content_type: str = Field(
+        ...,
+        description="MIME type: image/jpeg, image/png, image/webp, application/pdf",
+    )
+    data: str = Field(..., description="Base64 encoded file content")
+
+
+class SlidesExtractionResult(CamelCaseModel):
+    """Result of slides text extraction.
+
+    Contains extracted text and processing metrics.
+    """
+
+    extracted_text: str = Field(..., description="Extracted text in markdown format")
+    slides_count: int = Field(..., ge=0, description="Number of slides processed")
+    chars_count: int = Field(..., ge=0, description="Total character count")
+    words_count: int = Field(..., ge=0, description="Total word count")
+    tables_count: int = Field(..., ge=0, description="Number of tables detected")
+    model: str = Field(..., description="LLM model used for extraction")
+    tokens_used: TokensUsed | None = Field(
+        default=None,
+        description="Token usage from LLM API",
+    )
+    cost: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Estimated cost in USD",
+    )
+    processing_time_sec: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Processing time in seconds",
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Processing State Models
+# ═══════════════════════════════════════════════════════════════════════════
+
+
 class ProcessingResult(CamelCaseModel):
     """Result of successful video processing."""
 
@@ -1080,53 +1132,6 @@ class StepStoryRequest(BaseModel):
     slides_text: str | None = Field(
         default=None,
         description="Optional extracted text from slides (v0.53+)",
-    )
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Slides Extraction Models (v0.50+)
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-class SlideInput(CamelCaseModel):
-    """Single slide input for extraction.
-
-    Represents an uploaded slide file (image or PDF page).
-    """
-
-    filename: str = Field(..., description="Original filename")
-    content_type: str = Field(
-        ...,
-        description="MIME type: image/jpeg, image/png, image/webp, application/pdf",
-    )
-    data: str = Field(..., description="Base64 encoded file content")
-
-
-class SlidesExtractionResult(CamelCaseModel):
-    """Result of slides text extraction.
-
-    Contains extracted text and processing metrics.
-    """
-
-    extracted_text: str = Field(..., description="Extracted text in markdown format")
-    slides_count: int = Field(..., ge=0, description="Number of slides processed")
-    chars_count: int = Field(..., ge=0, description="Total character count")
-    words_count: int = Field(..., ge=0, description="Total word count")
-    tables_count: int = Field(..., ge=0, description="Number of tables detected")
-    model: str = Field(..., description="LLM model used for extraction")
-    tokens_used: TokensUsed | None = Field(
-        default=None,
-        description="Token usage from LLM API",
-    )
-    cost: float | None = Field(
-        default=None,
-        ge=0.0,
-        description="Estimated cost in USD",
-    )
-    processing_time_sec: float | None = Field(
-        default=None,
-        ge=0.0,
-        description="Processing time in seconds",
     )
 
 
