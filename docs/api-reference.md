@@ -39,6 +39,11 @@
 | `/api/step/longread` | POST | `Longread` (SSE) | Генерация лонгрида |
 | `/api/step/summarize` | POST | `Summary` (SSE) | Генерация конспекта |
 | `/api/step/story` | POST | `Story` (SSE) | Генерация истории |
+| `/api/inbox` | GET | `list[str]` | Список файлов в inbox |
+| `/api/step/parse` | POST | `VideoMetadata` | Парсинг имени файла |
+| `/api/step/transcribe` | POST | `TranscribeResult` (SSE) | Транскрипция видео |
+| `/api/step/chunk` | POST | `TranscriptChunks` | Чанкирование H2 |
+| `/api/step/save` | POST | `list[str]` | Сохранение в архив |
 
 Подробнее: [ADR-013: CamelCase сериализация](adr/013-api-camelcase-serialization.md)
 
@@ -454,9 +459,9 @@ Claude модели показываются только если `ANTHROPIC_AP
 ```json
 {
   "transcribe": "deepdml/faster-whisper-large-v3-turbo-ct2",
-  "clean": "gemma2:9b",
-  "chunk": "gemma2:9b",
-  "summarize": "qwen2.5:14b"
+  "clean": "claude-sonnet-4-5",
+  "longread": "claude-sonnet-4-5",
+  "summarize": "claude-sonnet-4-5"
 }
 ```
 
@@ -478,6 +483,23 @@ Claude модели показываются только если `ANTHROPIC_AP
   }
 }
 ```
+
+---
+
+## Inbox API
+
+### GET /api/inbox
+
+Список медиафайлов в директории inbox.
+
+**Response:**
+```json
+["video1.mp4", "audio.mp3", "presentation.mkv"]
+```
+
+**Поддерживаемые форматы:**
+- Видео: mp4, mkv, avi, mov, webm
+- Аудио: mp3, wav, m4a, flac, aac, ogg
 
 ---
 
@@ -618,7 +640,7 @@ API для получения доступных вариантов промпт
 Получить список вариантов промптов для этапа.
 
 **Параметры:**
-- `stage` (path) — название этапа (`cleaning`, `slides`, `longread`, `summary`, `story`)
+- `stage` (path) — название этапа (`cleaning`, `longread`, `summary`, `story`)
 
 **curl пример:**
 ```bash
@@ -673,6 +695,72 @@ curl http://100.64.0.1:8801/api/prompts/cleaning
 API для пошаговой обработки с возможностью override модели и промптов.
 
 С версии v0.42 response содержит расширенные метрики: `tokens_used`, `cost`, `processing_time_sec`.
+
+### POST /api/step/parse
+
+Парсинг имени видеофайла для извлечения метаданных. Синхронная операция.
+
+**Request:**
+```json
+{
+  "video_filename": "2025.01.13 ПШ.SV Название темы (Спикер).mp4"
+}
+```
+
+**Response:**
+```json
+{
+  "date": "2025-01-13",
+  "eventType": "ПШ",
+  "stream": "SV",
+  "title": "Название темы",
+  "speaker": "Спикер",
+  "originalFilename": "2025.01.13 ПШ.SV Название темы (Спикер).mp4",
+  "videoId": "2025-01-13_ПШ-SV_название-темы",
+  "contentType": "educational",
+  "eventCategory": "regular",
+  "durationSeconds": 1234.5
+}
+```
+
+**Ошибки:**
+- `400` — Неверный формат имени файла
+- `404` — Файл не найден в inbox
+
+---
+
+### POST /api/step/transcribe
+
+Транскрипция видео через Whisper API с SSE прогрессом.
+
+**Request:**
+```json
+{
+  "video_filename": "2025.01.13 ПШ.SV Название темы (Спикер).mp4"
+}
+```
+
+**Response (SSE):**
+```json
+{"type": "progress", "status": "transcribing", "progress": 45.5, "message": "Transcribing...", "estimatedSeconds": 120.0, "elapsedSeconds": 54.0}
+{"type": "result", "data": {
+  "rawTranscript": {
+    "segments": [...],
+    "language": "ru",
+    "durationSeconds": 1234.5,
+    "whisperModel": "large-v3-turbo",
+    "fullText": "...",
+    "textWithTimestamps": "..."
+  },
+  "audioPath": "/data/inbox/audio_extracted.wav",
+  "displayText": "..."
+}}
+```
+
+**Ошибки:**
+- `404` — Файл не найден в inbox
+
+---
 
 ### POST /api/step/slides (v0.51+)
 
@@ -842,6 +930,26 @@ curl -X POST "http://100.64.0.1:8801/api/step/slides" \
 
 Генерация конспекта из очищенного транскрипта.
 
+**Request:**
+```json
+{
+  "cleaned_transcript": {...},
+  "metadata": {...},
+  "model": "claude-sonnet-4-5",
+  "prompt_overrides": {
+    "system": "system",
+    "instructions": "instructions",
+    "template": "template"
+  }
+}
+```
+
+**Параметры:**
+- `cleaned_transcript` (required) — очищенный транскрипт
+- `metadata` (required) — метаданные видео
+- `model` (optional) — override модели
+- `prompt_overrides` (optional) — override промптов
+
 **Response (SSE):**
 ```json
 {"type": "result", "data": {
@@ -893,6 +1001,83 @@ curl -X POST "http://100.64.0.1:8801/api/step/slides" \
   "total_blocks": 8
 }}
 ```
+
+### POST /api/step/chunk
+
+Чанкирование markdown по H2 заголовкам. Детерминистическая операция (без LLM).
+
+**Request:**
+```json
+{
+  "markdown_content": "# Title\n\n## Section 1\n\nContent...\n\n## Section 2\n\nMore content...",
+  "metadata": {...}
+}
+```
+
+**Response:**
+```json
+{
+  "videoId": "2025-01-13_ПШ-SV_название-темы",
+  "chunks": [
+    {
+      "id": "chunk_a1b2c3",
+      "title": "Section 1",
+      "content": "Content...",
+      "order": 0,
+      "tokens": 150
+    },
+    {
+      "id": "chunk_d4e5f6",
+      "title": "Section 2",
+      "content": "More content...",
+      "order": 1,
+      "tokens": 200
+    }
+  ],
+  "totalChunks": 2,
+  "totalTokens": 350
+}
+```
+
+---
+
+### POST /api/step/save
+
+Сохранение результатов обработки в архив. Синхронная операция.
+
+**Request:**
+```json
+{
+  "metadata": {...},
+  "raw_transcript": {...},
+  "cleaned_transcript": {...},
+  "chunks": {...},
+  "longread": {...},
+  "summary": {...},
+  "story": null,
+  "audio_path": "/data/inbox/audio.wav",
+  "slides_extraction": null
+}
+```
+
+**Параметры:**
+- `metadata` (required) — метаданные видео
+- `raw_transcript` (required) — сырой транскрипт
+- `cleaned_transcript` (required) — очищенный транскрипт
+- `chunks` (required) — чанки
+- `longread` (optional) — лонгрид (для educational)
+- `summary` (optional) — конспект (для educational)
+- `story` (optional) — история (для leadership)
+- `audio_path` (optional) — путь к аудио для копирования
+- `slides_extraction` (optional) — результат извлечения со слайдов
+
+**Response:**
+```json
+["longread.md", "summary.md", "transcript.txt", "audio.mp3", "pipeline_results.json"]
+```
+
+**Ошибки:**
+- `500` — Ошибка сохранения
 
 ---
 
