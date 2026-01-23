@@ -29,21 +29,17 @@
 
 ## Зависимости: AI сервисы
 
-> **Критично:** Приложение использует внешние AI сервисы. Они должны быть запущены до старта приложения.
+> **Критично:** Приложение использует внешние AI сервисы. Требуется настроить API ключ Claude и проверить доступность Whisper.
 
-### Ollama (языковые модели)
+### Claude API (v0.29+, основной)
 
 | Параметр | Значение |
 |----------|----------|
-| URL | http://100.64.0.1:11434 |
-| Модель | qwen2.5:14b |
-| Назначение | Очистка, chunking, саммаризация |
+| API | Anthropic Claude API |
+| Модели | claude-sonnet-4-5, claude-haiku-4-5 |
+| Назначение | Очистка, лонгрид, саммаризация, слайды |
 
-**Проверка:**
-```bash
-curl http://100.64.0.1:11434/api/version
-# Ожидаемый ответ: {"version":"0.x.x"}
-```
+**Требуется:** `ANTHROPIC_API_KEY` и прокси (для российского IP).
 
 ### Whisper (транскрипция)
 
@@ -59,12 +55,28 @@ curl http://100.64.0.1:9000/health
 # Ожидаемый ответ: OK
 ```
 
-### Проверка обоих сервисов
+### Ollama (опционально, для локальных моделей)
+
+| Параметр | Значение |
+|----------|----------|
+| URL | http://100.64.0.1:11434 |
+| Модели | gemma2:9b, qwen2.5:14b |
+| Назначение | Альтернатива Claude для локальной обработки |
+
+**Проверка:**
+```bash
+curl http://100.64.0.1:11434/api/version
+# Ожидаемый ответ: {"version":"0.x.x"}
+```
+
+### Проверка сервисов
 
 ```bash
-# Одной командой
-curl -s http://100.64.0.1:11434/api/version && echo " ✓ Ollama" && \
+# Whisper (обязательно)
 curl -s http://100.64.0.1:9000/health && echo " ✓ Whisper"
+
+# Ollama (опционально)
+curl -s http://100.64.0.1:11434/api/version && echo " ✓ Ollama"
 ```
 
 ---
@@ -127,17 +139,28 @@ services:
       - /mnt/main/work/bz2/video:/data:rw
       - ./config:/app/config:ro
     environment:
+      # AI сервисы
       - OLLAMA_URL=http://192.168.1.152:11434
       - WHISPER_URL=http://192.168.1.152:9000
-      - SUMMARIZER_MODEL=qwen2.5:14b
-      - CLEANER_MODEL=gemma2:9b
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # Модели (v0.29+: Claude по умолчанию)
+      - CLEANER_MODEL=claude-sonnet-4-5
+      - LONGREAD_MODEL=claude-sonnet-4-5
+      - SUMMARY_MODEL=claude-sonnet-4-5
+      - SLIDES_MODEL=claude-haiku-4-5
+      # Пути
       - DATA_ROOT=/data
       - INBOX_DIR=/data/inbox
       - ARCHIVE_DIR=/data/archive
       - TEMP_DIR=/data/temp
       - CONFIG_DIR=/app/config
+      # Настройки
       - WHISPER_LANGUAGE=ru
       - LLM_TIMEOUT=300
+      # Прокси для Claude API (если нужен)
+      - HTTP_PROXY=http://192.168.1.152:7890
+      - HTTPS_PROXY=http://192.168.1.152:7890
+      - NO_PROXY=localhost,127.0.0.1,192.168.1.152
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 30s
@@ -159,7 +182,8 @@ services:
       retries: 3
 ```
 
-**Примечание:** Приложению не нужен прямой доступ к GPU — AI сервисы (Ollama, Whisper) уже используют GPU на сервере.
+> **v0.29+:** По умолчанию все LLM-операции используют Claude. Требуется `ANTHROPIC_API_KEY`.
+> Прокси необходим для доступа к Claude API с российского IP.
 
 ---
 
@@ -236,16 +260,20 @@ sudo docker compose up -d --build
 
 | Переменная | По умолчанию | Описание |
 |------------|--------------|----------|
-| `OLLAMA_URL` | `http://192.168.1.152:11434` | URL Ollama API |
+| `ANTHROPIC_API_KEY` | — | **Обязательно.** API ключ для Claude (v0.29+) |
+| `OLLAMA_URL` | `http://192.168.1.152:11434` | URL Ollama API (для локальных моделей) |
 | `WHISPER_URL` | `http://192.168.1.152:9000` | URL Whisper API |
-| `SUMMARIZER_MODEL` | `qwen2.5:14b` | Модель для суммаризации |
-| `CLEANER_MODEL` | `gemma2:9b` | Модель для очистки транскрипта |
-| `LLM_TIMEOUT` | `300` | Таймаут запросов к Ollama (сек) |
+| `CLEANER_MODEL` | `claude-sonnet-4-5` | Модель для очистки транскрипта |
+| `LONGREAD_MODEL` | `claude-sonnet-4-5` | Модель для генерации лонгрида |
+| `SUMMARY_MODEL` | `claude-sonnet-4-5` | Модель для суммаризации |
+| `SLIDES_MODEL` | `claude-haiku-4-5` | Модель для извлечения текста со слайдов (v0.51+) |
+| `LLM_TIMEOUT` | `300` | Таймаут запросов к LLM (сек) |
 | `WHISPER_LANGUAGE` | `ru` | Язык транскрипции |
-| `ANTHROPIC_API_KEY` | — | API ключ для Claude (опционально) |
 | `HTTP_PROXY` | `http://192.168.1.152:7890` | Прокси для Claude API |
 | `HTTPS_PROXY` | `http://192.168.1.152:7890` | Прокси для Claude API |
 | `NO_PROXY` | `localhost,...` | Исключения (локальные сервисы) |
+
+> **v0.29+:** Claude используется по умолчанию для всех LLM-операций. Ollama остаётся доступным для локальных моделей (gemma2, qwen2.5).
 
 **Примечание:** Прокси необходим для доступа к Claude API с российского IP.
 Подробнее: [Прокси для Docker-приложений](Прокси%20для%20Docker-приложений.md)
@@ -308,6 +336,20 @@ curl http://100.64.0.1:8801/health
 curl http://100.64.0.1:8801/health/services
 # {"whisper":true,"ollama":true,...}
 ```
+
+---
+
+## API сериализация (v0.59+)
+
+С версии v0.59 API использует **camelCase** для JSON-ответов:
+
+| Слой | Формат | Пример |
+|------|--------|--------|
+| Python код | snake_case | `raw_transcript`, `tokens_used` |
+| API JSON | camelCase | `rawTranscript`, `tokensUsed` |
+| TypeScript | camelCase | `rawTranscript`, `tokensUsed` |
+
+Подробнее: [ADR-013: API camelCase Serialization](adr/013-api-camelcase-serialization.md)
 
 ---
 
