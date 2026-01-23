@@ -292,7 +292,7 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
   const { progress, estimatedSeconds, elapsedSeconds } = progressInfo;
 
   return (
-    <div className="flex flex-col h-[85vh] min-h-[700px] max-h-[950px] bg-slate-50">
+    <div className="flex flex-col h-[85vh] min-h-[700px] max-h-[1020px] bg-slate-50">
       {/* Header */}
       <header className="flex items-center justify-between px-5 py-3 bg-white border-b border-gray-200 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
@@ -316,12 +316,14 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
             </span>
           )}
         </div>
-        <button
-          onClick={onCancel}
-          className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
-        >
-          Отменить
-        </button>
+        {!isComplete && (
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
+          >
+            Отменить
+          </button>
+        )}
       </header>
 
       {/* Main content area */}

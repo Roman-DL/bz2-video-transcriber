@@ -290,7 +290,7 @@ export function StatisticsView({
       </div>
 
       {/* Steps Table */}
-      <div className="flex-1 min-h-0">
+      <div className="shrink-0">
         <h4 className="text-xs font-semibold text-gray-700 mb-2">
           Детализация по этапам
         </h4>

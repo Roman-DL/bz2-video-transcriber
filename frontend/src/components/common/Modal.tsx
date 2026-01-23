@@ -49,7 +49,7 @@ export function Modal({
             'max-w-lg': size === 'lg',
             'max-w-2xl': size === 'xl',
             'max-w-5xl': size === '2xl',
-            'max-w-[1100px]': size === 'full',
+            'max-w-[1250px]': size === 'full',
           }
         )}
       >
