@@ -6,7 +6,36 @@
 
 ## Назначение
 
-Извлечение метаданных из имени видеофайла по установленному паттерну. Автоматическое определение типа контента (`ContentType`) и категории события (`EventCategory`).
+Извлечение метаданных из имени медиафайла по установленному паттерну. Автоматическое определение типа контента (`ContentType`) и категории события (`EventCategory`).
+
+> **Примечание:** Этап детерминистический — LLM не используется, промптов нет.
+
+## Input / Output
+
+| Направление | Тип | Описание |
+|-------------|-----|----------|
+| **Input** | `video_path: Path` | Путь к медиафайлу (из `context.metadata`) |
+| **Output** | `VideoMetadata` | Pydantic-модель с метаданными |
+
+### Поля VideoMetadata
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `date` | `date` | Дата события |
+| `event_type` | `str` | Тип мероприятия (ПШ, ГП, и т.д.) |
+| `stream` | `str` | Часть/поток (SV, MV, и т.д.) |
+| `title` | `str` | Название темы |
+| `speaker` | `str` | Спикер |
+| `original_filename` | `str` | Исходное имя файла |
+| `video_id` | `str` | Уникальный идентификатор |
+| `source_path` | `Path` | Путь к исходному файлу |
+| `archive_path` | `Path` | Путь в архиве |
+| `duration_seconds` | `float \| None` | Длительность в секундах |
+| `content_type` | `ContentType` | Тип контента (EDUCATIONAL/LEADERSHIP) |
+| `event_category` | `EventCategory` | Категория события (REGULAR/OFFSITE) |
+| `event_name` | `str \| None` | Название выездного события |
+| `stream_full` | computed | Полный идентификатор: `{event_type}.{stream}` |
+| `is_offsite` | computed | `True` если `event_category == OFFSITE` |
 
 ## Категории событий (v0.21+)
 
@@ -55,7 +84,7 @@ inbox/
 - `inbox/Выезд 2025.01/Антоновы (Дмитрий и Юлия).mp4` → leadership
 - `inbox/Выезд 2025.01/Иванов — Как строить бизнес.mp4` → educational
 
-**Поддерживаемые форматы:** `.mp4`, `.mkv` и другие видеофайлы.
+**Поддерживаемые форматы:** `.mp4`, `.mkv`, `.mp3`, `.wav`, `.m4a` и другие медиафайлы.
 
 ## Структура архива
 
@@ -115,6 +144,15 @@ Slug сохраняет кириллицу в lowercase.
 Типы мероприятий и их части валидируются по конфигу `config/events.yaml`.
 При неизвестном типе/части выводится warning, но обработка продолжается.
 
+## Определение длительности
+
+После парсинга имени файла этап определяет длительность медиа:
+
+1. **Основной способ:** `ffprobe` через `get_media_duration()`
+2. **Fallback:** Оценка по размеру файла через `estimate_duration_from_size()` (разные битрейты для аудио/видео)
+
+Результат записывается в `duration_seconds`.
+
 ## Error Handling
 
 При несоответствии имени файла паттерну выбрасывается `FilenameParseError` с понятным сообщением об ожидаемом формате.
@@ -140,6 +178,8 @@ python -m app.services.parser
 
 ## Связанные документы
 
-- **Код:** [`backend/app/services/parser.py`](../../backend/app/services/parser.py)
-- **Модели:** [`backend/app/models/schemas.py`](../../backend/app/models/schemas.py)
+- **Stage:** [`backend/app/services/stages/parse_stage.py`](../../backend/app/services/stages/parse_stage.py)
+- **Сервис парсинга:** [`backend/app/services/parser.py`](../../backend/app/services/parser.py)
+- **Модели:** [`backend/app/models/schemas.py`](../../backend/app/models/schemas.py) — `VideoMetadata`, `ContentType`, `EventCategory`
+- **Утилиты:** [`backend/app/utils/media_utils.py`](../../backend/app/utils/media_utils.py) — `get_media_duration()`, `estimate_duration_from_size()`
 - **Типы мероприятий:** [`config/events.yaml`](../../config/events.yaml)

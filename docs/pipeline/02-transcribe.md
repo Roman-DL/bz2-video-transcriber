@@ -8,6 +8,18 @@
 
 Преобразование видео в текст с сохранением временных меток сегментов.
 
+> **Примечание:** Этап детерминистический — LLM не используется, промптов нет.
+
+## Input / Output
+
+| Направление | Тип | Описание |
+|-------------|-----|----------|
+| **Input** | `parse: VideoMetadata` | Результат этапа parse (из context) |
+| | `video_path: Path` | Путь к медиафайлу (из `context.metadata`) |
+| **Output** | `tuple[RawTranscript, Path]` | Транскрипт и путь к аудиофайлу |
+
+**Зависимости:** `depends_on = ["parse"]`
+
 ## Архитектура
 
 Транскрипция выполняется в два этапа для надёжности:
@@ -65,11 +77,20 @@ AIClient автоматически повторяет запросы при с�
 
 Транскрипция возвращает `RawTranscript` с сегментами и метаданными.
 
-**Ключевые поля:**
-- `segments` — список сегментов с таймкодами
-- `duration_seconds` — длительность видео
-- `full_text` — весь текст без таймкодов (computed)
-- `text_with_timestamps` — текст в формате `[HH:MM:SS] Текст` (computed)
+### Поля RawTranscript
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `segments` | `list[TranscriptSegment]` | Список сегментов с таймкодами |
+| `language` | `str` | Язык транскрипции |
+| `duration_seconds` | `float` | Длительность медиа в секундах |
+| `whisper_model` | `str` | Использованная модель Whisper |
+| `confidence` | `float \| None` | Средняя уверенность 0-1 (v0.42+) |
+| `processing_time_sec` | `float \| None` | Время транскрипции в секундах (v0.42+) |
+| `full_text` | computed | Весь текст без таймкодов |
+| `text_with_timestamps` | computed | Текст в формате `[HH:MM:SS] Текст` |
+| `chars` | computed | Количество символов |
+| `words` | computed | Количество слов |
 
 Подробнее: [`backend/app/models/schemas.py`](../../backend/app/models/schemas.py)
 
@@ -133,7 +154,9 @@ python -m backend.app.services.transcriber
 
 ## Связанные файлы
 
-- [`backend/app/services/audio_extractor.py`](../../backend/app/services/audio_extractor.py) — извлечение аудио
-- [`backend/app/services/transcriber.py`](../../backend/app/services/transcriber.py) — транскрипция
-- [`backend/app/services/ai_clients/whisper_client.py`](../../backend/app/services/ai_clients/whisper_client.py) — HTTP клиент для Whisper (v0.27+)
-- [`backend/app/models/schemas.py`](../../backend/app/models/schemas.py) — модели данных
+- **Stage:** [`backend/app/services/stages/transcribe_stage.py`](../../backend/app/services/stages/transcribe_stage.py)
+- **Сервисы:**
+  - [`backend/app/services/audio_extractor.py`](../../backend/app/services/audio_extractor.py) — извлечение аудио
+  - [`backend/app/services/transcriber.py`](../../backend/app/services/transcriber.py) — транскрипция
+  - [`backend/app/services/ai_clients/whisper_client.py`](../../backend/app/services/ai_clients/whisper_client.py) — HTTP клиент для Whisper (v0.27+)
+- **Модели:** [`backend/app/models/schemas.py`](../../backend/app/models/schemas.py) — `RawTranscript`, `TranscriptSegment`

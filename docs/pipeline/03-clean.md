@@ -8,6 +8,30 @@
 
 Очистка сырого транскрипта от речевого мусора и нормализация терминологии с использованием LLM.
 
+## Input / Output
+
+| Направление | Тип | Описание |
+|-------------|-----|----------|
+| **Input** | `parse: VideoMetadata` | Метаданные из этапа parse |
+| | `transcribe: tuple[RawTranscript, Path]` | Транскрипт и аудио из этапа transcribe |
+| **Output** | `CleanedTranscript` | Очищенный транскрипт с метриками |
+
+**Зависимости:** `depends_on = ["parse", "transcribe"]`
+
+### Поля CleanedTranscript
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| `text` | `str` | Очищенный текст |
+| `original_length` | `int` | Длина до очистки (символы) |
+| `cleaned_length` | `int` | Длина после очистки (символы) |
+| `model_name` | `str` | Использованная модель |
+| `tokens_used` | `TokensUsed \| None` | Статистика токенов (v0.42+) |
+| `cost` | `float \| None` | Стоимость в USD (v0.42+) |
+| `processing_time_sec` | `float \| None` | Время обработки в секундах (v0.42+) |
+| `words` | computed | Количество слов |
+| `change_percent` | computed | Процент изменения текста |
+
 ## Проблемы сырого транскрипта
 
 | Проблема | Пример | Решение |
@@ -32,7 +56,7 @@ RawTranscript (~70KB контента для 55-мин видео)
 ┌─────────────────┐
 │ 2. LLM CLEAN    │  Chat API с system/user roles
 │    (по частям)  │  (glossary.yaml как контекст)
-│    (gemma2:9b)  │
+│ (claude-sonnet) │
 └────────┬────────┘
          │
          ▼
@@ -106,7 +130,7 @@ LLM использует эту информацию для:
 
 | Параметр | Значение | Описание |
 |----------|----------|----------|
-| `CLEANER_MODEL` | gemma2:9b | Модель для очистки (env variable) |
+| `CLEANER_MODEL` | claude-sonnet-4-5 | Модель для очистки (v0.29+, env variable) |
 | `CHUNK_SIZE_CHARS` | 3000 | Размер одной части |
 | `CHUNK_OVERLAP_CHARS` | 200 | Перекрытие между частями |
 | `SMALL_TEXT_THRESHOLD` | 3500 | Порог для включения chunking |
@@ -114,7 +138,7 @@ LLM использует эту информацию для:
 
 ## Выбор модели
 
-Модель `gemma2:9b` выбрана по результатам тестирования:
+По умолчанию используется `claude-sonnet-4-5` (v0.29+). Исторически тестировались локальные модели:
 
 | Модель | Reduction на 3KB | Reduction на 6KB | Статус |
 |--------|------------------|------------------|--------|
@@ -208,9 +232,12 @@ python -m app.services.cleaner
 
 ## Связанные файлы
 
-- **Код:** [backend/app/services/cleaner.py](../../backend/app/services/cleaner.py)
-- **System prompt:** [config/prompts/cleaner_system.md](../../config/prompts/cleaner_system.md)
-- **User template:** [config/prompts/cleaner_user.md](../../config/prompts/cleaner_user.md)
+- **Stage:** [backend/app/services/stages/clean_stage.py](../../backend/app/services/stages/clean_stage.py)
+- **Сервис:** [backend/app/services/cleaner.py](../../backend/app/services/cleaner.py)
+- **Промпты (v0.30+):**
+  - [config/prompts/cleaning/system.md](../../config/prompts/cleaning/system.md) — системный промпт
+  - [config/prompts/cleaning/user.md](../../config/prompts/cleaning/user.md) — пользовательский шаблон
 - **Глоссарий:** [config/glossary.yaml](../../config/glossary.yaml)
+- **Модели:** [backend/app/models/schemas.py](../../backend/app/models/schemas.py) — `CleanedTranscript`, `TokensUsed`
 - **AI клиенты:** [backend/app/services/ai_clients/](../../backend/app/services/ai_clients/)
 - **Исследование:** [docs/research/llm-transcript-cleaning-guide.md](../research/llm-transcript-cleaning-guide.md)
