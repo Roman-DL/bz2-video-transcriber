@@ -15,6 +15,7 @@ from app.models.schemas import (
     CleanedTranscript,
     ContentType,
     Longread,
+    PipelineResults,
     RawTranscript,
     SlidesExtractionResult,
     Story,
@@ -267,7 +268,7 @@ class FileSaver:
         Save complete pipeline results for educational content.
 
         This JSON contains all data needed to display processing results
-        without re-parsing other files.
+        without re-parsing other files. Uses camelCase serialization (v0.58+).
 
         Args:
             archive_path: Archive directory path
@@ -289,133 +290,31 @@ class FileSaver:
             else raw_transcript.full_text
         )
 
-        data = {
-            "version": PIPELINE_VERSION,
-            "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "metadata": {
-                "date": metadata.date.isoformat(),
-                "event_type": metadata.event_type,
-                "stream": metadata.stream,
-                "title": metadata.title,
-                "speaker": metadata.speaker,
-                "original_filename": metadata.original_filename,
-                "video_id": metadata.video_id,
-                "source_path": str(metadata.source_path),
-                "archive_path": str(metadata.archive_path),
-                "stream_full": metadata.stream_full,
-                "duration_seconds": metadata.duration_seconds,
-                "content_type": metadata.content_type.value,
-                "event_category": metadata.event_category.value,
-                "event_name": metadata.event_name,
-            },
-            "raw_transcript": {
-                "segments": [
-                    {
-                        "start": seg.start,
-                        "end": seg.end,
-                        "text": seg.text,
-                    }
-                    for seg in raw_transcript.segments
-                ],
-                "language": raw_transcript.language,
-                "duration_seconds": raw_transcript.duration_seconds,
-                "whisper_model": raw_transcript.whisper_model,
-                "full_text": raw_transcript.full_text,
-                "text_with_timestamps": raw_transcript.text_with_timestamps,
-                "chars": raw_transcript.chars,
-                "words": raw_transcript.words,
-                "confidence": raw_transcript.confidence,
-                "processing_time_sec": raw_transcript.processing_time_sec,
-            },
-            "display_text": display_text,
-            "cleaned_transcript": {
-                "text": cleaned_transcript.text,
-                "original_length": cleaned_transcript.original_length,
-                "cleaned_length": cleaned_transcript.cleaned_length,
-                "model_name": cleaned_transcript.model_name,
-                "words": cleaned_transcript.words,
-                "change_percent": cleaned_transcript.change_percent,
-                "tokens_used": cleaned_transcript.tokens_used.model_dump() if cleaned_transcript.tokens_used else None,
-                "cost": cleaned_transcript.cost,
-                "processing_time_sec": cleaned_transcript.processing_time_sec,
-            },
-            "chunks": {
-                "chunks": [
-                    {
-                        "id": chunk.id,
-                        "index": chunk.index,
-                        "topic": chunk.topic,
-                        "text": chunk.text,
-                        "word_count": chunk.word_count,
-                    }
-                    for chunk in chunks.chunks
-                ],
-                "model_name": chunks.model_name,
-                "total_chunks": chunks.total_chunks,
-                "avg_chunk_size": chunks.avg_chunk_size,
-            },
-            "longread": {
-                "video_id": longread.video_id,
-                "title": longread.title,
-                "speaker_status": longread.speaker_status,
-                "introduction": longread.introduction,
-                "sections": [
-                    {
-                        "index": s.index,
-                        "title": s.title,
-                        "content": s.content,
-                        "source_chunks": s.source_chunks,
-                        "word_count": s.word_count,
-                    }
-                    for s in longread.sections
-                ],
-                "conclusion": longread.conclusion,
-                "total_sections": longread.total_sections,
-                "total_word_count": longread.total_word_count,
-                "topic_area": longread.topic_area,
-                "tags": longread.tags,
-                "access_level": longread.access_level,
-                "model_name": longread.model_name,
-                "chars": longread.chars,
-                "tokens_used": longread.tokens_used.model_dump() if longread.tokens_used else None,
-                "cost": longread.cost,
-                "processing_time_sec": longread.processing_time_sec,
-            },
-            "summary": {
-                "video_id": summary.video_id,
-                "essence": summary.essence,
-                "key_concepts": summary.key_concepts,
-                "practical_tools": summary.practical_tools,
-                "quotes": summary.quotes,
-                "insight": summary.insight,
-                "actions": summary.actions,
-                "topic_area": summary.topic_area,
-                "tags": summary.tags,
-                "access_level": summary.access_level,
-                "model_name": summary.model_name,
-                "chars": summary.chars,
-                "words": summary.words,
-                "tokens_used": summary.tokens_used.model_dump() if summary.tokens_used else None,
-                "cost": summary.cost,
-                "processing_time_sec": summary.processing_time_sec,
-            },
-            "slides_extraction": {
-                "extracted_text": slides_extraction.extracted_text,
-                "slides_count": slides_extraction.slides_count,
-                "chars_count": slides_extraction.chars_count,
-                "words_count": slides_extraction.words_count,
-                "tables_count": slides_extraction.tables_count,
-                "model": slides_extraction.model,
-                "tokens_used": slides_extraction.tokens_used.model_dump() if slides_extraction.tokens_used else None,
-                "cost": slides_extraction.cost,
-                "processing_time_sec": slides_extraction.processing_time_sec,
-            } if slides_extraction else None,
-        }
+        # Create PipelineResults model for camelCase serialization
+        results = PipelineResults(
+            version=PIPELINE_VERSION,
+            created_at=datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            content_type=metadata.content_type,
+            metadata=metadata,
+            raw_transcript=raw_transcript,
+            display_text=display_text,
+            cleaned_transcript=cleaned_transcript,
+            chunks=chunks,
+            longread=longread,
+            summary=summary,
+            slides_extraction=slides_extraction,
+        )
 
         file_path = archive_path / "pipeline_results.json"
 
+        # Serialize with camelCase aliases
         with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            json.dump(
+                results.model_dump(by_alias=True, mode="json"),
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
 
         logger.debug(f"Saved pipeline results: {file_path}")
 
@@ -433,6 +332,8 @@ class FileSaver:
     ) -> Path:
         """
         Save complete pipeline results for leadership content.
+
+        Uses camelCase serialization (v0.58+).
 
         Args:
             archive_path: Archive directory path
@@ -453,123 +354,30 @@ class FileSaver:
             else raw_transcript.full_text
         )
 
-        data = {
-            "version": PIPELINE_VERSION,
-            "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "content_type": "leadership",
-            "metadata": {
-                "date": metadata.date.isoformat(),
-                "event_type": metadata.event_type,
-                "stream": metadata.stream,
-                "title": metadata.title,
-                "speaker": metadata.speaker,
-                "original_filename": metadata.original_filename,
-                "video_id": metadata.video_id,
-                "source_path": str(metadata.source_path),
-                "archive_path": str(metadata.archive_path),
-                "stream_full": metadata.stream_full,
-                "duration_seconds": metadata.duration_seconds,
-                "content_type": metadata.content_type.value,
-                "event_category": metadata.event_category.value,
-                "event_name": metadata.event_name,
-            },
-            "raw_transcript": {
-                "segments": [
-                    {
-                        "start": seg.start,
-                        "end": seg.end,
-                        "text": seg.text,
-                    }
-                    for seg in raw_transcript.segments
-                ],
-                "language": raw_transcript.language,
-                "duration_seconds": raw_transcript.duration_seconds,
-                "whisper_model": raw_transcript.whisper_model,
-                "full_text": raw_transcript.full_text,
-                "text_with_timestamps": raw_transcript.text_with_timestamps,
-                "chars": raw_transcript.chars,
-                "words": raw_transcript.words,
-                "confidence": raw_transcript.confidence,
-                "processing_time_sec": raw_transcript.processing_time_sec,
-            },
-            "display_text": display_text,
-            "cleaned_transcript": {
-                "text": cleaned_transcript.text,
-                "original_length": cleaned_transcript.original_length,
-                "cleaned_length": cleaned_transcript.cleaned_length,
-                "model_name": cleaned_transcript.model_name,
-                "words": cleaned_transcript.words,
-                "change_percent": cleaned_transcript.change_percent,
-                "tokens_used": cleaned_transcript.tokens_used.model_dump() if cleaned_transcript.tokens_used else None,
-                "cost": cleaned_transcript.cost,
-                "processing_time_sec": cleaned_transcript.processing_time_sec,
-            },
-            "chunks": {
-                "chunks": [
-                    {
-                        "id": chunk.id,
-                        "index": chunk.index,
-                        "topic": chunk.topic,
-                        "text": chunk.text,
-                        "word_count": chunk.word_count,
-                    }
-                    for chunk in chunks.chunks
-                ],
-                "model_name": chunks.model_name,
-                "total_chunks": chunks.total_chunks,
-                "avg_chunk_size": chunks.avg_chunk_size,
-            },
-            "story": {
-                "video_id": story.video_id,
-                "names": story.names,
-                "current_status": story.current_status,
-                "event_name": story.event_name,
-                "main_insight": story.main_insight,
-                "blocks": [
-                    {
-                        "block_number": b.block_number,
-                        "block_name": b.block_name,
-                        "content": b.content,
-                    }
-                    for b in story.blocks
-                ],
-                "time_in_business": story.time_in_business,
-                "time_to_status": story.time_to_status,
-                "speed": story.speed,
-                "business_format": story.business_format,
-                "is_family": story.is_family,
-                "had_stagnation": story.had_stagnation,
-                "stagnation_years": story.stagnation_years,
-                "had_restart": story.had_restart,
-                "key_pattern": story.key_pattern,
-                "mentor": story.mentor,
-                "tags": story.tags,
-                "access_level": story.access_level,
-                "related": story.related,
-                "total_blocks": story.total_blocks,
-                "model_name": story.model_name,
-                "chars": story.chars,
-                "tokens_used": story.tokens_used.model_dump() if story.tokens_used else None,
-                "cost": story.cost,
-                "processing_time_sec": story.processing_time_sec,
-            },
-            "slides_extraction": {
-                "extracted_text": slides_extraction.extracted_text,
-                "slides_count": slides_extraction.slides_count,
-                "chars_count": slides_extraction.chars_count,
-                "words_count": slides_extraction.words_count,
-                "tables_count": slides_extraction.tables_count,
-                "model": slides_extraction.model,
-                "tokens_used": slides_extraction.tokens_used.model_dump() if slides_extraction.tokens_used else None,
-                "cost": slides_extraction.cost,
-                "processing_time_sec": slides_extraction.processing_time_sec,
-            } if slides_extraction else None,
-        }
+        # Create PipelineResults model for camelCase serialization
+        results = PipelineResults(
+            version=PIPELINE_VERSION,
+            created_at=datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            content_type=ContentType.LEADERSHIP,
+            metadata=metadata,
+            raw_transcript=raw_transcript,
+            display_text=display_text,
+            cleaned_transcript=cleaned_transcript,
+            chunks=chunks,
+            story=story,
+            slides_extraction=slides_extraction,
+        )
 
         file_path = archive_path / "pipeline_results.json"
 
+        # Serialize with camelCase aliases
         with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            json.dump(
+                results.model_dump(by_alias=True, mode="json"),
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
 
         logger.debug(f"Saved pipeline results (leadership): {file_path}")
 

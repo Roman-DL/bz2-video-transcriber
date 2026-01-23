@@ -39,7 +39,7 @@ export interface StepData {
   displayText?: string;
   audioPath?: string;
   cleanedTranscript?: CleanedTranscript;
-  slidesResult?: SlidesExtractionResult;
+  slidesExtraction?: SlidesExtractionResult;
   chunks?: TranscriptChunks;
   longread?: Longread;
   summary?: Summary;
@@ -270,13 +270,13 @@ export function usePipelineProcessor({
       case 'slides': return !!data.cleanedTranscript && !!data.metadata && hasSlides;
       case 'longread':
         if (hasSlides) {
-          return !!data.cleanedTranscript && !!data.metadata && !!data.slidesResult;
+          return !!data.cleanedTranscript && !!data.metadata && !!data.slidesExtraction;
         }
         return !!data.cleanedTranscript && !!data.metadata;
       case 'summarize': return !!data.cleanedTranscript && !!data.metadata;
       case 'story':
         if (hasSlides) {
-          return !!data.cleanedTranscript && !!data.metadata && !!data.slidesResult;
+          return !!data.cleanedTranscript && !!data.metadata && !!data.slidesExtraction;
         }
         return !!data.cleanedTranscript && !!data.metadata;
       case 'chunk':
@@ -335,7 +335,7 @@ export function usePipelineProcessor({
       parse: ['metadata'],
       transcribe: ['rawTranscript', 'displayText', 'audioPath'],
       clean: ['cleanedTranscript'],
-      slides: ['slidesResult'],
+      slides: ['slidesExtraction'],
       longread: ['longread'],
       summarize: ['summary'],
       story: ['story'],
@@ -381,9 +381,9 @@ export function usePipelineProcessor({
           });
           const newData = {
             ...data,
-            rawTranscript: transcribeResult.raw_transcript,
-            displayText: transcribeResult.display_text,
-            audioPath: transcribeResult.audio_path,
+            rawTranscript: transcribeResult.rawTranscript,
+            displayText: transcribeResult.displayText,
+            audioPath: transcribeResult.audioPath,
           };
           setData(newData);
           setCurrentStep('clean');
@@ -423,10 +423,10 @@ export function usePipelineProcessor({
               };
             })
           );
-          const slidesResult = await stepSlides.mutate({
+          const slidesExtraction = await stepSlides.mutate({
             slides: slideInputs,
           });
-          const newData = { ...data, slidesResult };
+          const newData = { ...data, slidesExtraction };
           setData(newData);
           setCurrentStep(contentType === 'leadership' ? 'story' : 'longread');
           onStepComplete?.('slides', newData);
@@ -440,7 +440,7 @@ export function usePipelineProcessor({
             metadata: data.metadata,
             model: getModelForStage('longread'),
             prompt_overrides: getPromptOverridesForApi('longread'),
-            slides_text: data.slidesResult?.extracted_text,
+            slides_text: data.slidesExtraction?.extracted_text,
           });
           const newData = { ...data, longread };
           setData(newData);
@@ -471,7 +471,7 @@ export function usePipelineProcessor({
             metadata: data.metadata,
             model: getModelForStage('story'),
             prompt_overrides: getPromptOverridesForApi('story'),
-            slides_text: data.slidesResult?.extracted_text,
+            slides_text: data.slidesExtraction?.extracted_text,
           });
           const newData = { ...data, story };
           setData(newData);
@@ -515,7 +515,7 @@ export function usePipelineProcessor({
               chunks: data.chunks,
               story: data.story,
               audio_path: data.audioPath,
-              slides_extraction: data.slidesResult,
+              slides_extraction: data.slidesExtraction,
             });
             const newData = { ...data, savedFiles };
             setData(newData);
@@ -530,7 +530,7 @@ export function usePipelineProcessor({
               longread: data.longread,
               summary: data.summary,
               audio_path: data.audioPath,
-              slides_extraction: data.slidesResult,
+              slides_extraction: data.slidesExtraction,
             });
             const newData = { ...data, savedFiles };
             setData(newData);
@@ -642,11 +642,11 @@ export function usePipelineProcessor({
       totalCost += data.cleanedTranscript.cost || 0;
     }
 
-    if (data.slidesResult) {
-      totalTime += data.slidesResult.processing_time_sec || 0;
-      totalInputTokens += data.slidesResult.tokens_used?.input || 0;
-      totalOutputTokens += data.slidesResult.tokens_used?.output || 0;
-      totalCost += data.slidesResult.cost || 0;
+    if (data.slidesExtraction) {
+      totalTime += data.slidesExtraction.processing_time_sec || 0;
+      totalInputTokens += data.slidesExtraction.tokens_used?.input || 0;
+      totalOutputTokens += data.slidesExtraction.tokens_used?.output || 0;
+      totalCost += data.slidesExtraction.cost || 0;
     }
 
     if (data.longread) {
@@ -809,7 +809,7 @@ export function getStepStats(step: PipelineStep, data: StepData): string | null 
     case 'clean':
       return data.cleanedTranscript ? `${data.cleanedTranscript.cleaned_length.toLocaleString()} симв.` : null;
     case 'slides':
-      return data.slidesResult ? `${data.slidesResult.slides_count} слайдов` : null;
+      return data.slidesExtraction ? `${data.slidesExtraction.slides_count} слайдов` : null;
     case 'longread':
       return data.longread ? `${data.longread.total_sections} секций` : null;
     case 'summarize':

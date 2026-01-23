@@ -20,6 +20,7 @@ import { LongreadView } from '@/components/results/LongreadView';
 import { SummaryView } from '@/components/results/SummaryView';
 import { StoryView } from '@/components/results/StoryView';
 import { SlidesResultView } from '@/components/results/SlidesResultView';
+import { StatisticsView } from '@/components/results/StatisticsView';
 import { CompletionCard } from '@/components/processing/CompletionCard';
 import { ComponentPromptSelector } from '@/components/settings/ComponentPromptSelector';
 import { ModelSelector } from '@/components/settings/ModelSelector';
@@ -53,6 +54,7 @@ import {
   Settings,
   Paperclip,
   Images,
+  BarChart3,
 } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -66,7 +68,7 @@ interface StepByStepProps {
   initialSlides?: SlideFile[];
 }
 
-type ResultTab = 'metadata' | 'rawTranscript' | 'cleanedTranscript' | 'slides' | 'chunks' | 'longread' | 'summary' | 'story';
+type ResultTab = 'metadata' | 'rawTranscript' | 'cleanedTranscript' | 'slides' | 'chunks' | 'longread' | 'summary' | 'story' | 'statistics';
 
 // Step icons mapping
 const STEP_ICONS: Record<PipelineStep, React.ComponentType<{ className?: string }>> = {
@@ -91,6 +93,7 @@ const TAB_ICONS: Record<ResultTab, React.ComponentType<{ className?: string }>> 
   summary: ListChecks,
   story: Heart,
   chunks: Layers,
+  statistics: BarChart3,
 };
 
 // Tab labels
@@ -103,6 +106,7 @@ const TAB_LABELS: Record<ResultTab, string> = {
   summary: 'Конспект',
   story: 'История',
   chunks: 'Чанки',
+  statistics: 'Статистика',
 };
 
 // Map pipeline step to result tab
@@ -116,6 +120,7 @@ function getTabForStep(step: PipelineStep): ResultTab | null {
     case 'summarize': return 'summary';
     case 'story': return 'story';
     case 'chunk': return 'chunks';
+    case 'save': return 'statistics'; // Show statistics after save
     default: return null;
   }
 }
@@ -177,7 +182,6 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
     runStep,
     resetDataFromStep,
     getStepStatus,
-    calculateTotals,
   } = processor;
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -222,11 +226,13 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
     if (data.metadata) tabs.push('metadata');
     if (data.rawTranscript) tabs.push('rawTranscript');
     if (data.cleanedTranscript) tabs.push('cleanedTranscript');
-    if (data.slidesResult) tabs.push('slides');
+    if (data.slidesExtraction) tabs.push('slides');
     if (data.longread) tabs.push('longread');
     if (data.summary) tabs.push('summary');
     if (data.story) tabs.push('story');
     if (data.chunks) tabs.push('chunks');
+    // Show statistics tab after save
+    if (data.savedFiles) tabs.push('statistics');
     return tabs;
   };
 
@@ -380,11 +386,10 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
             </div>
           )}
 
-          {/* Success card with totals */}
+          {/* Success card */}
           {isComplete && data.savedFiles && (
             <CompletionCard
               files={data.savedFiles}
-              totals={calculateTotals()}
               onClose={onComplete}
             />
           )}
@@ -644,18 +649,18 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                   </div>
                 )}
 
-                {activeTab === 'slides' && data.slidesResult && (
+                {activeTab === 'slides' && data.slidesExtraction && (
                   <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                     <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                       <h3 className="text-sm font-semibold text-gray-900">Извлечённые данные со слайдов</h3>
-                      {data.slidesResult.processing_time_sec !== undefined && (
+                      {data.slidesExtraction.processing_time_sec !== undefined && (
                         <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
-                          {formatTime(data.slidesResult.processing_time_sec)}
+                          {formatTime(data.slidesExtraction.processing_time_sec)}
                         </span>
                       )}
                     </div>
                     <div className="p-4 flex-1 overflow-hidden min-h-0">
-                      <SlidesResultView slidesResult={data.slidesResult} />
+                      <SlidesResultView slidesExtraction={data.slidesExtraction} />
                     </div>
                   </div>
                 )}
@@ -722,6 +727,29 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                     </div>
                     <div className="p-4 flex-1 overflow-y-auto">
                       <ChunksView chunks={data.chunks} />
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'statistics' && data.savedFiles && (
+                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                      <h3 className="text-sm font-semibold text-gray-900">Статистика обработки</h3>
+                    </div>
+                    <div className="p-4 flex-1 overflow-hidden min-h-0">
+                      <StatisticsView
+                        data={{
+                          rawTranscript: data.rawTranscript,
+                          cleanedTranscript: data.cleanedTranscript,
+                          slidesExtraction: data.slidesExtraction,
+                          longread: data.longread,
+                          summary: data.summary,
+                          story: data.story,
+                          chunks: data.chunks,
+                          savedFiles: data.savedFiles,
+                          contentType: data.metadata?.content_type,
+                        }}
+                      />
                     </div>
                   </div>
                 )}

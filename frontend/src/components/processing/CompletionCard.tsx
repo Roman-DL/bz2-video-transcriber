@@ -1,30 +1,23 @@
 import { CheckCircle } from 'lucide-react';
 import { Button } from '@/components/common/Button';
-import { formatTime, formatCost, formatNumber } from '@/utils/formatUtils';
-
-interface TotalMetrics {
-  totalTime: number;
-  totalInputTokens: number;
-  totalOutputTokens: number;
-  totalCost: number;
-}
 
 interface CompletionCardProps {
   files: string[];
-  totals: TotalMetrics;
   onClose: () => void;
 }
 
 /**
- * Completion card showing saved files and total metrics.
+ * Compact completion card showing saved files.
  * Displayed after successful pipeline completion.
+ *
+ * Metrics are now shown in the Statistics tab (v0.58+).
  */
-export function CompletionCard({ files, totals, onClose }: CompletionCardProps) {
+export function CompletionCard({ files, onClose }: CompletionCardProps) {
   return (
     <div className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 flex items-center justify-center bg-emerald-500 rounded-xl">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-9 h-9 flex items-center justify-center bg-emerald-500 rounded-xl">
           <CheckCircle className="w-5 h-5 text-white" />
         </div>
         <div>
@@ -34,36 +27,17 @@ export function CompletionCard({ files, totals, onClose }: CompletionCardProps) 
       </div>
 
       {/* Files list */}
-      <div className="mb-4 max-h-44 overflow-y-auto">
-        <ul className="text-xs text-gray-600 space-y-0.5">
-          {files.map((file, i) => (
-            <li key={i} className="font-mono truncate" title={file}>
+      <div className="mb-3 max-h-32 overflow-y-auto space-y-0.5">
+        {files.map((file, i) => (
+          <div
+            key={i}
+            className="flex items-center px-2 py-1.5 bg-white/60 rounded text-xs"
+          >
+            <span className="font-mono text-gray-600 truncate" title={file}>
               {file}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/* Total metrics */}
-      <div className="p-2.5 bg-white rounded-lg border border-emerald-100 mb-4 space-y-1.5">
-        <div className="flex justify-between text-xs">
-          <span className="text-gray-500">Общее время:</span>
-          <strong className="text-gray-700">{formatTime(totals.totalTime)}</strong>
-        </div>
-        {(totals.totalInputTokens > 0 || totals.totalOutputTokens > 0) && (
-          <div className="flex justify-between text-xs">
-            <span className="text-gray-500">Токены (вх./вых.):</span>
-            <strong className="text-gray-700">
-              {formatNumber(totals.totalInputTokens)} / {formatNumber(totals.totalOutputTokens)}
-            </strong>
+            </span>
           </div>
-        )}
-        {totals.totalCost > 0 && (
-          <div className="flex justify-between text-xs">
-            <span className="text-gray-500">Стоимость:</span>
-            <strong className="text-violet-600">{formatCost(totals.totalCost)}</strong>
-          </div>
-        )}
+        ))}
       </div>
 
       {/* Close button */}

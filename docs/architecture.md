@@ -16,7 +16,7 @@ tags:
   - whisper
   - ollama
   - knowledge-base
-updated: 2025-01-23
+updated: 2026-01-23
 status: production
 priority: high
 ---
@@ -234,7 +234,7 @@ bz2-video-transcriber/
 │           ├── archive/         # ArchiveCatalog
 │           ├── processing/      # ProcessingModal, StepByStep, AutoProcessingCompact
 │           ├── slides/          # SlidesAttachment, SlidesModal (v0.52+)
-│           └── results/         # MetadataView, TranscriptView, SlidesResultView
+│           └── results/         # MetadataView, TranscriptView, SlidesResultView, StatisticsView (v0.58+)
 │
 ├── config/
 │   ├── models.yaml              # Модели, context profiles, pricing

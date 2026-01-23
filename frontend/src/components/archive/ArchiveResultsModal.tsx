@@ -12,6 +12,7 @@ import { StoryView } from '@/components/results/StoryView';
 import { LongreadView } from '@/components/results/LongreadView';
 import { SummaryView } from '@/components/results/SummaryView';
 import { SlidesResultView } from '@/components/results/SlidesResultView';
+import { StatisticsView } from '@/components/results/StatisticsView';
 import { useArchiveResults } from '@/api/hooks/useArchive';
 import { formatTime } from '@/utils/formatUtils';
 import {
@@ -25,6 +26,7 @@ import {
   Heart,
   ListChecks,
   Presentation,
+  BarChart3,
 } from 'lucide-react';
 import type { ArchiveItemWithPath, PipelineResults } from '@/api/types';
 
@@ -42,7 +44,8 @@ type ResultTab =
   | 'longread'
   | 'summary'
   | 'story'
-  | 'chunks';
+  | 'chunks'
+  | 'statistics';
 
 const TAB_ICONS: Record<ResultTab, React.ComponentType<{ className?: string }>> = {
   metadata: FileText,
@@ -53,6 +56,7 @@ const TAB_ICONS: Record<ResultTab, React.ComponentType<{ className?: string }>> 
   summary: ListChecks,
   story: Heart,
   chunks: Layers,
+  statistics: BarChart3,
 };
 
 const TAB_LABELS: Record<ResultTab, string> = {
@@ -64,6 +68,7 @@ const TAB_LABELS: Record<ResultTab, string> = {
   summary: 'Конспект',
   story: 'История',
   chunks: 'Чанки',
+  statistics: 'Статистика',
 };
 
 function formatDuration(seconds: number): string {
@@ -78,13 +83,17 @@ function formatDuration(seconds: number): string {
 function getAvailableTabs(results: PipelineResults): ResultTab[] {
   const tabs: ResultTab[] = [];
   if (results.metadata) tabs.push('metadata');
-  if (results.raw_transcript) tabs.push('rawTranscript');
-  if (results.cleaned_transcript) tabs.push('cleanedTranscript');
-  if (results.slides_extraction) tabs.push('slides');
+  if (results.rawTranscript) tabs.push('rawTranscript');
+  if (results.cleanedTranscript) tabs.push('cleanedTranscript');
+  if (results.slidesExtraction) tabs.push('slides');
   if (results.longread) tabs.push('longread');
   if (results.summary) tabs.push('summary');
   if (results.story) tabs.push('story');
   if (results.chunks) tabs.push('chunks');
+  // Always show statistics if we have any processing data
+  if (results.rawTranscript || results.cleanedTranscript) {
+    tabs.push('statistics');
+  }
   return tabs;
 }
 
@@ -200,41 +209,41 @@ export function ArchiveResultsModal({
               </div>
             )}
 
-            {activeTab === 'rawTranscript' && results.raw_transcript && (
+            {activeTab === 'rawTranscript' && results.rawTranscript && (
               <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                   <h3 className="text-sm font-semibold text-gray-900">Сырая транскрипция</h3>
-                  {results.raw_transcript.processing_time_sec !== undefined && (
+                  {results.rawTranscript.processing_time_sec !== undefined && (
                     <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
-                      {formatTime(results.raw_transcript.processing_time_sec)}
+                      {formatTime(results.rawTranscript.processing_time_sec)}
                     </span>
                   )}
                 </div>
                 <div className="p-4 flex-1 overflow-hidden min-h-0">
                   <RawTranscriptView
-                    transcript={results.raw_transcript}
-                    displayText={results.display_text || results.raw_transcript.full_text}
+                    transcript={results.rawTranscript}
+                    displayText={results.displayText || results.rawTranscript.full_text}
                   />
                 </div>
               </div>
             )}
 
-            {activeTab === 'cleanedTranscript' && results.cleaned_transcript && (
+            {activeTab === 'cleanedTranscript' && results.cleanedTranscript && (
               <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                 {!showCleanedDiff && (
                   <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                     <h3 className="text-sm font-semibold text-gray-900">Очищенная транскрипция</h3>
-                    {results.cleaned_transcript.processing_time_sec !== undefined && (
+                    {results.cleanedTranscript.processing_time_sec !== undefined && (
                       <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
-                        {formatTime(results.cleaned_transcript.processing_time_sec)}
+                        {formatTime(results.cleanedTranscript.processing_time_sec)}
                       </span>
                     )}
                   </div>
                 )}
                 <div className={showCleanedDiff ? 'flex-1 min-h-0' : 'p-4 flex-1 overflow-hidden min-h-0'}>
                   <CleanedTranscriptView
-                    transcript={results.cleaned_transcript}
-                    rawText={results.display_text}
+                    transcript={results.cleanedTranscript}
+                    rawText={results.displayText}
                     showDiff={showCleanedDiff}
                     onToggleDiff={() => setShowCleanedDiff(!showCleanedDiff)}
                   />
@@ -242,18 +251,18 @@ export function ArchiveResultsModal({
               </div>
             )}
 
-            {activeTab === 'slides' && results.slides_extraction && (
+            {activeTab === 'slides' && results.slidesExtraction && (
               <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                 <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                   <h3 className="text-sm font-semibold text-gray-900">Извлечённый текст слайдов</h3>
-                  {results.slides_extraction.processing_time_sec !== undefined && (
+                  {results.slidesExtraction.processing_time_sec !== undefined && (
                     <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded">
-                      {formatTime(results.slides_extraction.processing_time_sec)}
+                      {formatTime(results.slidesExtraction.processing_time_sec)}
                     </span>
                   )}
                 </div>
                 <div className="p-4 flex-1 overflow-y-auto">
-                  <SlidesResultView slidesResult={results.slides_extraction} />
+                  <SlidesResultView slidesExtraction={results.slidesExtraction} />
                 </div>
               </div>
             )}
@@ -273,8 +282,8 @@ export function ArchiveResultsModal({
                 <div className={showLongreadDiff ? 'flex-1 min-h-0' : 'p-4 flex-1 overflow-y-auto'}>
                   <LongreadView
                     longread={results.longread}
-                    cleanedText={results.cleaned_transcript?.text}
-                    cleanedChars={results.cleaned_transcript?.cleaned_length}
+                    cleanedText={results.cleanedTranscript?.text}
+                    cleanedChars={results.cleanedTranscript?.cleaned_length}
                     showDiff={showLongreadDiff}
                     onToggleDiff={() => setShowLongreadDiff(!showLongreadDiff)}
                   />
@@ -320,6 +329,30 @@ export function ArchiveResultsModal({
                 </div>
                 <div className="p-4 flex-1 overflow-y-auto">
                   <ChunksView chunks={results.chunks} />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'statistics' && (
+              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
+                  <h3 className="text-sm font-semibold text-gray-900">Статистика обработки</h3>
+                </div>
+                <div className="p-4 flex-1 overflow-hidden min-h-0">
+                  <StatisticsView
+                    data={{
+                      rawTranscript: results.rawTranscript,
+                      cleanedTranscript: results.cleanedTranscript,
+                      slidesExtraction: results.slidesExtraction,
+                      longread: results.longread,
+                      summary: results.summary,
+                      story: results.story,
+                      chunks: results.chunks,
+                      contentType: results.contentType,
+                    }}
+                    processedAt={results.createdAt}
+                    showFiles={false}
+                  />
                 </div>
               </div>
             )}

@@ -67,10 +67,11 @@ export interface RawTranscript {
  * Result from /step/transcribe endpoint.
  * Contains both transcript and path to extracted audio.
  */
+// v0.58+: API returns camelCase
 export interface TranscribeResult {
-  raw_transcript: RawTranscript;
-  audio_path: string;
-  display_text: string;
+  rawTranscript: RawTranscript;
+  audioPath: string;
+  displayText: string;
 }
 
 export interface CleanedTranscript {
@@ -352,22 +353,23 @@ export interface ArchiveItemWithPath extends ArchiveItem {
 
 // Pipeline results stored in archive
 // All blocks are optional to support different pipeline versions
+// v0.58+: Uses camelCase for all fields (matches backend PipelineResults model)
 export interface PipelineResults {
   version: string;
-  created_at: string;
-  content_type?: ContentType; // leadership results have this at top level
+  createdAt: string;
+  contentType?: ContentType;
   metadata: VideoMetadata;
-  raw_transcript?: RawTranscript;
-  display_text?: string;
-  cleaned_transcript?: CleanedTranscript;
+  rawTranscript?: RawTranscript;
+  displayText?: string;
+  cleanedTranscript?: CleanedTranscript;
   chunks?: TranscriptChunks;
   // Educational content
   longread?: Longread;
   summary?: Summary;
   // Leadership content
   story?: Story;
-  // Slides extraction (v0.54+)
-  slides_extraction?: SlidesExtractionResult;
+  // Slides extraction (v0.55+)
+  slidesExtraction?: SlidesExtractionResult;
 }
 
 // Response from /archive/results endpoint

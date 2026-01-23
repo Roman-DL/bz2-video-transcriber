@@ -538,96 +538,98 @@ access_level: leader
 ```json
 {
   "version": "1.0.0",
-  "created_at": "2025-01-12T10:30:00Z",
+  "createdAt": "2025-01-12T10:30:00Z",
 
   "metadata": {
     "date": "2025-04-07",
-    "event_type": "ПШ",
+    "eventType": "ПШ",
     "stream": "SV",
     "title": "Подготовка и проведение Группы поддержки",
     "speaker": "Светлана Дмитрук",
-    "original_filename": "2025.04.07 ПШ.SV Подготовка и проведение Группы поддержки (Светлана Дмитрук).mp4",
-    "video_id": "2025-04-07_psh-sv_gruppa-podderzhki",
-    "source_path": "/data/inbox/...",
-    "archive_path": "/data/archive/2025/04/...",
-    "stream_full": "Понедельничная Школа — Супервайзеры",
-    "duration_seconds": 5025
+    "originalFilename": "2025.04.07 ПШ.SV Подготовка и проведение Группы поддержки (Светлана Дмитрук).mp4",
+    "videoId": "2025-04-07_psh-sv_gruppa-podderzhki",
+    "sourcePath": "/data/inbox/...",
+    "archivePath": "/data/archive/2025/04/...",
+    "streamFull": "Понедельничная Школа — Супервайзеры",
+    "durationSeconds": 5025
   },
 
-  "raw_transcript": {
+  "rawTranscript": {
     "segments": [
-      {"start": 0.0, "end": 5.2, "text": "...", "start_time": "00:00:00", "end_time": "00:00:05"}
+      {"start": 0.0, "end": 5.2, "text": "...", "startTime": "00:00:00", "endTime": "00:00:05"}
     ],
     "language": "ru",
-    "duration_seconds": 5025.5,
-    "whisper_model": "large-v3",
-    "full_text": "Полный текст без таймкодов...",
-    "text_with_timestamps": "[00:00:00] Текст...\n[00:00:05] Текст..."
+    "durationSeconds": 5025.5,
+    "whisperModel": "large-v3",
+    "fullText": "Полный текст без таймкодов...",
+    "textWithTimestamps": "[00:00:00] Текст...\n[00:00:05] Текст..."
   },
 
-  "display_text": "[00:00:00] Текст...",
+  "displayText": "[00:00:00] Текст...",
 
-  "cleaned_transcript": {
+  "cleanedTranscript": {
     "text": "Очищенный текст транскрипции...",
-    "original_length": 15000,
-    "cleaned_length": 12500,
-    "model_name": "gemma2:9b"
+    "originalLength": 15000,
+    "cleanedLength": 12500,
+    "modelName": "claude-sonnet-4-5"
   },
 
   "chunks": {
     "chunks": [
-      {"id": "chunk_001", "index": 1, "topic": "Введение", "text": "...", "word_count": 285}
+      {"id": "chunk_001", "index": 1, "topic": "Введение", "text": "...", "wordCount": 285}
     ],
-    "total_chunks": 24,
-    "avg_chunk_size": 285,
-    "model_name": "gemma2:9b"
+    "totalChunks": 24,
+    "avgChunkSize": 285,
+    "modelName": "deterministic"
   },
 
   "longread": {
-    "video_id": "2025-04-07_psh-sv_gruppa-podderzhki",
+    "videoId": "2025-04-07_psh-sv_gruppa-podderzhki",
     "title": "Подготовка и проведение Группы поддержки",
     "speaker": "Светлана Дмитрук",
     "introduction": "Группа поддержки — один из ключевых инструментов...",
     "conclusion": "Регулярные встречи создают культуру взаимопомощи...",
     "sections": [
-      {"index": 1, "title": "Подготовка помещения", "content": "...", "word_count": 450}
+      {"index": 1, "title": "Подготовка помещения", "content": "...", "wordCount": 450}
     ],
     "section": "Обучение",
     "subsection": "Работа с командой",
     "tags": ["группа поддержки", "командная работа"],
-    "access_level": 1,
-    "total_word_count": 3500,
-    "model_name": "qwen2.5:14b"
+    "accessLevel": 1,
+    "totalWordCount": 3500,
+    "modelName": "claude-sonnet-4-5"
   },
 
   "summary": {
-    "video_id": "2025-04-07_psh-sv_gruppa-podderzhki",
+    "videoId": "2025-04-07_psh-sv_gruppa-podderzhki",
     "essence": "Светлана Дмитрук рассказывает о принципах организации Группы поддержки...",
-    "key_concepts": ["Группа поддержки", "Формат полукруга", "Ротация ролей"],
-    "practical_tools": ["Чек-лист подготовки", "Шаблон повестки"],
+    "keyConcepts": ["Группа поддержки", "Формат полукруга", "Ротация ролей"],
+    "practicalTools": ["Чек-лист подготовки", "Шаблон повестки"],
     "quotes": ["Группа поддержки — это не лекция, а диалог"],
     "insight": "Регулярные встречи создают культуру взаимопомощи",
     "actions": ["Определить день для ГП", "Составить список тем"],
     "section": "Обучение",
     "subsection": "Работа с командой",
     "tags": ["группа поддержки", "командная работа"],
-    "access_level": 1,
-    "model_name": "qwen2.5:14b"
+    "accessLevel": 1,
+    "modelName": "claude-sonnet-4-5"
   }
 }
 ```
 
 ### Поля верхнего уровня
 
+> **v0.58+:** API и файл `pipeline_results.json` используют camelCase (см. [ADR-012](adr/012-statistics-tab.md)).
+
 | Поле | Тип | Описание |
 |------|-----|----------|
 | `version` | string | Версия формата для совместимости |
-| `created_at` | string | Дата/время обработки (ISO 8601) |
+| `createdAt` | string | Дата/время обработки (ISO 8601) |
 | `metadata` | object | Метаданные видео (VideoMetadata) |
-| `raw_transcript` | object | Сырая транскрипция от Whisper |
-| `display_text` | string | Текст для отображения (с/без таймкодов) |
-| `cleaned_transcript` | object | Очищенная транскрипция |
-| `slides_extraction` | object \| null | Извлечённый текст со слайдов (v0.51+, опционально) |
+| `rawTranscript` | object | Сырая транскрипция от Whisper |
+| `displayText` | string | Текст для отображения (с/без таймкодов) |
+| `cleanedTranscript` | object | Очищенная транскрипция |
+| `slidesExtraction` | object \| null | Извлечённый текст со слайдов (v0.51+, опционально) |
 | `chunks` | object | Семантические чанки |
 | `longread` | object | Развёрнутый текст (Longread) |
 | `summary` | object | Конспект (Summary) |
@@ -644,7 +646,7 @@ access_level: leader
 
 ```json
 {
-  "tokens_used": {
+  "tokensUsed": {
     "input": 1850,
     "output": 1720,
     "total": 3570
@@ -662,13 +664,13 @@ access_level: leader
 
 ```json
 {
-  "raw_transcript": {
+  "rawTranscript": {
     "segments": [...],
     "language": "ru",
-    "duration_seconds": 301.5,
-    "whisper_model": "large-v3-turbo",
+    "durationSeconds": 301.5,
+    "whisperModel": "large-v3-turbo",
     "confidence": 0.94,
-    "processing_time_sec": 23.5,
+    "processingTimeSec": 23.5,
     "chars": 4412,
     "words": 756
   }
@@ -677,8 +679,8 @@ access_level: leader
 
 | Поле | Тип | Описание |
 |------|-----|----------|
-| `confidence` | float \| null | Средняя уверенность Whisper (0-1), рассчитывается из avg_logprob |
-| `processing_time_sec` | float \| null | Время транскрибации в секундах |
+| `confidence` | float \| null | Средняя уверенность Whisper (0-1), рассчитывается из avgLogprob |
+| `processingTimeSec` | float \| null | Время транскрибации в секундах |
 | `chars` | int | Количество символов (computed) |
 | `words` | int | Количество слов (computed) |
 
@@ -686,40 +688,40 @@ access_level: leader
 
 ```json
 {
-  "cleaned_transcript": {
+  "cleanedTranscript": {
     "text": "...",
-    "original_length": 4412,
-    "cleaned_length": 4187,
-    "model_name": "claude-sonnet-4-5",
-    "tokens_used": {"input": 1850, "output": 1720},
+    "originalLength": 4412,
+    "cleanedLength": 4187,
+    "modelName": "claude-sonnet-4-5",
+    "tokensUsed": {"input": 1850, "output": 1720},
     "cost": 0.0314,
-    "processing_time_sec": 6.2,
+    "processingTimeSec": 6.2,
     "words": 698,
-    "change_percent": -5.1
+    "changePercent": -5.1
   }
 }
 ```
 
 | Поле | Тип | Описание |
 |------|-----|----------|
-| `tokens_used` | TokensUsed \| null | Статистика токенов LLM |
+| `tokensUsed` | TokensUsed \| null | Статистика токенов LLM |
 | `cost` | float \| null | Стоимость в USD |
-| `processing_time_sec` | float \| null | Время обработки в секундах |
+| `processingTimeSec` | float \| null | Время обработки в секундах |
 | `words` | int | Количество слов (computed) |
-| `change_percent` | float | Процент изменения vs оригинал (computed) |
+| `changePercent` | float | Процент изменения vs оригинал (computed) |
 
 #### Longread — расширенные поля
 
 ```json
 {
   "longread": {
-    "video_id": "...",
+    "videoId": "...",
     "title": "...",
     "sections": [...],
-    "model_name": "claude-sonnet-4-5",
-    "tokens_used": {"input": 3200, "output": 2800},
+    "modelName": "claude-sonnet-4-5",
+    "tokensUsed": {"input": 3200, "output": 2800},
     "cost": 0.0516,
-    "processing_time_sec": 12.4,
+    "processingTimeSec": 12.4,
     "chars": 8500
   }
 }
@@ -727,9 +729,9 @@ access_level: leader
 
 | Поле | Тип | Описание |
 |------|-----|----------|
-| `tokens_used` | TokensUsed \| null | Статистика токенов LLM |
+| `tokensUsed` | TokensUsed \| null | Статистика токенов LLM |
 | `cost` | float \| null | Стоимость в USD |
-| `processing_time_sec` | float \| null | Время обработки в секундах |
+| `processingTimeSec` | float \| null | Время обработки в секундах |
 | `chars` | int | Количество символов (computed) |
 
 #### Summary — расширенные поля
@@ -737,12 +739,12 @@ access_level: leader
 ```json
 {
   "summary": {
-    "video_id": "...",
+    "videoId": "...",
     "essence": "...",
-    "model_name": "claude-sonnet-4-5",
-    "tokens_used": {"input": 2100, "output": 890},
+    "modelName": "claude-sonnet-4-5",
+    "tokensUsed": {"input": 2100, "output": 890},
     "cost": 0.0196,
-    "processing_time_sec": 5.8,
+    "processingTimeSec": 5.8,
     "chars": 2150,
     "words": 312
   }
@@ -751,9 +753,9 @@ access_level: leader
 
 | Поле | Тип | Описание |
 |------|-----|----------|
-| `tokens_used` | TokensUsed \| null | Статистика токенов LLM |
+| `tokensUsed` | TokensUsed \| null | Статистика токенов LLM |
 | `cost` | float \| null | Стоимость в USD |
-| `processing_time_sec` | float \| null | Время обработки в секундах |
+| `processingTimeSec` | float \| null | Время обработки в секундах |
 | `chars` | int | Количество символов (computed) |
 | `words` | int | Количество слов (computed) |
 
@@ -762,13 +764,13 @@ access_level: leader
 ```json
 {
   "story": {
-    "video_id": "...",
+    "videoId": "...",
     "names": "...",
     "blocks": [...],
-    "model_name": "claude-sonnet-4-5",
-    "tokens_used": {"input": 4500, "output": 3200},
+    "modelName": "claude-sonnet-4-5",
+    "tokensUsed": {"input": 4500, "output": 3200},
     "cost": 0.0615,
-    "processing_time_sec": 18.2,
+    "processingTimeSec": 18.2,
     "chars": 12500
   }
 }
@@ -776,9 +778,9 @@ access_level: leader
 
 | Поле | Тип | Описание |
 |------|-----|----------|
-| `tokens_used` | TokensUsed \| null | Статистика токенов LLM |
+| `tokensUsed` | TokensUsed \| null | Статистика токенов LLM |
 | `cost` | float \| null | Стоимость в USD |
-| `processing_time_sec` | float \| null | Время обработки в секундах |
+| `processingTimeSec` | float \| null | Время обработки в секундах |
 | `chars` | int | Количество символов (computed) |
 
 #### TranscriptChunks — расширенные поля
@@ -787,17 +789,17 @@ access_level: leader
 {
   "chunks": {
     "chunks": [...],
-    "model_name": "deterministic",
-    "total_tokens": 680,
-    "total_chunks": 3,
-    "avg_chunk_size": 285
+    "modelName": "deterministic",
+    "totalTokens": 680,
+    "totalChunks": 3,
+    "avgChunkSize": 285
   }
 }
 ```
 
 | Поле | Тип | Описание |
 |------|-----|----------|
-| `total_tokens` | int \| null | Общее количество токенов во всех чанках (estimated) |
+| `totalTokens` | int \| null | Общее количество токенов во всех чанках (estimated) |
 
 #### SlidesExtractionResult (v0.51+)
 
@@ -805,33 +807,33 @@ access_level: leader
 
 ```json
 {
-  "slides_extraction": {
-    "extracted_text": "# Слайд 1: Введение\n\nОсновные темы...\n\n## Таблица\n| Колонка 1 | Колонка 2 |\n...",
-    "slides_count": 15,
-    "chars_count": 4250,
-    "words_count": 580,
-    "tables_count": 3,
+  "slidesExtraction": {
+    "extractedText": "# Слайд 1: Введение\n\nОсновные темы...\n\n## Таблица\n| Колонка 1 | Колонка 2 |\n...",
+    "slidesCount": 15,
+    "charsCount": 4250,
+    "wordsCount": 580,
+    "tablesCount": 3,
     "model": "claude-haiku-4-5",
-    "tokens_used": {"input": 45000, "output": 1200, "total": 46200},
+    "tokensUsed": {"input": 45000, "output": 1200, "total": 46200},
     "cost": 0.051,
-    "processing_time_sec": 12.4
+    "processingTimeSec": 12.4
   }
 }
 ```
 
 | Поле | Тип | Описание |
 |------|-----|----------|
-| `extracted_text` | string | Извлечённый текст в markdown формате |
-| `slides_count` | int | Количество обработанных слайдов |
-| `chars_count` | int | Общее количество символов |
-| `words_count` | int | Общее количество слов |
-| `tables_count` | int | Количество обнаруженных таблиц |
+| `extractedText` | string | Извлечённый текст в markdown формате |
+| `slidesCount` | int | Количество обработанных слайдов |
+| `charsCount` | int | Общее количество символов |
+| `wordsCount` | int | Общее количество слов |
+| `tablesCount` | int | Количество обнаруженных таблиц |
 | `model` | string | Модель Claude Vision (haiku/sonnet/opus) |
-| `tokens_used` | TokensUsed \| null | Статистика токенов |
+| `tokensUsed` | TokensUsed \| null | Статистика токенов |
 | `cost` | float \| null | Стоимость в USD |
-| `processing_time_sec` | float \| null | Время обработки в секундах |
+| `processingTimeSec` | float \| null | Время обработки в секундах |
 
-**Примечание:** `slides_extraction` является опциональным полем в `pipeline_results.json`. Присутствует только если пользователь прикрепил слайды при обработке.
+**Примечание:** `slidesExtraction` является опциональным полем в `pipeline_results.json`. Присутствует только если пользователь прикрепил слайды при обработке.
 
 ---
 

@@ -288,7 +288,7 @@ metadata.event_name     # Для offsite: "Форум TABTeam (Москва)"
 metadata.is_offsite     # computed: True если event_category == OFFSITE
 ```
 
-## Расширенные метрики (v0.42+)
+## Расширенные метрики (v0.42+, updated v0.58)
 
 API response содержит метрики для отладки промптов и отслеживания стоимости:
 
@@ -296,7 +296,7 @@ API response содержит метрики для отладки промпт�
 from app.models.schemas import TokensUsed, CleanedTranscript
 
 # TokensUsed — статистика токенов
-class TokensUsed(BaseModel):
+class TokensUsed(CamelCaseModel):  # v0.58+: camelCase сериализация
     input: int   # входные токены
     output: int  # выходные токены
     total: int   # computed: input + output
@@ -309,6 +309,51 @@ class TokensUsed(BaseModel):
 # Story: tokens_used, cost, processing_time_sec, chars
 # TranscriptChunks: total_tokens
 ```
+
+### CamelCaseModel (v0.58+)
+
+Базовая модель для унификации API сериализации:
+
+```python
+from app.models.schemas import CamelCaseModel
+
+class CamelCaseModel(BaseModel):
+    """Python: snake_case, JSON: camelCase."""
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+    )
+
+# Все модели результатов наследуют от CamelCaseModel
+# API возвращает camelCase: {"rawTranscript": {...}, "cleanedTranscript": {...}}
+```
+
+### Вкладка "Статистика" (v0.58+)
+
+Централизованное отображение метрик обработки:
+
+```typescript
+// frontend/src/components/results/StatisticsView.tsx
+<StatisticsView
+  data={{
+    rawTranscript: data.rawTranscript,
+    cleanedTranscript: data.cleanedTranscript,
+    slidesExtraction: data.slidesExtraction,
+    longread: data.longread,
+    summary: data.summary,
+    story: data.story,
+    chunks: data.chunks,
+    savedFiles: data.savedFiles,
+    contentType: data.metadata?.content_type,
+  }}
+/>
+```
+
+Появляется:
+- В StepByStep после сохранения (автопереключение)
+- В ArchiveResultsModal при наличии данных
+
+Подробнее: [docs/adr/012-statistics-tab.md](docs/adr/012-statistics-tab.md)
 
 **Frontend утилиты (v0.44+):**
 ```typescript

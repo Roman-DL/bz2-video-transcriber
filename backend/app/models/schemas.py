@@ -1,5 +1,8 @@
 """
 Pydantic models for the video transcription pipeline.
+
+v0.58+: Models use CamelCaseModel for JSON API serialization.
+Python code uses snake_case, JSON output uses camelCase.
 """
 
 import datetime as dt
@@ -9,7 +12,31 @@ from pathlib import Path
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic.alias_generators import to_camel
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Base Model for API Serialization (v0.58+)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class CamelCaseModel(BaseModel):
+    """Base model with camelCase JSON serialization.
+
+    All models that need to be serialized to JSON API responses
+    should inherit from this class. Python code uses snake_case,
+    JSON output uses camelCase via alias_generator.
+
+    Example:
+        class MyModel(CamelCaseModel):
+            my_field: str  # Python: my_field, JSON: myField
+    """
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,  # Accept both camelCase and snake_case on input
+    )
 
 
 class ProcessingStatus(str, Enum):
@@ -33,7 +60,7 @@ class ProcessingStatus(str, Enum):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TokensUsed(BaseModel):
+class TokensUsed(CamelCaseModel):
     """Token usage statistics from LLM API.
 
     Used for tracking costs and debugging prompt efficiency.
@@ -70,7 +97,7 @@ class EventCategory(str, Enum):
     OFFSITE = "offsite"
 
 
-class VideoMetadata(BaseModel):
+class VideoMetadata(CamelCaseModel):
     """Metadata extracted from video filename."""
 
     date: date
@@ -102,7 +129,7 @@ class VideoMetadata(BaseModel):
         return self.event_category == EventCategory.OFFSITE
 
 
-class TranscriptSegment(BaseModel):
+class TranscriptSegment(CamelCaseModel):
     """Single segment from Whisper transcription."""
 
     start: float
@@ -130,7 +157,7 @@ class TranscriptSegment(BaseModel):
         return f"{h:02d}:{m:02d}:{s:02d}"
 
 
-class RawTranscript(BaseModel):
+class RawTranscript(CamelCaseModel):
     """Raw transcript from Whisper."""
 
     segments: list[TranscriptSegment]
@@ -176,7 +203,18 @@ class RawTranscript(BaseModel):
         return len(self.full_text.split())
 
 
-class CleanedTranscript(BaseModel):
+class TranscribeResult(CamelCaseModel):
+    """Result from transcription step.
+
+    Contains raw transcript and paths for audio/display text.
+    """
+
+    raw_transcript: "RawTranscript"
+    audio_path: str
+    display_text: str
+
+
+class CleanedTranscript(CamelCaseModel):
     """Cleaned transcript after LLM processing."""
 
     text: str
@@ -214,7 +252,7 @@ class CleanedTranscript(BaseModel):
         return round(100 - (self.cleaned_length * 100 / self.original_length), 1)
 
 
-class TranscriptChunk(BaseModel):
+class TranscriptChunk(CamelCaseModel):
     """Single semantic chunk of transcript."""
 
     id: str
@@ -224,7 +262,7 @@ class TranscriptChunk(BaseModel):
     word_count: int
 
 
-class TranscriptChunks(BaseModel):
+class TranscriptChunks(CamelCaseModel):
     """Collection of transcript chunks."""
 
     chunks: list[TranscriptChunk]
@@ -256,7 +294,7 @@ class TranscriptChunks(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TextPart(BaseModel):
+class TextPart(CamelCaseModel):
     """Part of transcript text with overlap information.
 
     Used by TextSplitter to split large transcripts into overlapping parts
@@ -287,7 +325,7 @@ class TextPart(BaseModel):
         return len(self.text.split())
 
 
-class PartOutline(BaseModel):
+class PartOutline(CamelCaseModel):
     """Outline extracted from a single text part.
 
     Contains structured information about topics and key points
@@ -315,7 +353,7 @@ class PartOutline(BaseModel):
     )
 
 
-class TranscriptOutline(BaseModel):
+class TranscriptOutline(CamelCaseModel):
     """Combined outline of the entire transcript.
 
     Created by reducing multiple PartOutlines into a unified structure
@@ -363,7 +401,7 @@ class TranscriptOutline(BaseModel):
         return "\n".join(lines)
 
 
-class VideoSummary(BaseModel):
+class VideoSummary(CamelCaseModel):
     """Video summary for BZ 2.0."""
 
     summary: str
@@ -383,7 +421,7 @@ class VideoSummary(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class LongreadSection(BaseModel):
+class LongreadSection(CamelCaseModel):
     """Single section of a longread document.
 
     Each section is a self-contained piece of content for RAG retrieval.
@@ -403,7 +441,7 @@ class LongreadSection(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class StoryBlock(BaseModel):
+class StoryBlock(CamelCaseModel):
     """Single block of a leadership story (1 of 8 blocks).
 
     Each block represents a thematic section of a leader's story.
@@ -414,7 +452,7 @@ class StoryBlock(BaseModel):
     content: str = Field(..., description="Block content in markdown")
 
 
-class Story(BaseModel):
+class Story(CamelCaseModel):
     """Leadership story document (8 blocks structure).
 
     A story is a structured analysis of a leader's journey for those
@@ -556,7 +594,7 @@ class Story(BaseModel):
         return "\n".join(lines)
 
 
-class Longread(BaseModel):
+class Longread(CamelCaseModel):
     """Full longread document generated from transcript chunks.
 
     A longread is an edited version of the transcript for those who
@@ -687,7 +725,7 @@ class Longread(BaseModel):
         return "\n".join(lines)
 
 
-class Summary(BaseModel):
+class Summary(CamelCaseModel):
     """Condensed summary (конспект) generated from longread.
 
     A summary is a navigation document for those who ALREADY watched/read
@@ -850,7 +888,7 @@ class Summary(BaseModel):
         return "\n".join(lines)
 
 
-class ProcessingResult(BaseModel):
+class ProcessingResult(CamelCaseModel):
     """Result of successful video processing."""
 
     video_id: str
@@ -860,7 +898,7 @@ class ProcessingResult(BaseModel):
     files_created: list[str]
 
 
-class ProcessingJob(BaseModel):
+class ProcessingJob(CamelCaseModel):
     """Processing job state."""
 
     job_id: str
@@ -872,6 +910,46 @@ class ProcessingJob(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     completed_at: datetime | None = None
     result: ProcessingResult | None = None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Pipeline Results Model (v0.58+)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class PipelineResults(CamelCaseModel):
+    """Complete pipeline results for archive storage and API responses.
+
+    This model contains all data needed to display processing results
+    in the archive viewer. Serializes to camelCase JSON for frontend.
+    """
+
+    version: str = Field(default="1.0.0", description="Pipeline version")
+    created_at: str = Field(..., description="ISO datetime of creation")
+    content_type: ContentType | None = Field(
+        default=None,
+        description="Content type (educational/leadership)",
+    )
+
+    # Core data
+    metadata: VideoMetadata
+    raw_transcript: RawTranscript | None = None
+    display_text: str | None = Field(
+        default=None,
+        description="Formatted transcript for display",
+    )
+    cleaned_transcript: CleanedTranscript | None = None
+    chunks: TranscriptChunks | None = None
+
+    # Educational content
+    longread: Longread | None = None
+    summary: Summary | None = None
+
+    # Leadership content
+    story: Story | None = None
+
+    # Slides extraction (v0.55+)
+    slides_extraction: SlidesExtractionResult | None = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1010,7 +1088,7 @@ class StepStoryRequest(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class SlideInput(BaseModel):
+class SlideInput(CamelCaseModel):
     """Single slide input for extraction.
 
     Represents an uploaded slide file (image or PDF page).
@@ -1024,7 +1102,7 @@ class SlideInput(BaseModel):
     data: str = Field(..., description="Base64 encoded file content")
 
 
-class SlidesExtractionResult(BaseModel):
+class SlidesExtractionResult(CamelCaseModel):
     """Result of slides text extraction.
 
     Contains extracted text and processing metrics.

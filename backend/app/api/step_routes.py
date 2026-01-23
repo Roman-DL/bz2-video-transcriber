@@ -35,6 +35,7 @@ from app.models.schemas import (
     StepSummarizeRequest,
     Story,
     Summary,
+    TranscribeResult,
     TranscriptChunks,
     VideoMetadata,
 )
@@ -169,8 +170,9 @@ async def run_with_sse_progress(
     elif result_holder:
         result = result_holder[0]
         # Handle different result types
+        # v0.58+: Use by_alias=True for camelCase serialization
         if hasattr(result, "model_dump"):
-            data = result.model_dump(mode='json')
+            data = result.model_dump(by_alias=True, mode='json')
         elif isinstance(result, dict):
             data = result
         elif isinstance(result, list):
@@ -291,11 +293,12 @@ async def step_transcribe(request: StepParseRequest) -> StreamingResponse:
             if settings.whisper_include_timestamps
             else transcript.full_text
         )
-        return {
-            "raw_transcript": transcript.model_dump(mode='json'),
-            "audio_path": str(audio_path),
-            "display_text": display_text,
-        }
+        # Return structured result with camelCase serialization
+        return TranscribeResult(
+            raw_transcript=transcript,
+            audio_path=str(audio_path),
+            display_text=display_text,
+        )
 
     return create_sse_response(
         run_with_sse_progress(
