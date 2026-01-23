@@ -20,14 +20,19 @@ orchestrator = PipelineOrchestrator(settings)
 # Полный pipeline
 result = await orchestrator.process(Path("inbox/video.mp4"))
 
-# Или пошагово
+# Или пошагово (EDUCATIONAL)
 metadata = orchestrator.parse(video_path)
-raw = await orchestrator.transcribe(video_path)
+raw, audio_path = await orchestrator.transcribe(video_path)
 cleaned = await orchestrator.clean(raw, metadata)
-chunks = await orchestrator.chunk(cleaned, metadata)
-longread = await orchestrator.longread(chunks, metadata)
-summary = await orchestrator.summarize_from_longread(longread, metadata)
-files = await orchestrator.save(metadata, raw, cleaned, chunks, longread, summary)
+longread = await orchestrator.longread(cleaned, metadata)
+summary = await orchestrator.summarize_from_cleaned(cleaned, metadata)
+chunks = orchestrator.chunk(longread.to_markdown(), metadata)  # v0.25+: deterministic
+files = await orchestrator.save(metadata, raw, cleaned, chunks, longread=longread, summary=summary)
+
+# Или пошагово (LEADERSHIP)
+story = await orchestrator.story(cleaned, metadata)
+chunks = orchestrator.chunk(story.to_markdown(), metadata)
+files = await orchestrator.save(metadata, raw, cleaned, chunks, story=story)
 ```
 
 > **API методов:** См. docstrings в `backend/app/services/pipeline/orchestrator.py`
@@ -43,7 +48,6 @@ backend/app/services/pipeline/
 ├── __init__.py              # Экспорт публичного API
 ├── orchestrator.py          # Координация этапов, PipelineError
 ├── progress_manager.py      # Веса этапов, расчёт прогресса
-├── fallback_factory.py      # Создание fallback объектов при ошибках
 ├── config_resolver.py       # Override моделей для пошагового режима
 ├── stage_cache.py           # Версионирование результатов (v0.18+)
 └── processing_strategy.py   # Выбор local/cloud провайдера (v0.19+)
@@ -53,7 +57,6 @@ backend/app/services/pipeline/
 |--------|------------|
 | **orchestrator** | Координация stages, управление потоком выполнения |
 | **progress_manager** | Калиброванные веса STAGE_WEIGHTS, расчёт % прогресса |
-| **fallback_factory** | Создание fallback chunks/longread/summary при ошибках |
 | **config_resolver** | Подмена модели для конкретного этапа (model override) |
 | **stage_cache** | Сохранение/загрузка версионированных результатов этапов |
 | **processing_strategy** | Выбор между local (Ollama) и cloud (Claude) провайдером |
@@ -70,14 +73,16 @@ backend/app/services/pipeline/
 process(video_path, progress_callback)
          │
          ▼
-┌────────────────────────────────────────────────────────────────────┐
-│  Parse → Transcribe → Clean → Chunk → Longread → Summarize → Save │
-│                                 └───────── последовательно ───────┘ │
-└────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Parse → Transcribe → Clean ─┬─→ Longread → Summary → Chunk → Save (EDUCATIONAL)
+│                              └─→ Story → Chunk → Save (LEADERSHIP)          │
+└─────────────────────────────────────────────────────────────────────────────┘
          │
          ▼
    ProcessingResult
 ```
+
+> **v0.25+:** Chunk теперь выполняется ПОСЛЕ longread/story (детерминистический по H2 заголовкам).
 
 **Использование:**
 ```python
@@ -101,11 +106,12 @@ print(f"Files: {result.files_created}")
 │  Каждый метод независим — можно повторять любой этап             │
 │                                                                   │
 │  parse()                  → VideoMetadata                         │
-│  transcribe()             → RawTranscript                         │
+│  transcribe()             → (RawTranscript, audio_path)           │
 │  clean()                  → CleanedTranscript   ◄── глоссарий     │
-│  chunk()                  → TranscriptChunks                      │
 │  longread()               → Longread            ◄── промпты       │
-│  summarize_from_longread()→ Summary             ◄── промпты       │
+│  summarize_from_cleaned() → Summary             ◄── промпты       │
+│  story()                  → Story               ◄── промпты       │
+│  chunk()                  → TranscriptChunks    (deterministic)   │
 │  save()                   → list[str]                             │
 └───────────────────────────────────────────────────────────────────┘
 ```
@@ -117,19 +123,24 @@ video_path = Path("inbox/video.mp4")
 
 # Выполняем тяжёлые этапы один раз
 metadata = orchestrator.parse(video_path)
-raw = await orchestrator.transcribe(video_path)
+raw, audio_path = await orchestrator.transcribe(video_path)
 cleaned = await orchestrator.clean(raw, metadata)
-chunks = await orchestrator.chunk(cleaned, metadata)
 
 # Тестируем разные модели для longread
-longread_qwen = await orchestrator.longread(chunks, metadata, model="qwen2.5:14b")
-longread_gemma = await orchestrator.longread(chunks, metadata, model="gemma2:9b")
+longread_claude = await orchestrator.longread(cleaned, metadata, model="claude-sonnet-4-5")
+longread_haiku = await orchestrator.longread(cleaned, metadata, model="claude-haiku-4-5")
 
-# Генерируем summary из лучшего longread
-summary = await orchestrator.summarize_from_longread(longread_qwen, metadata)
+# Генерируем summary из cleaned transcript (v0.24+)
+summary = await orchestrator.summarize_from_cleaned(cleaned, metadata)
+
+# Chunk детерминистически из markdown (v0.25+)
+chunks = orchestrator.chunk(longread_claude.to_markdown(), metadata)
 
 # Сохраняем результат
-files = await orchestrator.save(metadata, raw, cleaned, chunks, longread_qwen, summary)
+files = await orchestrator.save(
+    metadata, raw, cleaned, chunks,
+    longread=longread_claude, summary=summary, audio_path=audio_path
+)
 ```
 
 ---
@@ -199,7 +210,7 @@ overall = manager.calculate_overall_progress(ProcessingStatus.TRANSCRIBING, 50)
 
 ---
 
-## ProcessingStrategy (v0.19+)
+## ProcessingStrategy (v0.19+, updated v0.29)
 
 Автоматический выбор AI провайдера по имени модели:
 
@@ -209,20 +220,16 @@ from app.services.pipeline import ProcessingStrategy
 strategy = ProcessingStrategy(settings)
 
 # Автоматический выбор: "claude-*" → cloud, остальное → local
-async with strategy.create_client("claude-sonnet") as client:
-    response = await client.generate("...")
-
-# С fallback на локальную модель
-client, model = await strategy.get_client_with_fallback(
-    "claude-sonnet",   # Предпочтительная
-    "qwen2.5:14b"      # Fallback если Claude недоступен
-)
+async with strategy.create_client("claude-sonnet-4-5") as client:
+    response, usage = await client.generate("...")
 ```
 
 | Модель | Провайдер |
 |--------|-----------|
 | `claude-*` | Cloud (Anthropic API) |
 | Всё остальное | Local (Ollama) |
+
+> **v0.29+:** Метод `get_client_with_fallback()` удалён. Ошибки пробрасываются вызывающему коду.
 
 > **Подробнее:** [ADR-006](../adr/006-cloud-model-integration.md)
 
@@ -283,19 +290,7 @@ except PipelineError as e:
         print(f"Cause: {e.cause}")
 ```
 
-### Graceful Degradation
-
-При ошибках в некритичных этапах pipeline продолжает работу:
-
-| Ситуация | Поведение |
-|----------|-----------|
-| Chunker упал | Fallback на разбиение по ~300 слов |
-| Longread упал | Fallback — минимальный longread |
-| Summarizer упал | Fallback на минимальный конспект |
-| Все три упали | PipelineError |
-| Parse/Transcribe/Save упал | Немедленный PipelineError |
-
-Fallback объекты создаются через `FallbackFactory`. См. docstrings в `backend/app/services/pipeline/fallback_factory.py`.
+> **v0.29+:** Fallback механизмы удалены. Любая ошибка на любом этапе выбрасывает `PipelineError`.
 
 ---
 
@@ -316,9 +311,42 @@ raw = RawTranscript.model_validate_json(raw_json)
 
 ---
 
+## Slides Integration (v0.50+)
+
+Методы `longread()` и `story()` поддерживают интеграцию со слайдами:
+
+```python
+# Извлечь текст со слайдов (через /api/step/slides)
+slides_text = slides_result.extracted_text
+
+# Передать в longread/story для обогащения контента
+longread = await orchestrator.longread(cleaned, metadata, slides_text=slides_text)
+story = await orchestrator.story(cleaned, metadata, slides_text=slides_text)
+
+# save() поддерживает slides_extraction для сохранения метрик
+files = await orchestrator.save(
+    metadata, raw, cleaned, chunks,
+    longread=longread, summary=summary,
+    slides_extraction=slides_result  # v0.55+
+)
+```
+
+---
+
 ## Связанные документы
 
 - [Stage Abstraction](stages.md) — система этапов обработки
 - [ADR-002: Pipeline Decomposition](../adr/002-pipeline-decomposition.md)
 - [ADR-005: Result Caching](../adr/005-result-caching.md)
 - [ADR-006: Cloud Model Integration](../adr/006-cloud-model-integration.md)
+
+## История изменений
+
+- **v0.55:** Поддержка `slides_extraction` в методе `save()`.
+- **v0.53:** Добавлен `slides_text` параметр в метод `story()`.
+- **v0.50:** Добавлен `slides_text` параметр в метод `longread()`.
+- **v0.29:** Удалены fallback механизмы и `FallbackFactory`. Удалён `get_client_with_fallback()`.
+- **v0.25:** Chunk теперь детерминистический (по H2), выполняется ПОСЛЕ longread/story.
+- **v0.24:** `summarize_from_cleaned()` заменил `summarize_from_longread()`.
+- **v0.23:** Разделение pipeline на EDUCATIONAL и LEADERSHIP ветки.
+- **v0.19:** Добавлен `ProcessingStrategy` для выбора local/cloud провайдера.

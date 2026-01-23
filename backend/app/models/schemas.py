@@ -726,10 +726,12 @@ class Longread(CamelCaseModel):
 
 
 class Summary(CamelCaseModel):
-    """Condensed summary (конспект) generated from longread.
+    """Condensed summary (конспект) generated from cleaned transcript.
 
     A summary is a navigation document for those who ALREADY watched/read
     the content. It helps recall key points quickly.
+
+    v0.24+: Now generated from CleanedTranscript instead of Longread.
     """
 
     video_id: str = Field(..., description="Video identifier")

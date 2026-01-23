@@ -62,6 +62,11 @@ CleanedTranscript (~50K chars)
 | topic_area | list[str] | Тематические области (LLM) |
 | tags | list[str] | Теги для поиска (LLM) |
 | access_level | str | Уровень доступа (LLM) |
+| related | list[str] | Связанные документы |
+| model_name | str | Используемая LLM модель |
+| tokens_used | TokensUsed \| None | Статистика токенов (v0.42+) |
+| cost | float \| None | Стоимость в USD (v0.42+) |
+| processing_time_sec | float \| None | Время обработки в секундах (v0.42+) |
 
 ## Классификация (генерируется LLM)
 
@@ -145,14 +150,15 @@ models:
 
 ## Промпты (3-компонентная архитектура)
 
-Файлы в `config/prompts/`:
-- `summary_system.md` — системный промпт (роль, назначение)
-- `summary_instructions.md` — инструкции по извлечению
-- `summary_template.md` — JSON-формат ответа
+Файлы в `config/prompts/summary/` (v0.30+ иерархическая структура):
+- `system.md` — системный промпт (роль, назначение)
+- `instructions.md` — инструкции по извлечению
+- `template.md` — JSON-формат ответа
 
-Поддерживаются модель-специфичные версии:
-- `summary_system_qwen2.5:14b.md`
-- `summary_instructions_qwen2.5:14b.md`
+Поддерживаются варианты промптов через API (v0.32+):
+```python
+prompt_overrides={"system": "system_v2", "instructions": "instructions"}
+```
 
 ## Step-by-step режим
 
@@ -189,10 +195,13 @@ def should_skip(self, context: StageContext) -> bool:
 - **Сервис:** `backend/app/services/summary_generator.py`
 - **Stage:** `backend/app/services/stages/summarize_stage.py`
 - **Модели:** `backend/app/models/schemas.py` → `Summary`
-- **Промпты:** `config/prompts/summary_*.md`
+- **Промпты:** `config/prompts/summary/` (system.md, instructions.md, template.md)
 - **Конфигурация:** `config/models.yaml` → `summary`
 
 ## История изменений
 
+- **v0.42:** Добавлены метрики tokens_used, cost, processing_time_sec.
+- **v0.30:** Иерархическая структура промптов (`config/prompts/summary/`).
+- **v0.29:** Удалён fallback механизм — при ошибке выбрасывается StageError.
 - **v0.24:** Генерация из CleanedTranscript вместо Longread. 3-компонентная архитектура промптов. LLM генерирует topic_area, tags, access_level.
 - **v0.13:** Генерация из Longread (заменено в v0.24)
