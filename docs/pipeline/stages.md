@@ -69,6 +69,11 @@ class MyStage(BaseStage):
 
         return result
 
+    def should_skip(self, context: StageContext) -> bool:
+        """Условное выполнение по content_type."""
+        metadata = context.get_result("parse")
+        return metadata.content_type == ContentType.LEADERSHIP
+
     def estimate_time(self, input_size: int) -> float:
         """Оценка времени выполнения в секундах."""
         return 10.0 + input_size / 1000
@@ -80,14 +85,9 @@ class MyStage(BaseStage):
 
 ```python
 from app.services.stages import StageRegistry, create_default_stages
-from app.services.ai_clients import WhisperClient
-from app.services.pipeline import ProcessingStrategy
 
-# v0.29+: Whisper для транскрипции, ProcessingStrategy для LLM
-async with WhisperClient.from_settings(settings) as whisper:
-    strategy = ProcessingStrategy(settings)
-    async with strategy.create_client("claude-sonnet-4-5") as llm:
-        registry = create_default_stages(whisper, llm, settings)
+# Создание registry с зарегистрированными stages
+registry = create_default_stages(ai_client, settings)
 
 # Построение pipeline (автоматически добавляет зависимости)
 stages = registry.build_pipeline(["parse", "transcribe", "clean"])
@@ -95,11 +95,82 @@ stages = registry.build_pipeline(["parse", "transcribe", "clean"])
 # Выполнение
 context = StageContext().with_metadata("video_path", video_path)
 for stage in stages:
+    if stage.should_skip(context):
+        continue
     result = await stage.execute(context)
     context = context.with_result(stage.name, result)
 ```
 
 > **API классов:** См. docstrings в `backend/app/services/stages/base.py`
+
+---
+
+## Зависимости stages
+
+### Таблица зависимостей
+
+| Stage | depends_on | Input | Output |
+|-------|------------|-------|--------|
+| `parse` | `[]` | `video_path` (metadata) | `VideoMetadata` |
+| `transcribe` | `["parse"]` | `VideoMetadata` | `tuple[RawTranscript, Path]` |
+| `clean` | `["parse", "transcribe"]` | `RawTranscript`, `VideoMetadata` | `CleanedTranscript` |
+| `longread` | `["parse", "clean"]` | `CleanedTranscript`, `VideoMetadata` | `Longread` |
+| `summarize` | `["parse", "clean"]` | `CleanedTranscript`, `VideoMetadata` | `Summary` |
+| `story` | `["clean", "parse"]` | `CleanedTranscript`, `VideoMetadata` | `Story` |
+| `chunk` | `["parse", "longread", "story"]` | `Longread` or `Story` | `TranscriptChunks` |
+| `save` | `["parse", "transcribe", "clean", "chunk"]` | All results | `list[str]` (saved files) |
+
+### DEFAULT_PIPELINE_STAGES
+
+```python
+# backend/app/services/stages/__init__.py
+DEFAULT_PIPELINE_STAGES = [
+    "parse",
+    "transcribe",
+    "clean",
+    "longread",    # Skipped for LEADERSHIP
+    "summarize",   # Skipped for LEADERSHIP
+    "story",       # Skipped for EDUCATIONAL
+    "chunk",       # v0.25+: H2 chunking from longread/story
+    "save",
+]
+```
+
+---
+
+## Граф зависимостей
+
+```
+parse ─────────────────────────────────────────────────────────→ save
+   │                                                               ↑
+   ↓                                                               │
+transcribe (Whisper) ──────────────────────────────────────────────┤
+   │                                                               │
+   ↓                                                               │
+ clean (Claude) ───────────────────────────────────────────────────┤
+   │                                                               │
+   ├──────────────────┬──────────────────┐                         │
+   ↓                  ↓                  ↓                         │
+longread          summarize           story                        │
+[EDUCATIONAL]     [EDUCATIONAL]       [LEADERSHIP]                 │
+   │                  │                  │                         │
+   │                  │                  │                         │
+   └────────────┬─────┘                  │                         │
+               ↓                         │                         │
+            chunk (H2) ←─────────────────┘                         │
+               │                                                   │
+               └───────────────────────────────────────────────────┘
+```
+
+**Ключевые моменты (v0.24+):**
+
+1. `longread` и `summarize` выполняются **параллельно** от `clean` (оба зависят только от `parse` + `clean`)
+2. `chunk` ждёт `longread` ИЛИ `story` (в зависимости от content_type)
+3. `save` ждёт все предыдущие этапы
+
+**Ветвление по content_type:**
+- `EDUCATIONAL` → `longread` + `summarize` (parallel) → `chunk` → `save`
+- `LEADERSHIP` → `story` → `chunk` → `save`
 
 ---
 
@@ -130,8 +201,11 @@ class TelegramSummary(BaseModel):
 class TelegramSummaryStage(BaseStage):
     """Generate short preview for Telegram.
 
-    Input: longread
-    Output: TelegramSummary
+    Input (from context):
+        - longread: Longread
+
+    Output:
+        TelegramSummary
     """
 
     name = "telegram_summary"
@@ -147,19 +221,16 @@ class TelegramSummaryStage(BaseStage):
 
         longread: Longread = context.get_result("longread")
 
-        # Генерируем превью
         prompt = f"""
-        Создай короткое превью для Telegram (150 символов) на основе лонгрида.
+        Создай короткое превью для Telegram (150 символов).
 
         Заголовок: {longread.title}
         Введение: {longread.introduction}
 
-        Формат ответа:
-        - text: краткое описание
-        - hashtags: список хэштегов (3-5)
+        Формат JSON: {{"text": "...", "hashtags": [...]}}
         """
 
-        response = await self.ai_client.generate(
+        response, usage = await self.ai_client.generate(
             prompt=prompt,
             model=self.settings.summarizer_model,
         )
@@ -198,14 +269,12 @@ def create_default_stages(ai_client, settings, registry=None):
 ```python
 # Включить в pipeline
 stages = registry.build_pipeline([
-    "parse", "transcribe", "clean", "chunk",
-    "longread", "telegram_summary", "save"
+    "parse", "transcribe", "clean",
+    "longread", "telegram_summary", "chunk", "save"
 ])
 
 # Результат будет в context.get_result("telegram_summary")
 ```
-
-> **Выбор AI провайдера:** Для автоматического выбора между local (Ollama) и cloud (Claude) используйте `ProcessingStrategy`. См. [ADR-004](../adr/004-ai-client-abstraction.md).
 
 ---
 
@@ -238,36 +307,6 @@ result = await cleaner.clean(raw_transcript, metadata)
 
 ---
 
-## Граф зависимостей
-
-```
-parse ─────┬──────────────────────────────────────────────→ save
-           │                                                  ↑
-           ↓                                                  │
-       transcribe (Whisper)                                   │
-           │                                                  │
-           ↓                                                  │
-         clean (Claude) ──────────────────────────────────────┤
-           │                                                  │
-           ├────────────────────────────┐                     │
-           ↓                            ↓                     │
-       longread (Claude)           story (Claude)             │
-      [EDUCATIONAL]               [LEADERSHIP]                │
-           │                            │                     │
-           ↓                            │                     │
-       summarize (Claude)               │                     │
-           │                            │                     │
-           └────────────┬───────────────┘                     │
-                        ↓                                     │
-                  chunk (H2) ─────────────────────────────────┘
-```
-
-**Ветвление по content_type:**
-- `EDUCATIONAL` → longread → summarize → chunk → save
-- `LEADERSHIP` → story → chunk → save
-
----
-
 ## Slides Extraction (v0.51+)
 
 Извлечение текста со слайдов презентаций реализовано как отдельный сервис, а не как stage. Это связано с тем, что:
@@ -282,7 +321,7 @@ parse ─────┬──────────────────�
 ┌─────────────────────────────────────────────────────────────────────┐
 │                           Pipeline                                   │
 │                                                                      │
-│   Transcribe → Clean ─┬─→ [SLIDES] → Longread → Summary → Save      │
+│   Transcribe → Clean ─┬─→ [SLIDES] → Longread + Summarize → Save    │
 │                       └─→ [SLIDES] → Story → Save                   │
 │                               ↓                                      │
 │                       (только если есть                              │
@@ -417,6 +456,7 @@ async def execute(self, context: StageContext) -> Result:
 
 ```bash
 PYTHONPATH=backend python3 backend/app/services/stages/base.py
+PYTHONPATH=backend python3 backend/app/services/stages/chunk_stage.py
 ```
 
 ---
