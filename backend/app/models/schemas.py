@@ -1009,7 +1009,7 @@ class PipelineResults(CamelCaseModel):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class ProcessRequest(BaseModel):
+class ProcessRequest(CamelCaseModel):
     """Request to start video processing."""
 
     video_filename: str = Field(
@@ -1030,7 +1030,7 @@ class ProgressMessage(BaseModel):
     error: str | None = None
 
 
-class StepParseRequest(BaseModel):
+class StepParseRequest(CamelCaseModel):
     """Request for /step/parse endpoint."""
 
     video_filename: str
@@ -1040,7 +1040,7 @@ class StepParseRequest(BaseModel):
     )
 
 
-class StepCleanRequest(BaseModel):
+class StepCleanRequest(CamelCaseModel):
     """Request for /step/clean endpoint."""
 
     raw_transcript: RawTranscript
@@ -1055,7 +1055,7 @@ class StepCleanRequest(BaseModel):
     )
 
 
-class StepChunkRequest(BaseModel):
+class StepChunkRequest(CamelCaseModel):
     """Request for /step/chunk endpoint.
 
     v0.25+: Now accepts markdown content for deterministic H2 chunking.
@@ -1068,7 +1068,7 @@ class StepChunkRequest(BaseModel):
     metadata: VideoMetadata
 
 
-class StepLongreadRequest(BaseModel):
+class StepLongreadRequest(CamelCaseModel):
     """Request for /step/longread endpoint.
 
     v0.25+: Now takes CleanedTranscript instead of chunks.
@@ -1092,7 +1092,7 @@ class StepLongreadRequest(BaseModel):
     )
 
 
-class StepSummarizeRequest(BaseModel):
+class StepSummarizeRequest(CamelCaseModel):
     """Request for /step/summarize endpoint.
 
     Updated in v0.24: Now takes CleanedTranscript instead of Longread.
@@ -1112,7 +1112,7 @@ class StepSummarizeRequest(BaseModel):
     )
 
 
-class StepStoryRequest(BaseModel):
+class StepStoryRequest(CamelCaseModel):
     """Request for /step/story endpoint.
 
     For content_type=LEADERSHIP only. Generates 8-block story.
@@ -1135,7 +1135,7 @@ class StepStoryRequest(BaseModel):
     )
 
 
-class StepSlidesRequest(BaseModel):
+class StepSlidesRequest(CamelCaseModel):
     """Request for /step/slides endpoint.
 
     v0.50+: Extracts text from uploaded slides using vision API.
@@ -1152,7 +1152,7 @@ class StepSlidesRequest(BaseModel):
     )
 
 
-class StepSaveRequest(BaseModel):
+class StepSaveRequest(CamelCaseModel):
     """Request for /step/save endpoint.
 
     Updated in v0.23: Supports both educational (longread+summary) and leadership (story).
@@ -1214,7 +1214,7 @@ class StagePromptsResponse(BaseModel):
     components: list[ComponentPrompts] = Field(default_factory=list, description="Components with variants")
 
 
-class PromptOverrides(BaseModel):
+class PromptOverrides(CamelCaseModel):
     """Override prompts for a pipeline step."""
 
     system: str | None = Field(default=None, description="Override for system prompt")

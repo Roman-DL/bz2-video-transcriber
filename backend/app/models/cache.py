@@ -20,6 +20,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from app.models.schemas import CamelCaseModel
+
 
 class CacheStageName(str, Enum):
     """Valid stage names for caching.
@@ -259,7 +261,7 @@ class CacheInfo(BaseModel):
     stages: list[StageVersionInfo] = Field(default_factory=list)
 
 
-class RerunRequest(BaseModel):
+class RerunRequest(CamelCaseModel):
     """Request to rerun a pipeline stage.
 
     Attributes:
