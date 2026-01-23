@@ -1,5 +1,5 @@
 import { usePipelineProcessor, formatETA } from '@/hooks/usePipelineProcessor';
-import type { PipelineStep, SlideFile } from '@/api/types';
+import type { PipelineStep, SlideFile, VideoMetadata } from '@/api/types';
 import { STEP_LABELS } from '@/api/types';
 import {
   CheckCircle,
@@ -18,7 +18,7 @@ interface AutoProcessingCompactProps {
   filename: string;
   initialSlides?: SlideFile[];
   onCancel: () => void;
-  onOpenArchive: (archivePath: string) => void;
+  onOpenArchive: (metadata: VideoMetadata) => void;
   onComplete?: () => void;
 }
 
@@ -223,8 +223,8 @@ export function AutoProcessingCompact({
 
   // Handle open archive
   const handleOpenArchive = () => {
-    if (data.metadata?.archive_path) {
-      onOpenArchive(data.metadata.archive_path);
+    if (data.metadata) {
+      onOpenArchive(data.metadata);
     }
     onComplete?.();
   };
@@ -335,7 +335,7 @@ export function AutoProcessingCompact({
       </div>
 
       {/* Steps list */}
-      <div className="px-4 py-2 max-h-64 overflow-y-auto">
+      <div className="px-4 py-2">
         {pipelineSteps.map((step, index) => (
           <StepItem
             key={step}
@@ -348,13 +348,19 @@ export function AutoProcessingCompact({
 
       {/* Footer - completed */}
       {compactStatus === 'completed' && (
-        <div className="px-4 py-3 bg-stone-50 border-t border-stone-200">
+        <div className="px-4 py-3 bg-stone-50 border-t border-stone-200 flex gap-3">
           <button
             onClick={handleOpenArchive}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors"
           >
             <FolderOpen className="w-4 h-4" />
             Открыть в архиве
+          </button>
+          <button
+            onClick={handleClose}
+            className="px-4 py-2 text-sm font-medium text-stone-700 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 transition-colors"
+          >
+            Закрыть
           </button>
         </div>
       )}

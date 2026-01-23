@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useArchive } from '@/api/hooks/useArchive';
 import { Spinner } from '@/components/common/Spinner';
-import { ArchiveResultsModal } from './ArchiveResultsModal';
 import {
   Archive,
   RefreshCw,
@@ -13,9 +12,12 @@ import {
 } from 'lucide-react';
 import type { ArchiveItem, ArchiveItemWithPath } from '@/api/types';
 
-export function ArchiveCatalog() {
+interface ArchiveCatalogProps {
+  onItemClick?: (item: ArchiveItemWithPath) => void;
+}
+
+export function ArchiveCatalog({ onItemClick }: ArchiveCatalogProps) {
   const { data, isLoading, isError, refetch, isFetching } = useArchive();
-  const [selectedItem, setSelectedItem] = useState<ArchiveItemWithPath | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Filter archive tree by search query
@@ -53,7 +55,7 @@ export function ArchiveCatalog() {
 
   const handleItemClick = (year: string, eventFolder: string, item: ArchiveItem) => {
     const topicFolder = item.speaker ? `${item.title} (${item.speaker})` : item.title;
-    setSelectedItem({ ...item, year, eventFolder, topicFolder });
+    onItemClick?.({ ...item, year, eventFolder, topicFolder });
   };
 
   return (
@@ -123,12 +125,6 @@ export function ArchiveCatalog() {
           )}
         </div>
       </main>
-
-      <ArchiveResultsModal
-        isOpen={selectedItem !== null}
-        onClose={() => setSelectedItem(null)}
-        item={selectedItem}
-      />
     </>
   );
 }

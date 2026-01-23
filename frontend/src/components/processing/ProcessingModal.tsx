@@ -2,7 +2,7 @@ import { Modal } from '@/components/common/Modal';
 import { StepByStep } from './StepByStep';
 import { AutoProcessingCompact } from './AutoProcessingCompact';
 import type { ProcessingMode } from '@/contexts/SettingsContext';
-import type { SlideFile } from '@/api/types';
+import type { SlideFile, VideoMetadata } from '@/api/types';
 
 interface ProcessingModalProps {
   isOpen: boolean;
@@ -10,7 +10,7 @@ interface ProcessingModalProps {
   mode: ProcessingMode;
   slides: SlideFile[];
   onClose: () => void;
-  onOpenArchive?: (archivePath: string) => void;
+  onOpenArchive?: (metadata: VideoMetadata) => void;
 }
 
 export function ProcessingModal({
@@ -26,9 +26,9 @@ export function ProcessingModal({
   const isAutoRun = mode === 'auto';
 
   // Handle open archive - close modal and trigger callback
-  const handleOpenArchive = (archivePath: string) => {
+  const handleOpenArchive = (metadata: VideoMetadata) => {
     onClose();
-    onOpenArchive?.(archivePath);
+    onOpenArchive?.(metadata);
   };
 
   return (
