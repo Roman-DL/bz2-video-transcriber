@@ -35,14 +35,24 @@
 - **Inbox** — список видео для обработки
 - **Архив** — иерархия обработанных видео (год → мероприятие → тема)
 
-## Режимы обработки
+## Режимы обработки (v0.56+)
 
-При клике на "Обработать" открывается модальное окно с выбором режима:
+При клике на "Обработать" открывается модальное окно. Режим выбирается в настройках.
 
-| Режим | Описание |
-|-------|----------|
-| **Пошаговый** | Выполнение этапов по одному с просмотром результатов |
-| **Автоматический** | Все 6 этапов подряд, только прогресс |
+| Режим | Компонент | Модалка | Описание |
+|-------|-----------|---------|----------|
+| **Автоматический** | `AutoProcessingCompact` | `md` (448px) | Компактный UI, автовыполнение |
+| **Пошаговый** | `StepByStep` | `full` (1100px) | Split view, ручное управление |
+
+### Автоматический режим (v0.56+)
+
+Компактный UI для production использования (~280px высота контента):
+
+- Автоматическое выполнение всех этапов
+- Progress bar с ETA
+- Вертикальный список шагов с иконками статуса
+- Кнопка "Открыть в архиве" при успешном завершении
+- Кнопки "Повторить" и "Закрыть" при ошибке
 
 ### Пошаговый режим
 
@@ -99,15 +109,37 @@
 ## Структура компонентов
 
 ```
-frontend/src/components/
-├── layout/          # Header, Layout
-├── common/          # Button, Card, Modal, ProgressBar, Spinner, CollapsibleCard
-├── services/        # ServiceStatus (Whisper/Ollama индикаторы)
-├── inbox/           # InboxList, VideoItem
-├── archive/         # ArchiveCatalog
-├── processing/      # ProcessingModal, StepByStep
-└── results/         # MetadataView, TranscriptView, ChunksView, SummaryView
+frontend/src/
+├── hooks/               # React hooks (v0.56+)
+│   └── usePipelineProcessor.ts  # Shared pipeline logic
+├── utils/               # Shared utilities
+│   ├── modelUtils.ts    # getDisplayModelName()
+│   └── formatUtils.ts   # formatTime(), formatCost()
+└── components/
+    ├── layout/          # Header, Layout
+    ├── common/          # Button, Card, Modal, ProgressBar, Spinner
+    ├── services/        # ServiceStatus (Whisper/Claude индикаторы)
+    ├── inbox/           # InboxList, VideoItem
+    ├── archive/         # ArchiveCatalog
+    ├── processing/      # ProcessingModal, StepByStep, AutoProcessingCompact
+    ├── slides/          # SlidesAttachment, SlidesModal
+    ├── settings/        # SettingsModal, ModelSelector, ComponentPromptSelector
+    └── results/         # MetadataView, TranscriptView, ChunksView, SummaryView...
 ```
+
+### usePipelineProcessor Hook (v0.56+)
+
+Общий хук для логики обработки. Используется обоими компонентами (`AutoProcessingCompact` и `StepByStep`).
+
+**Ответственности:**
+- Инициализация всех step hooks
+- State management (currentStep, data, error)
+- Динамическое определение pipeline steps
+- Auto-run логика (для автоматического режима)
+- Progress tracking (progress, estimatedSeconds, elapsedSeconds)
+- Prompt и model overrides (для пошагового режима)
+
+**Подробнее:** [architecture.md#frontend-processing-architecture](architecture.md#frontend-processing-architecture-v056)
 
 ## API интеграция
 

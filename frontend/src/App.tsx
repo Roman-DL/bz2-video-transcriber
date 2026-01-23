@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useState, useCallback } from 'react';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '@/components/layout/Layout';
 import { InboxList } from '@/components/inbox/InboxList';
 import { ArchiveCatalog } from '@/components/archive/ArchiveCatalog';
@@ -25,10 +25,25 @@ interface SelectedVideo {
 
 function Dashboard() {
   const [selectedVideo, setSelectedVideo] = useState<SelectedVideo | null>(null);
+  const client = useQueryClient();
 
   const handleProcessVideo = (filename: string, mode: ProcessingMode, slides: SlideFile[]) => {
     setSelectedVideo({ filename, mode, slides });
   };
+
+  const handleCloseModal = () => {
+    setSelectedVideo(null);
+  };
+
+  // Handle "Open in Archive" action after processing completes
+  const handleOpenArchive = useCallback((archivePath: string) => {
+    // Refetch archive to show newly saved files
+    client.invalidateQueries({ queryKey: ['archive'] });
+
+    // Future enhancement: could scroll to specific item using archivePath
+    // For now, just refresh the archive list
+    console.log('Opening archive path:', archivePath);
+  }, [client]);
 
   return (
     <>
@@ -40,7 +55,8 @@ function Dashboard() {
         filename={selectedVideo?.filename ?? null}
         mode={selectedVideo?.mode ?? 'step'}
         slides={selectedVideo?.slides ?? []}
-        onClose={() => setSelectedVideo(null)}
+        onClose={handleCloseModal}
+        onOpenArchive={handleOpenArchive}
       />
     </>
   );

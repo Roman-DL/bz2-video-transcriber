@@ -219,6 +219,8 @@ bz2-video-transcriber/
 │       │   ├── types.ts         # TypeScript типы (метрики v0.44+)
 │       │   ├── client.ts        # Axios instance
 │       │   └── hooks/           # TanStack Query hooks
+│       ├── hooks/               # React hooks (v0.56+)
+│       │   └── usePipelineProcessor.ts  # Shared pipeline logic
 │       ├── utils/               # Shared utilities (v0.35+)
 │       │   ├── modelUtils.ts    # getDisplayModelName()
 │       │   └── formatUtils.ts   # formatTime(), formatCost() (v0.44+)
@@ -230,7 +232,7 @@ bz2-video-transcriber/
 │           ├── services/        # ServiceStatus (Whisper/Claude)
 │           ├── inbox/           # InboxList, VideoItem
 │           ├── archive/         # ArchiveCatalog
-│           ├── processing/      # ProcessingModal, StepByStep
+│           ├── processing/      # ProcessingModal, StepByStep, AutoProcessingCompact
 │           ├── slides/          # SlidesAttachment, SlidesModal (v0.52+)
 │           └── results/         # MetadataView, TranscriptView, SlidesResultView
 │
@@ -302,6 +304,97 @@ bz2-video-transcriber/
 ### Инфраструктура
 - [[Конфигурация сервера]] — спецификация железа
 - [[Справочник сервисов]] — порты и адреса
+
+---
+
+## Frontend Processing Architecture (v0.56+)
+
+Компактная архитектура для обработки видео с разделением режимов.
+
+### Режимы обработки
+
+| Режим | Компонент | Описание | Модалка |
+|-------|-----------|----------|---------|
+| **auto** | `AutoProcessingCompact` | Компактный UI (~280px), автоматическое выполнение | `md` (448px) |
+| **step** | `StepByStep` | Split view, ручное управление шагами | `full` (1100px) |
+
+### Компоненты
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        ProcessingModal                           │
+│                    (ветвление по mode)                          │
+└────────────┬─────────────────────────────────────────┬──────────┘
+             │ mode === 'auto'          mode === 'step' │
+             ▼                                          ▼
+┌────────────────────────┐                ┌────────────────────────┐
+│  AutoProcessingCompact │                │      StepByStep        │
+│   (compact UI ~280px)  │                │   (split view UI)      │
+└───────────┬────────────┘                └───────────┬────────────┘
+            │                                          │
+            └───────────────────┬──────────────────────┘
+                                │
+                                ▼
+                   ┌────────────────────────┐
+                   │   usePipelineProcessor │
+                   │   (shared hook)        │
+                   │                        │
+                   │  • State management    │
+                   │  • Step execution      │
+                   │  • Progress tracking   │
+                   │  • Auto-run logic      │
+                   │  • Prompt/model config │
+                   └────────────────────────┘
+```
+
+### usePipelineProcessor Hook
+
+Общий хук для логики обработки pipeline. Используется обоими компонентами.
+
+**Файл:** `frontend/src/hooks/usePipelineProcessor.ts`
+
+**Основные возможности:**
+- Инициализация всех step hooks (parse, transcribe, clean, slides, longread, etc.)
+- State management (currentStep, data, error)
+- Динамическое определение pipeline steps на основе contentType и hasSlides
+- Auto-run логика (для автоматического режима)
+- Progress tracking (progress, estimatedSeconds, elapsedSeconds)
+- Prompt и model overrides (для пошагового режима)
+
+**Использование:**
+```typescript
+const processor = usePipelineProcessor({
+  filename: 'video.mp4',
+  initialSlides: slides,
+  autoRun: false,  // true для автоматического режима
+});
+
+const {
+  currentStep,
+  pipelineSteps,
+  isLoading,
+  isComplete,
+  data,
+  progressInfo,
+  error,
+  runStep,
+  getStepStatus,
+} = processor;
+```
+
+**Exported helpers:**
+- `formatETA(estimated, elapsed)` — форматирование оставшегося времени
+- `getStepDescription(step)` — описание шага для UI
+- `formatDuration(seconds)` — форматирование длительности
+- `getStepStats(step, data)` — статистика шага (количество символов, секций и т.д.)
+
+### Обработка завершения
+
+При успешном завершении автоматической обработки:
+1. `AutoProcessingCompact` показывает кнопку "Открыть в архиве"
+2. Нажатие вызывает `onOpenArchive(archivePath)`
+3. `ProcessingModal` закрывает модалку и передаёт path в `App`
+4. `App` инвалидирует cache архива (`invalidateQueries`)
 
 ---
 
