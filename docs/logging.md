@@ -22,12 +22,11 @@ ssh truenas_admin@192.168.1.152 'sudo docker logs bz2-transcriber --tail 100'
 |------------|--------------|----------|
 | `LOG_LEVEL` | `INFO` | Общий уровень (DEBUG/INFO/WARNING/ERROR) |
 | `LOG_FORMAT` | `structured` | Формат: `simple` или `structured` |
-| `LOG_LEVEL_AI_CLIENT` | - | Уровень для ai_client.py |
-| `LOG_LEVEL_PIPELINE` | - | Уровень для pipeline.py |
+| `LOG_LEVEL_AI_CLIENT` | - | Уровень для ai_clients/ |
+| `LOG_LEVEL_PIPELINE` | - | Уровень для pipeline/ |
 | `LOG_LEVEL_TRANSCRIBER` | - | Уровень для transcriber.py |
 | `LOG_LEVEL_CLEANER` | - | Уровень для cleaner.py |
-| `LOG_LEVEL_CHUNKER` | - | Уровень для chunker.py |
-| `LOG_LEVEL_SUMMARIZER` | - | Уровень для summarizer.py |
+| `LOG_LEVEL_SUMMARIZER` | - | Уровень для summary_generator.py |
 
 Per-module переменные переопределяют `LOG_LEVEL` для конкретного модуля.
 
@@ -111,22 +110,21 @@ Per-module переменные переопределяют `LOG_LEVEL` для 
    - **FAILED validation** — валидация не прошла, использован оригинал
    - **Pre-merge vs итог** — разница показывает потерю при merge
 
-### chunker.py (семантическое чанкирование)
+### chunk_stage.py (v0.25+)
+
+> **Примечание:** С v0.25 чанкирование детерминированное (парсинг H2 заголовков из markdown).
+> LLM не используется, операция мгновенная. Отдельный LOG_LEVEL не требуется.
 
 | Уровень | Событие | Пример |
 |---------|---------|--------|
-| INFO | Начало чанкирования | `Chunking transcript: 40000 chars, 6500 words` |
-| INFO | Большой текст | `Large text detected (40000 chars), extracting outline from 4 parts` |
-| INFO | Результат части | `Part 1/4: 3 chunks, sizes: [250, 180, 220]` |
-| INFO | Итого до merge | `Total chunks before merge: 14, total words: 2800` |
-| WARNING | Маленькие чанки | `Found 3/14 chunks with < 100 words, merging` |
-| ERROR | Не-русский текст | `Chunk 12 has non-Russian text (cyrillic=15%): Providing Solutions...` |
-| INFO | Завершение | `Chunking complete: 12 chunks, avg size 230 words` |
+| INFO | Завершение | `Chunked by H2: 12 chunks, avg 230 words` |
 
 ### Другие модули
 
 - **transcriber.py** — старт/завершение транскрипции
-- **summarizer.py** — смена промпта, парсинг ответа
+- **summary_generator.py** — генерация конспекта
+- **longread_generator.py** — генерация лонгрида
+- **story_generator.py** — генерация лидерских историй
 
 ---
 

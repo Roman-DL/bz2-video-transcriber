@@ -159,10 +159,11 @@ bz2-video-transcriber/
 │   │   ├── main.py              # FastAPI app
 │   │   ├── config.py            # Settings (Pydantic)
 │   │   ├── api/
-│   │   │   ├── routes.py        # API: inbox, archive
-│   │   │   ├── step_routes.py   # Step API с SSE прогрессом
-│   │   │   ├── cache_routes.py  # Cache API (v0.18+)
-│   │   │   └── prompt_routes.py # Prompts API (v0.31+)
+│   │   │   ├── routes.py         # API: inbox, archive
+│   │   │   ├── step_routes.py    # Step API с SSE прогрессом
+│   │   │   ├── cache_routes.py   # Cache API (v0.18+)
+│   │   │   ├── prompts_routes.py # Prompts API (v0.31+)
+│   │   │   └── models_routes.py  # Models API (список моделей)
 │   │   ├── services/
 │   │   │   ├── ai_clients/      # AI клиенты (v0.17+)
 │   │   │   │   ├── base.py      # BaseAIClient, ChatUsage, исключения
@@ -170,11 +171,16 @@ bz2-video-transcriber/
 │   │   │   │   ├── ollama_client.py   # OllamaClient
 │   │   │   │   └── whisper_client.py  # WhisperClient (v0.27+)
 │   │   │   ├── parser.py              # Парсинг имени файла
+│   │   │   ├── audio_extractor.py     # Извлечение аудио из видео (ffmpeg)
+│   │   │   ├── transcriber.py         # Обёртка над WhisperClient
 │   │   │   ├── cleaner.py             # TranscriptCleaner → AI client
 │   │   │   ├── slides_extractor.py    # SlidesExtractor → Claude Vision (v0.51+)
+│   │   │   ├── outline_extractor.py   # Извлечение outline из транскрипта
 │   │   │   ├── longread_generator.py  # LongreadGenerator → AI client
 │   │   │   ├── summary_generator.py   # SummaryGenerator → AI client
 │   │   │   ├── story_generator.py     # StoryGenerator (v0.23+)
+│   │   │   ├── text_splitter.py       # Разбиение текста на чанки
+│   │   │   ├── progress_estimator.py  # Оценка времени обработки
 │   │   │   ├── saver.py               # Сохранение в архив
 │   │   │   ├── pipeline/              # Pipeline package (v0.15+)
 │   │   │   │   ├── orchestrator.py    # PipelineOrchestrator
@@ -243,10 +249,10 @@ bz2-video-transcriber/
 │   └── prompts/                 # Промпты по этапам (v0.31+)
 │       ├── cleaning/            # system.md, user.md
 │       ├── slides/              # system.md, user.md (v0.51+)
-│       ├── longread/            # system.md, instructions.md, template.md
-│       ├── summary/
-│       ├── story/
-│       └── outline/
+│       ├── longread/            # system.md, instructions.md, template.md, section.md, combine.md
+│       ├── summary/             # system.md, instructions.md, template.md
+│       ├── story/               # system.md, instructions.md, template.md
+│       └── outline/             # map.md
 │
 ├── docker-compose.yml
 ├── Dockerfile

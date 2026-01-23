@@ -22,11 +22,13 @@
 
 > **v0.29+:** По умолчанию все LLM операции используют Claude Sonnet. Требуется `ANTHROPIC_API_KEY`.
 
+> **Примечание:** `LONGREAD_MODEL`, `WHISPER_MODEL` и `WHISPER_INCLUDE_TIMESTAMPS` имеют defaults в Settings и не требуют явного указания в docker-compose.yml.
+
 ### AI сервисы — облачные (Claude API)
 
 | Переменная | По умолчанию | Описание |
 |------------|--------------|----------|
-| `ANTHROPIC_API_KEY` | — | API ключ Anthropic (обязателен для Claude) |
+| `ANTHROPIC_API_KEY` | — | API ключ Anthropic (системная переменная, не в Settings) |
 
 **Получение ключа:** [console.anthropic.com](https://console.anthropic.com/)
 
@@ -60,7 +62,6 @@
 | `LOG_LEVEL_PIPELINE` | — | Override для pipeline |
 | `LOG_LEVEL_TRANSCRIBER` | — | Override для transcriber |
 | `LOG_LEVEL_CLEANER` | — | Override для cleaner |
-| `LOG_LEVEL_CHUNKER` | — | Override для chunker |
 | `LOG_LEVEL_SUMMARIZER` | — | Override для summarizer |
 
 ## Конфигурационные файлы
