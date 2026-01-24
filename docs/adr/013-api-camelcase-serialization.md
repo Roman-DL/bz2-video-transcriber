@@ -1,3 +1,15 @@
+---
+doc_type: adr
+status: accepted
+created: 2025-01-24
+updated: 2026-01-24
+audience: [developer]
+tags:
+  - architecture
+  - adr
+  - api
+---
+
 # ADR-013: CamelCase сериализация для API
 
 ## Статус

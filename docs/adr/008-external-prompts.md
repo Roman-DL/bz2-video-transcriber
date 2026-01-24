@@ -1,3 +1,15 @@
+---
+doc_type: adr
+status: accepted
+created: 2025-01-21
+updated: 2026-01-24
+audience: [developer]
+tags:
+  - architecture
+  - adr
+  - llm
+---
+
 # ADR-008: Внешние промпты с приоритетом загрузки
 
 ## Статус

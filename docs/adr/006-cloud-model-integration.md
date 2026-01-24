@@ -1,3 +1,16 @@
+---
+doc_type: adr
+status: accepted
+created: 2025-01-20
+updated: 2026-01-24
+audience: [developer]
+tags:
+  - architecture
+  - adr
+  - llm
+  - api
+---
+
 # ADR-006: Интеграция облачных моделей (Claude API)
 
 ## Статус

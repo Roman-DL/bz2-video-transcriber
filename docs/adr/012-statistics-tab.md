@@ -1,3 +1,15 @@
+---
+doc_type: adr
+status: accepted
+created: 2025-01-23
+updated: 2026-01-24
+audience: [developer]
+tags:
+  - architecture
+  - adr
+  - metrics
+---
+
 # ADR-012: Вкладка "Статистика" для отображения метрик обработки
 
 ## Статус
