@@ -1,24 +1,11 @@
 ---
-related:
-  - "[[Среда разработки — MOC]]"
-  - "[[Архитектура среды разработки]]"
-  - "[[Архитектура локальных AI сервисов]]"
-  - "[[Локальные AI сервисы — MOC]]"
-  - "[[Домашний сервер — MOC]]"
-  - "[[Конфигурация сервера]]"
-created: 2025-01-08
+doc_type: explanation
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
 tags:
-  - homelab
-  - development
-  - video
-  - transcription
-  - ai
-  - whisper
-  - ollama
-  - knowledge-base
-updated: 2026-01-23
-status: production
-priority: high
+  - architecture
+  - pipeline
 ---
 
 # БЗ2: Транскрибатор видео — архитектура

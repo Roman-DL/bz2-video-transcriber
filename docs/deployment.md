@@ -1,3 +1,13 @@
+---
+doc_type: how-to
+status: active
+updated: 2026-01-24
+audience: [developer, ops]
+tags:
+  - deployment
+  - docker
+---
+
 # БЗ2: Транскрибатор видео — Deployment Guide
 
 Руководство по развёртыванию на домашнем сервере TrueNAS SCALE.

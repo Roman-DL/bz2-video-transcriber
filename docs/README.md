@@ -1,3 +1,13 @@
+---
+doc_type: moc
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - documentation
+  - navigation
+---
+
 # Документация bz2-video-transcriber
 
 Система автоматической транскрипции и саммаризации видеозаписей для БЗ 2.0.

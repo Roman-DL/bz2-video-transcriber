@@ -1,3 +1,13 @@
+---
+doc_type: reference
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - api
+  - reference
+---
+
 # Форматы данных
 
 > Описание входных и выходных форматов файлов системы bz2-video-transcriber для интеграции с БЗ 2.0.

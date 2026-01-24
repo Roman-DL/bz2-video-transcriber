@@ -1,3 +1,13 @@
+---
+doc_type: reference
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - api
+  - reference
+---
+
 # API Reference: Локальные AI сервисы
 
 > Справочник по HTTP API для интеграции с Ollama и Whisper.

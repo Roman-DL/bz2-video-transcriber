@@ -1,3 +1,14 @@
+---
+doc_type: how-to
+status: active
+updated: 2026-01-24
+audience: [developer, ops]
+tags:
+  - deployment
+  - configuration
+  - docker
+---
+
 # Прокси для Docker-приложений
 
 ## Контекст

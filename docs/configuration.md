@@ -1,3 +1,13 @@
+---
+doc_type: reference
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - configuration
+  - deployment
+---
+
 # Конфигурация системы
 
 Настройки системы задаются через переменные окружения и YAML-файлы.

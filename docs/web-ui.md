@@ -1,3 +1,13 @@
+---
+doc_type: reference
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - web-ui
+  - frontend
+---
+
 # Web UI — БЗ2 Транскрибатор
 
 Веб-интерфейс для управления транскрипцией видеозаписей.

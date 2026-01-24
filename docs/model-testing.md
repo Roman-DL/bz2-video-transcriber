@@ -1,3 +1,14 @@
+---
+doc_type: how-to
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - testing
+  - llm
+  - configuration
+---
+
 # Тестирование и выбор LLM моделей
 
 Методология автоматического тестирования и сравнения LLM моделей для задач pipeline (очистка, суммаризация, лонгрид).

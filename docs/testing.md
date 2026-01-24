@@ -1,3 +1,13 @@
+---
+doc_type: how-to
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - testing
+  - deployment
+---
+
 # Тестирование
 
 Руководство по тестированию модулей локально и на сервере.

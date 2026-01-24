@@ -1,3 +1,13 @@
+---
+doc_type: how-to
+status: active
+updated: 2026-01-24
+audience: [developer]
+tags:
+  - documentation
+  - guidelines
+---
+
 # Процесс разработки
 
 Гайд по добавлению новых функций и поддержанию документации в актуальном состоянии.

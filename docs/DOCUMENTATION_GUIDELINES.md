@@ -1,3 +1,13 @@
+---
+doc_type: how-to
+status: active
+updated: 2026-01-24
+audience: [developer]
+tags:
+  - documentation
+  - guidelines
+---
+
 # Гайдлайны по документированию
 
 Принципы документирования кода для проекта bz2-video-transcriber.

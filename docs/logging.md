@@ -1,3 +1,13 @@
+---
+doc_type: reference
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - logging
+  - configuration
+---
+
 # Система логирования
 
 Конфигурируемая система логирования с поддержкой per-module уровней.
