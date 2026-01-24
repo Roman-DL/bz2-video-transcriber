@@ -1,3 +1,13 @@
+---
+doc_type: reference
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - pipeline
+  - stage
+---
+
 # Этап 3a: Slides (Опциональный)
 
 [< Назад: Clean](03-clean.md) | [Обзор Pipeline](README.md) | [Далее: Chunk >](04-chunk.md)

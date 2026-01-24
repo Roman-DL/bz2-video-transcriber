@@ -1,3 +1,13 @@
+---
+doc_type: reference
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - pipeline
+  - stage
+---
+
 # Этап 5: Longread (Генерация лонгрида)
 
 [< Назад: Slides](04-slides.md) | [Обзор Pipeline](README.md) | [Далее: Summarize >](06-summarize.md)

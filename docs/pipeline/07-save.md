@@ -1,3 +1,13 @@
+---
+doc_type: reference
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - pipeline
+  - stage
+---
+
 # Этап 7: Save Files
 
 [< Назад: Summarize](06-summarize.md) | [Обзор Pipeline](README.md) | [Далее: Orchestrator >](08-orchestrator.md)

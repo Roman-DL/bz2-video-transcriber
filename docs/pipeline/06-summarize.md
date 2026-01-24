@@ -1,3 +1,13 @@
+---
+doc_type: reference
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - pipeline
+  - stage
+---
+
 # Этап 6: Summarize (Генерация конспекта)
 
 [< Назад: Longread](05-longread.md) | [Обзор Pipeline](README.md) | [Далее: Save >](07-save.md)

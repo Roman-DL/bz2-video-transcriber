@@ -1,3 +1,13 @@
+---
+doc_type: reference
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - pipeline
+  - stage
+---
+
 # Stage Abstraction
 
 Система абстракций для этапов обработки видео. Позволяет легко добавлять новые шаги в pipeline без изменения оркестратора.

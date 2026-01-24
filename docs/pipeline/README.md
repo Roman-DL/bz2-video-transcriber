@@ -1,3 +1,12 @@
+---
+doc_type: reference
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - pipeline
+---
+
 # Pipeline обработки видео
 
 > Детальное описание этапов обработки видео от inbox до готовых файлов для БЗ 2.0.

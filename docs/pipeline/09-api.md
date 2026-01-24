@@ -1,3 +1,13 @@
+---
+doc_type: reference
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - pipeline
+  - api
+---
+
 # Pipeline API
 
 [< Назад: Orchestrator](08-orchestrator.md) | [Обзор Pipeline](README.md)

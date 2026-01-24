@@ -1,3 +1,13 @@
+---
+doc_type: reference
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - pipeline
+  - stage
+---
+
 # 05b. Story (Генерация лидерских историй)
 
 [< Назад: Longread](05-longread.md) | [Обзор Pipeline](README.md) | [Далее: Summarize >](06-summarize.md)

@@ -1,3 +1,13 @@
+---
+doc_type: reference
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - pipeline
+  - stage
+---
+
 # Этап 4: Chunk (Deterministic H2 Parsing)
 
 [< Назад: Clean](03-clean.md) | [Обзор Pipeline](README.md) | [Далее: Longread >](05-longread.md)

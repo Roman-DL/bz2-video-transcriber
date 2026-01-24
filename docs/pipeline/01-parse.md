@@ -1,3 +1,13 @@
+---
+doc_type: reference
+status: active
+updated: 2026-01-24
+audience: [developer, ai-agent]
+tags:
+  - pipeline
+  - stage
+---
+
 # Этап 1: Parse Filename
 
 [Обзор Pipeline](README.md) | [Далее: Transcribe >](02-transcribe.md)
