@@ -51,14 +51,15 @@ tags:
 
 ## Процессы
 
-| Документ | Назначение | Статус |
-|----------|------------|--------|
-| [Audit Process](workflows/audit.md) | Как проводить аудит документации | ✅ Done |
-| [Update Workflow](workflows/update.md) | Обновление документации после изменений кода | ✅ Done |
-| [Standardization Workflow](workflows/standardization.md) | Приведение документации к Diátaxis+ | ✅ Done |
-| [CLAUDE.md Integration](workflows/claude-md-integration.md) | Интеграция агентов в CLAUDE.md | ✅ Done |
-| [ADR Workflow](workflows/adr.md) | Когда и как создавать Architecture Decision Records | 🔴 Planned |
-| [New Feature Workflow](workflows/new-feature.md) | Полный цикл: от идеи до документирования | 🔴 Planned |
+| Документ                                                    | Назначение                                          | Статус     |
+| ----------------------------------------------------------- | --------------------------------------------------- | ---------- |
+| [Audit Process](workflows/audit.md)                         | Как проводить аудит документации                    | ✅ Done     |
+| [Update Workflow](workflows/update.md)                      | Обновление документации после изменений кода        | ✅ Done     |
+| [Standardization Workflow](workflows/standardization.md)    | Приведение документации к Diátaxis+                 | ✅ Done     |
+| [Architecture Audit](workflows/arch-audit.md)               | Глубокий анализ архитектуры для улучшений           | ✅ Done     |
+| [CLAUDE.md Integration](workflows/claude-md-integration.md) | Интеграция агентов в CLAUDE.md                      | ✅ Done     |
+| [ADR Workflow](workflows/adr.md)                            | Когда и как создавать Architecture Decision Records | 🔴 Planned |
+| [New Feature Workflow](workflows/new-feature.md)            | Полный цикл: от идеи до документирования            | 🔴 Planned |
 
 ---
 
@@ -109,6 +110,7 @@ meta/
 │   ├── audit.md             # Процесс аудита
 │   ├── update.md            # Обновление документации
 │   ├── standardization.md   # Приведение к Diátaxis+
+│   ├── arch-audit.md        # Архитектурный аудит
 │   ├── claude-md-integration.md  # Интеграция в CLAUDE.md
 │   ├── adr.md               # Работа с ADR (planned)
 │   └── new-feature.md       # Цикл новой фичи (planned)
@@ -225,6 +227,7 @@ docs/
 
 | Дата | Изменение |
 |------|-----------|
+| 2026-01-24 | Добавлен Architecture Audit Workflow |
 | 2026-01-24 | Фаза 3 завершена: doc-sync, arch-checker, CLAUDE.md integration |
 | 2026-01-24 | Фаза 2 завершена: Standardization Workflow, Documentation Analysis, Architecture Summary |
 | 2026-01-24 | Фаза 1 завершена: Update Workflow, baseline-аудит, актуализация документов |
