@@ -10,11 +10,11 @@
 
 ---
 
-## Pre-flight
+## Pre-flight (краткий)
 
-**Совместимость с архитектурой:** Вписывается полностью. ChunkStage остаётся детерминированным (разбиение — это парсинг). LLM для description добавляется в save flow (уже async). ADR-007 (Claude default), ADR-013 (CamelCase) соблюдены.
+Полный результат: [## Pre-flight результат](#pre-flight-результат) в конце документа.
 
-**Риск:** формат `transcript_chunks.json` изменится → старые файлы в архиве останутся в старом формате. Фронтенд читает из `pipeline_results.json`, а не из `transcript_chunks.json` → UI не затронут.
+**Совместимость:** ✅ вписывается. **Риск:** старые файлы в архиве останутся в старом формате; UI не затронут (`pipeline_results.json`).
 
 ---
 
@@ -302,21 +302,27 @@ async with ClaudeClient.from_settings(self.settings) as client:
 
 ### Фаза 1: Backend — ядро (h2_chunker + saver + prompts)
 1. `h2_chunker.py` — добавить `_split_large_chunks()`, `_split_by_paragraphs()`, тесты
-2. `config/prompts/export/system.md` + `user.md` — создать промпты
-3. `config.py` — добавить `describe_model`
-4. `saver.py` — `_generate_description()`, переработать `_save_chunks_json()`, обновить save methods
-5. Проверить синтаксис + запустить тесты h2_chunker
+2. **Инкрементировать версию кэша ChunkStage** — split меняет результат, старый кэш невалиден
+3. `config/prompts/export/system.md` + `user.md` — создать промпты
+4. `config.py` — добавить `describe_model`
+5. `saver.py`:
+   - `_generate_description()` — async, возвращает `(description, short_description, ChatUsage)`. **При ошибке Claude:** save без description + warning в лог (не ронять pipeline)
+   - `_save_chunks_json()` — остаётся sync, переработать формат вывода на BZ2-Bot контракт
+   - `save_educational()` / `save_leadership()` — вызвать `_generate_description()` до `_save_chunks_json()`, **логировать TokensUsed** (ADR-009)
+   - Дата в контекстной шапке: `metadata.date.strftime("%d.%m.%Y")` (DD.MM.YYYY)
+   - Structured logging для нового кода: `logger.info("event", key=value)`, не f-строки
+6. Проверить синтаксис + запустить тесты h2_chunker
 
 ### Фаза 2: Backend — API настроек + Frontend
-6. `schemas.py` — добавить `describe` в `DefaultModelsResponse`
-7. `models_routes.py` — добавить `describe=settings.describe_model`
-8. `types.ts` — добавить `describe` в TypeScript типы
-9. `ModelSelector.tsx` — добавить `describe` stage
-10. `SettingsModal.tsx` — добавить селектор модели "Описание"
+7. `schemas.py` — добавить `describe` в `DefaultModelsResponse`
+8. `models_routes.py` — добавить `describe=settings.describe_model`
+9. `types.ts` — добавить `describe` в TypeScript типы
+10. `ModelSelector.tsx` — добавить `describe` stage
+11. `SettingsModal.tsx` — добавить селектор модели "Описание"
 
 ### Фаза 3: Проверка + документация
-11. Синтаксис-проверка всех изменённых файлов
-12. `/finalize` — обновление документации
+12. Синтаксис-проверка всех изменённых файлов
+13. `/finalize` — обновление документации
 
 ---
 
@@ -354,3 +360,113 @@ async with ClaudeClient.from_settings(self.settings) as client:
 - `docs/pipeline/chunk.md` — добавить секцию про разбиение >600 слов
 - `CLAUDE.md` — обновить статус (v0.60: BZ2-Bot chunk format)
 - `.claude/rules/pipeline.md` — добавить: "Chunk MAX_CHUNK_WORDS=600, разбиение по параграфам"
+
+---
+
+## Pre-flight результат
+
+> Оценка полноты и корректности плана | 10 февраля 2026
+> Секция "Доработки BZ2-Bot" — исключена из scope
+
+### Архитектурный контекст
+
+**Релевантные компоненты:**
+- `h2_chunker.py` — текущий `chunk_by_h2()`, использует `generate_chunk_id()` и `count_words()` из `chunk_utils.py`
+- `saver.py` (684 строки) — `_save_chunks_json()` (строка 386) — синхронный метод, создаёт flat JSON с `video_id`, `metadata`, `statistics`, `chunks[]`
+- `saver.py:_get_stream_name()` (строка 630) — уже существует, преобразует `("ПШ", "SV")` → `"Понедельничная Школа — Супервайзеры"`
+- `ClaudeClient` — `from_settings()` + async context manager, `chat()` возвращает `(content, ChatUsage)`
+- `config.py:Settings` — текущие модели: `summarizer_model`, `longread_model`, `cleaner_model` (но НЕ `summary_model`)
+- `schemas.py:VideoMetadata` — поля: `date`, `event_type`, `stream`, `title`, `speaker`, `video_id`. Нет `stream_name` — корректно, используется `_get_stream_name()` из saver
+
+**Релевантные ADR:**
+- **ADR-007** (Claude default, no fallback) — `describe_model: claude-haiku-4-5` допустим, Haiku уже используется для slides. Ошибки пробрасывать, не fallback
+- **ADR-009** (Extended metrics) — ⚠️ требует `TokensUsed` для всех LLM операций
+- **ADR-013** (CamelCase) — `transcript_chunks.json` записывается вручную (`json.dump`), не через Pydantic. BZ2-Bot контракт = snake_case → не конфликтует с ADR-013
+- **ADR-005** (Cache versioning) — чанки кэшируются в `.cache/chunking/`. При изменении логики разбиения → кэш инвалидируется
+
+**Ограничения из CLAUDE.md:**
+- "Chunk детерминистический" — ✅ разбиение >600 слов = парсинг, не LLM
+- "НИКОГДА не добавлять fallback" — ✅ план не добавляет fallback
+- "Slides — отдельный API endpoint" — ✅ description не создаёт новый endpoint
+
+**Rules (.claude/rules/):**
+- `pipeline.md` — учтены: BaseStage не затрагивается, chunk остаётся детерминированным
+- `ai-clients.md` — учтены: `async with ClaudeClient.from_settings()` pattern
+- `api.md` — учтены: `DefaultModelsResponse` расширяется через CamelCaseModel
+- `content.md` — учтены: educational/leadership пути различаются
+- `infrastructure.md` — `load_prompt("export", ...)` — промпты загрузятся без изменений в `load_prompt()`
+
+### Проблемы корректности
+
+**П1. Дублированная нумерация секций**
+В плане два раздела "### 4." — промпт system.md и user.md. Второй должен быть "### 5."
+
+**П2. Псевдокод `_split_large_chunks` — избыточный `new_index`**
+Строки `new_index = len(result) + 1` бессмысленны, т.к. финальный цикл всё равно перенумеровывает. Не баг, но шум.
+
+### Проблемы полноты
+
+**Н1. Отсутствует TokensUsed tracking (ADR-009) — ВАЖНО**
+Генерация description через Claude расходует токены. План не описывает:
+- Как трекать `TokensUsed` от `_generate_description()`
+- Куда сохранять (в `pipeline_results.json`? в лог?)
+- Расчёт стоимости через `pricing_utils.calculate_cost()`
+
+**Рекомендация:** `_generate_description()` возвращает `(description, short_description, ChatUsage)`. Токены логировать + добавить в pipeline_results.
+
+**Н2. Стратегия обработки ошибок**
+Что если Claude API упадёт при генерации description? Варианты:
+- **A) Fail pipeline** (ADR-007 strict) — save не выполняется, пользователь видит ошибку
+- **B) Save без description** — файл создаётся, описание пустое, warning в лог
+
+Рекомендация: вариант B практичнее — save step не должен падать из-за опционального поля. Но это решение нужно принять явно.
+
+**Н3. Версия кэша chunking (ADR-005)**
+Добавление `_split_large_chunks()` в `chunk_by_h2()` меняет результат для длинных чанков. Если в `.cache/chunking/` есть кэш старого формата (без split), повторный запуск подхватит его. Нужно инкрементировать версию кэша `ChunkStage`.
+
+**Н4. `pipeline_results.json` — нужно ли обновлять?**
+`pipeline_results.json` хранит `TranscriptChunks` (из Pydantic). Если `chunk_by_h2()` теперь разбивает длинные чанки, `pipeline_results.json` автоматически отразит это (т.к. чанки меняются ДО сохранения). Но формат `transcript_chunks.json` и `pipeline_results.json` расходятся:
+- `pipeline_results.json` → camelCase, внутренний формат (`id`, `index`, `topic`, `text`, `wordCount`)
+- `transcript_chunks.json` → BZ2-Bot формат (`materials[].chunks[].text` с контекстной шапкой)
+
+Это нормально — файлы служат разным целям. Но стоит задокументировать.
+
+**Н5. Контекстная шапка — формат даты**
+Контракт требует `DD.MM.YYYY` в шапке, а `metadata.date` хранит ISO (`YYYY-MM-DD`). План упоминает это но не показывает код конвертации. Нужно: `metadata.date.strftime("%d.%m.%Y")`.
+
+**Н6. Structured logging**
+Rules (`infrastructure.md`): "ВСЕГДА structured logging: `logger.info("event", key=value)`". Текущий saver.py уже нарушает (f-строки). Для нового кода — использовать structured формат.
+
+### Оценка совместимости
+
+**Вписывается в текущую архитектуру: ДА**
+
+- ChunkStage остаётся детерминированным (split = string parsing)
+- LLM-зависимость добавляется в save flow (saver.py), не в chunk stage
+- `_get_stream_name()` уже реализован — переиспользуется
+- `load_prompt("export", ...)` работает без изменений в инфраструктуре
+- Формат BZ2-Bot (snake_case JSON) — файловый формат, не API → не конфликтует с ADR-013
+- `describe_model: claude-haiku-4-5` — Haiku уже используется для slides (прецедент)
+
+**Новый ADR не нужен** — это расширение существующего save flow, не новая архитектурная парадигма.
+
+### Вероятные обновления документации
+
+- `docs/data-formats.md` — **обновить**: секция transcript_chunks.json (новый BZ2 формат)
+- `docs/pipeline/04-chunk.md` — **обновить**: секция про split >600 слов
+- `docs/pipeline/07-save.md` — **обновить**: description generation, BZ2 формат вывода
+- `CLAUDE.md` — **обновить**: статус (v0.60), описание pipeline (шаг description)
+- `.claude/rules/pipeline.md` — **обновить**: MAX_CHUNK_WORDS=600, describe_model
+- ADR — **нет**: не нужен, решение не меняет архитектуру
+
+> Окончательный список определит `/finalize` после реализации
+
+### Готов к реализации
+
+**Да, с учётом исправлений:**
+
+1. ✅ Стратегия ошибок description generation (Н2) — вариант B (save без description, warning в лог)
+2. Добавить TokensUsed tracking для `_generate_description()` как для других LLM этапов (Н1)
+3. Инкрементировать версию кэша ChunkStage (Н3)
+4. `_save_chunks_json()` остаётся синхронным — `_generate_description()` вызывается до него
+5. Остальные замечания (П1, П2, Н5, Н6) — минорные, решаются при реализации
