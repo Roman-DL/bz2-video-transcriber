@@ -39,6 +39,9 @@ EMOJI_NUMBER_PATTERN = re.compile(r"^[\d️⃣\uFE0F]+\s*")
 # Model name for deterministic chunking
 DETERMINISTIC_MODEL = "deterministic"
 
+# Maximum words per chunk before splitting by paragraphs (BZ2-Bot contract)
+MAX_CHUNK_WORDS = 600
+
 
 def chunk_by_h2(markdown: str, video_id: str) -> TranscriptChunks:
     """
@@ -112,14 +115,20 @@ def chunk_by_h2(markdown: str, video_id: str) -> TranscriptChunks:
         logger.warning("No H2 sections found, creating fallback chunk")
         return _create_fallback_chunk(video_id, markdown)
 
+    # Split large chunks by paragraphs (v0.60+, BZ2-Bot contract: max 600 words)
+    chunks = _split_large_chunks(chunks, video_id)
+
     # Calculate total tokens (v0.42+)
     total_text = " ".join(c.text for c in chunks)
     total_tokens = estimate_tokens(total_text, lang="ru")
 
     logger.info(
-        f"Chunked by H2: {len(chunks)} chunks, "
-        f"avg {sum(c.word_count for c in chunks) // len(chunks)} words, "
-        f"~{total_tokens} tokens"
+        "chunked_by_h2",
+        extra={
+            "chunks": len(chunks),
+            "avg_words": sum(c.word_count for c in chunks) // len(chunks),
+            "total_tokens": total_tokens,
+        },
     )
 
     return TranscriptChunks(
@@ -149,6 +158,96 @@ def _clean_topic(topic: str) -> str:
     """
     cleaned = EMOJI_NUMBER_PATTERN.sub("", topic).strip()
     return cleaned if cleaned else topic
+
+
+def _split_large_chunks(
+    chunks: list[TranscriptChunk], video_id: str
+) -> list[TranscriptChunk]:
+    """Split chunks exceeding MAX_CHUNK_WORDS by paragraphs.
+
+    Preserves original topic for all sub-chunks. Re-indexes all chunks
+    sequentially after splitting.
+
+    Args:
+        chunks: Original chunks from H2 parsing
+        video_id: Video identifier for chunk ID generation
+
+    Returns:
+        List of chunks with large ones split by paragraphs
+    """
+    result: list[TranscriptChunk] = []
+
+    for chunk in chunks:
+        if chunk.word_count <= MAX_CHUNK_WORDS:
+            result.append(chunk)
+            continue
+
+        parts = _split_by_paragraphs(chunk.text, MAX_CHUNK_WORDS)
+        if len(parts) <= 1:
+            # Cannot split further (single large paragraph)
+            result.append(chunk)
+            continue
+
+        logger.info(
+            "chunk_split",
+            extra={
+                "topic": chunk.topic,
+                "original_words": chunk.word_count,
+                "parts": len(parts),
+            },
+        )
+
+        for part_text in parts:
+            result.append(
+                TranscriptChunk(
+                    id="",  # Will be re-assigned below
+                    index=0,
+                    topic=chunk.topic,
+                    text=part_text,
+                    word_count=count_words(part_text),
+                )
+            )
+
+    # Re-index all chunks sequentially
+    for i, chunk in enumerate(result):
+        chunk.index = i + 1
+        chunk.id = generate_chunk_id(video_id, i + 1)
+
+    return result
+
+
+def _split_by_paragraphs(text: str, max_words: int) -> list[str]:
+    """Split text by paragraphs to fit within word limit.
+
+    Greedily accumulates paragraphs until adding the next one
+    would exceed the limit, then starts a new part.
+
+    Args:
+        text: Text to split
+        max_words: Maximum words per part
+
+    Returns:
+        List of text parts, each within the word limit
+    """
+    paragraphs = text.split("\n\n")
+    parts: list[str] = []
+    current: list[str] = []
+    current_words = 0
+
+    for para in paragraphs:
+        para_words = count_words(para)
+        if current and current_words + para_words > max_words:
+            parts.append("\n\n".join(current))
+            current = [para]
+            current_words = para_words
+        else:
+            current.append(para)
+            current_words += para_words
+
+    if current:
+        parts.append("\n\n".join(current))
+
+    return parts
 
 
 def _create_fallback_chunk(video_id: str, text: str = "") -> TranscriptChunks:
@@ -347,6 +446,97 @@ Content of second section.
         print("OK")
     else:
         print(f"FAILED: expected 2 chunks, got {chunks.total_chunks}")
+        errors += 1
+
+    # Test 11: Split large chunk (700 words → 2 parts)
+    print("Test 11: Split large chunk (700 words)...", end=" ")
+    para1 = " ".join(["слово"] * 350)
+    para2 = " ".join(["текст"] * 350)
+    markdown = f"## Большая тема\n{para1}\n\n{para2}\n"
+    chunks = chunk_by_h2(markdown, "split-1")
+    if chunks.total_chunks == 2:
+        ok = (
+            chunks.chunks[0].topic == "Большая тема"
+            and chunks.chunks[1].topic == "Большая тема"
+            and chunks.chunks[0].word_count <= MAX_CHUNK_WORDS
+            and chunks.chunks[1].word_count <= MAX_CHUNK_WORDS
+            and chunks.chunks[0].index == 1
+            and chunks.chunks[1].index == 2
+        )
+        if ok:
+            print("OK")
+        else:
+            print(f"FAILED: topics={[c.topic for c in chunks.chunks]}, "
+                  f"words={[c.word_count for c in chunks.chunks]}")
+            errors += 1
+    else:
+        print(f"FAILED: expected 2 chunks, got {chunks.total_chunks}")
+        errors += 1
+
+    # Test 12: No split for small chunk (500 words)
+    print("Test 12: No split for small chunk (500 words)...", end=" ")
+    small_text = " ".join(["слово"] * 500)
+    markdown = f"## Маленькая тема\n{small_text}\n"
+    chunks = chunk_by_h2(markdown, "nosplit-1")
+    if chunks.total_chunks == 1 and chunks.chunks[0].word_count == 500:
+        print("OK")
+    else:
+        print(f"FAILED: chunks={chunks.total_chunks}, words={chunks.chunks[0].word_count}")
+        errors += 1
+
+    # Test 13: Split very large chunk (1200 words → 2-3 parts)
+    print("Test 13: Split very large chunk (1200 words)...", end=" ")
+    paras = [" ".join(["текст"] * 300) for _ in range(4)]
+    markdown = "## Огромная тема\n" + "\n\n".join(paras) + "\n"
+    chunks = chunk_by_h2(markdown, "bigsplit-1")
+    if chunks.total_chunks >= 2:
+        all_under_limit = all(c.word_count <= MAX_CHUNK_WORDS for c in chunks.chunks)
+        all_same_topic = all(c.topic == "Огромная тема" for c in chunks.chunks)
+        if all_under_limit and all_same_topic:
+            print(f"OK ({chunks.total_chunks} parts)")
+        else:
+            print(f"FAILED: over_limit={not all_under_limit}, mixed_topics={not all_same_topic}")
+            errors += 1
+    else:
+        print(f"FAILED: expected >=2 chunks, got {chunks.total_chunks}")
+        errors += 1
+
+    # Test 14: Boundary case (exactly 600 words → no split)
+    print("Test 14: Boundary (600 words, no split)...", end=" ")
+    exact_text = " ".join(["граница"] * 600)
+    markdown = f"## Граничный случай\n{exact_text}\n"
+    chunks = chunk_by_h2(markdown, "boundary-1")
+    if chunks.total_chunks == 1 and chunks.chunks[0].word_count == 600:
+        print("OK")
+    else:
+        print(f"FAILED: chunks={chunks.total_chunks}, words={chunks.chunks[0].word_count}")
+        errors += 1
+
+    # Test 15: Split preserves sequential indexing with mixed chunks
+    print("Test 15: Mixed split and non-split chunks...", end=" ")
+    small_section = " ".join(["мало"] * 100)
+    large_para1 = " ".join(["много"] * 350)
+    large_para2 = " ".join(["ещё"] * 350)
+    markdown = (
+        f"## Маленькая\n{small_section}\n\n"
+        f"## Большая\n{large_para1}\n\n{large_para2}\n\n"
+        f"## Финальная\n{small_section}\n"
+    )
+    chunks = chunk_by_h2(markdown, "mixed-1")
+    # Expect: Маленькая(1), Большая-part1(2), Большая-part2(3), Финальная(4)
+    if chunks.total_chunks == 4:
+        ids_ok = all(
+            chunks.chunks[i].index == i + 1
+            and chunks.chunks[i].id == f"mixed-1_{i+1:03d}"
+            for i in range(4)
+        )
+        if ids_ok:
+            print("OK")
+        else:
+            print(f"FAILED: indices={[c.index for c in chunks.chunks]}")
+            errors += 1
+    else:
+        print(f"FAILED: expected 4 chunks, got {chunks.total_chunks}")
         errors += 1
 
     # Summary

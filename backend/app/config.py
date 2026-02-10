@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     summarizer_model: str = "claude-sonnet-4-5"  # Model for summarization (конспект)
     longread_model: str = "claude-sonnet-4-5"  # Model for longread generation
     cleaner_model: str = "claude-sonnet-4-5"  # Model for transcript cleaning
+    describe_model: str = "claude-haiku-4-5"  # Model for BZ2 description generation
     whisper_model: str = "large-v3-turbo"  # Display name for Whisper model
     whisper_language: str = "ru"
     whisper_include_timestamps: bool = False  # Include [HH:MM:SS] in transcript_raw.txt

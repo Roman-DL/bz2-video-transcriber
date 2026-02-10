@@ -2,15 +2,17 @@
 File saver service.
 
 Saves processing results to the archive directory structure.
+v0.60+: BZ2-Bot chunk format with description generation.
 """
 
 import json
 import logging
 import shutil
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
-from app.config import Settings, get_settings, load_events_config
+from app.config import Settings, get_settings, load_events_config, load_prompt
 from app.models.schemas import (
     CleanedTranscript,
     ContentType,
@@ -24,6 +26,10 @@ from app.models.schemas import (
     VideoMetadata,
     VideoSummary,
 )
+from app.services.ai_clients import ClaudeClient
+from app.services.ai_clients.base import ChatUsage
+from app.utils import calculate_cost
+from app.utils.json_utils import extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +129,7 @@ class FileSaver:
         """
         archive_path = metadata.archive_path
 
-        logger.info(f"Saving educational results to: {archive_path}")
+        logger.info("save_educational_start", extra={"path": str(archive_path)})
 
         # Create archive directory
         archive_path.mkdir(parents=True, exist_ok=True)
@@ -137,9 +143,17 @@ class FileSaver:
         )
         created_files.append(pipeline_path.name)
 
-        # Save transcript chunks JSON
+        # Generate BZ2-Bot description via Claude
+        description, short_description, usage = await self._generate_description(
+            summary=summary, longread=longread, story=None, metadata=metadata
+        )
+
+        # Save transcript chunks JSON (BZ2-Bot format)
         chunks_path = self._save_chunks_json(
-            archive_path, metadata, raw_transcript, chunks
+            archive_path, metadata, raw_transcript, chunks,
+            material_title=metadata.title,
+            description=description,
+            short_description=short_description,
         )
         created_files.append(chunks_path.name)
 
@@ -168,7 +182,7 @@ class FileSaver:
         video_path = self._move_video(metadata.source_path, archive_path)
         created_files.append(video_path.name)
 
-        logger.info(f"Save complete: {len(created_files)} files created")
+        logger.info("save_educational_complete", extra={"files": len(created_files)})
 
         return created_files
 
@@ -208,7 +222,7 @@ class FileSaver:
         """
         archive_path = metadata.archive_path
 
-        logger.info(f"Saving leadership results to: {archive_path}")
+        logger.info("save_leadership_start", extra={"path": str(archive_path)})
 
         # Create archive directory
         archive_path.mkdir(parents=True, exist_ok=True)
@@ -222,9 +236,17 @@ class FileSaver:
         )
         created_files.append(pipeline_path.name)
 
-        # Save transcript chunks JSON
+        # Generate BZ2-Bot description via Claude
+        description, short_description, usage = await self._generate_description(
+            summary=None, longread=None, story=story, metadata=metadata
+        )
+
+        # Save transcript chunks JSON (BZ2-Bot format)
         chunks_path = self._save_chunks_json(
-            archive_path, metadata, raw_transcript, chunks
+            archive_path, metadata, raw_transcript, chunks,
+            material_title=metadata.title,
+            description=description,
+            short_description=short_description,
         )
         created_files.append(chunks_path.name)
 
@@ -249,7 +271,7 @@ class FileSaver:
         video_path = self._move_video(metadata.source_path, archive_path)
         created_files.append(video_path.name)
 
-        logger.info(f"Save complete: {len(created_files)} files created")
+        logger.info("save_leadership_complete", extra={"files": len(created_files)})
 
         return created_files
 
@@ -383,63 +405,216 @@ class FileSaver:
 
         return file_path
 
+    async def _generate_description(
+        self,
+        summary: Summary | None,
+        longread: Longread | None,
+        story: Story | None,
+        metadata: VideoMetadata,
+    ) -> tuple[str, str, ChatUsage | None]:
+        """Generate description and short_description via Claude.
+
+        Uses Summary as primary source (most compact), falls back to
+        Longread/Story markdown. On error, returns empty strings with
+        warning (does not fail the pipeline).
+
+        Args:
+            summary: Condensed summary (priority source)
+            longread: Longread document (fallback)
+            story: Leadership story (fallback)
+            metadata: Video metadata for prompt context
+
+        Returns:
+            Tuple of (description, short_description, ChatUsage or None)
+        """
+        source_content = self._build_source_content(summary, longread, story)
+        if not source_content:
+            logger.warning("description_skip", extra={"reason": "no_source_content"})
+            return "", "", None
+
+        stream_name = self._get_stream_name(metadata.event_type, metadata.stream)
+
+        try:
+            system_prompt = load_prompt("export", "system", self.settings)
+            user_template = load_prompt("export", "user", self.settings)
+        except FileNotFoundError:
+            logger.warning("description_skip", extra={"reason": "prompts_not_found"})
+            return "", "", None
+
+        user_prompt = user_template.format(
+            material_title=metadata.title,
+            speaker=metadata.speaker,
+            event_name=stream_name,
+            date=metadata.date.strftime("%d.%m.%Y"),
+            source_content=source_content,
+        )
+
+        try:
+            async with ClaudeClient.from_settings(self.settings) as client:
+                content, usage = await client.chat(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    model=self.settings.describe_model,
+                )
+
+            parsed = json.loads(extract_json(content))
+            description = parsed.get("description", "")
+            short_description = parsed.get("short_description", "")
+
+            cost = calculate_cost(
+                self.settings.describe_model,
+                usage.input_tokens,
+                usage.output_tokens,
+            )
+            logger.info(
+                "description_generated",
+                extra={
+                    "model": self.settings.describe_model,
+                    "input_tokens": usage.input_tokens,
+                    "output_tokens": usage.output_tokens,
+                    "cost_usd": cost,
+                    "description_len": len(description),
+                },
+            )
+
+            return description, short_description, usage
+
+        except Exception as e:
+            logger.warning(
+                "description_generation_failed",
+                extra={"error": str(e), "video_id": metadata.video_id},
+            )
+            return "", "", None
+
+    @staticmethod
+    def _build_source_content(
+        summary: Summary | None,
+        longread: Longread | None,
+        story: Story | None,
+    ) -> str:
+        """Build source content for description generation.
+
+        Priority: Summary (most compact) > Longread/Story markdown.
+
+        Args:
+            summary: Condensed summary
+            longread: Longread document
+            story: Leadership story
+
+        Returns:
+            Source content string or empty string
+        """
+        if summary:
+            parts = []
+            if summary.essence:
+                parts.append(summary.essence)
+            if summary.key_concepts:
+                parts.append("Ключевые концепции: " + ", ".join(summary.key_concepts))
+            if summary.practical_tools:
+                parts.append("Инструменты: " + ", ".join(summary.practical_tools))
+            if parts:
+                return "\n\n".join(parts)
+
+        if longread:
+            return longread.to_markdown()
+
+        if story:
+            return story.to_markdown()
+
+        return ""
+
     def _save_chunks_json(
         self,
         archive_path: Path,
         metadata: VideoMetadata,
         raw_transcript: RawTranscript,
         chunks: TranscriptChunks,
+        material_title: str,
+        description: str,
+        short_description: str,
     ) -> Path:
-        """
-        Save transcript chunks as JSON for RAG indexing.
+        """Save transcript chunks in BZ2-Bot import format.
+
+        v0.60+: Outputs JSON matching the BZ2-Bot chunk-import contract v1.0.
+        Each chunk text includes a context header with topic, speaker, and date.
 
         Args:
             archive_path: Archive directory path
             metadata: Video metadata
-            raw_transcript: Raw transcript
+            raw_transcript: Raw transcript (for duration/model info)
             chunks: Semantic chunks
+            material_title: Title for context header
+            description: Semantic index for file search
+            short_description: Brief description for Telegram
 
         Returns:
             Path to created file
         """
-        # Calculate statistics
-        total_words = sum(c.word_count for c in chunks.chunks)
-
-        # Get full stream name
         stream_name = self._get_stream_name(metadata.event_type, metadata.stream)
+        date_formatted = metadata.date.strftime("%d.%m.%Y")
+
+        # Build context header (same for all chunks)
+        header_parts = [f"Тема: {material_title}"]
+        meta_parts = []
+        if metadata.speaker:
+            meta_parts.append(metadata.speaker)
+        if stream_name:
+            meta_parts.append(stream_name)
+        meta_parts.append(date_formatted)
+        header_parts.append(f"Спикер: {' | '.join(meta_parts)}")
+        context_header = "\n".join(header_parts)
+
+        # Count topic occurrences to detect split chunks
+        topic_counts: Counter[str] = Counter(c.topic for c in chunks.chunks)
+
+        # Track current occurrence index per topic for (N/M) suffix
+        topic_seen: dict[str, int] = {}
+
+        bz2_chunks = []
+        for chunk in chunks.chunks:
+            topic = chunk.topic
+
+            # Determine if this topic was split into multiple chunks
+            total_parts = topic_counts[topic]
+            if total_parts > 1:
+                topic_seen[topic] = topic_seen.get(topic, 0) + 1
+                h2_title = f"{topic} ({topic_seen[topic]}/{total_parts})"
+            else:
+                h2_title = topic
+
+            chunk_text = f"{context_header}\n\n## {h2_title}\n\n{chunk.text}"
+
+            bz2_chunks.append({
+                "text": chunk_text,
+                "metadata": {
+                    "chunk_id": chunk.id,
+                    "chunk_index": chunk.index,
+                    "topic": topic,  # Original topic without suffix
+                    "word_count": chunk.word_count,
+                },
+            })
 
         data = {
-            "video_id": metadata.video_id,
-            "metadata": {
-                "title": metadata.title,
-                "speaker": metadata.speaker,
-                "date": metadata.date.isoformat(),
-                "event_type": metadata.event_type,
-                "stream": metadata.stream,
-                "stream_name": stream_name,
-                "duration_seconds": raw_transcript.duration_seconds,
-                "duration_formatted": self._format_duration(
-                    raw_transcript.duration_seconds
-                ),
-                "language": raw_transcript.language,
-                "whisper_model": raw_transcript.whisper_model,
-                "processed_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
-            },
-            "statistics": {
-                "total_chunks": chunks.total_chunks,
-                "avg_chunk_words": chunks.avg_chunk_size,
-                "total_words": total_words,
-            },
-            "chunks": [
-                {
-                    "id": chunk.id,
-                    "index": chunk.index,
-                    "topic": chunk.topic,
-                    "text": chunk.text,
-                    "word_count": chunk.word_count,
-                }
-                for chunk in chunks.chunks
-            ],
+            "version": "1.0",
+            "materials": [{
+                "description": description,
+                "short_description": short_description,
+                "metadata": {
+                    "video_id": metadata.video_id,
+                    "speaker": metadata.speaker,
+                    "event_type": metadata.event_type,
+                    "stream": metadata.stream,
+                    "stream_name": stream_name,
+                    "date": metadata.date.isoformat(),
+                    "duration_formatted": self._format_duration(
+                        raw_transcript.duration_seconds
+                    ),
+                    "whisper_model": raw_transcript.whisper_model,
+                },
+                "chunks": bz2_chunks,
+            }],
         }
 
         file_path = archive_path / "transcript_chunks.json"
@@ -447,7 +622,14 @@ class FileSaver:
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-        logger.debug(f"Saved chunks JSON: {file_path}")
+        logger.info(
+            "chunks_json_saved",
+            extra={
+                "path": str(file_path),
+                "total_chunks": len(bz2_chunks),
+                "format": "bz2-bot-v1.0",
+            },
+        )
 
         return file_path
 
@@ -854,11 +1036,18 @@ if __name__ == "__main__":
                 assert "cleaned_transcript" in pipeline_data
                 assert pipeline_data["cleaned_transcript"]["model_name"] == settings.cleaner_model
 
-                # Verify transcript_chunks.json content
+                # Verify transcript_chunks.json content (BZ2-Bot format v0.60+)
                 with open(archive_dir / "transcript_chunks.json", "r", encoding="utf-8") as f:
                     json_data = json.load(f)
-                assert json_data["video_id"] == metadata.video_id
-                assert len(json_data["chunks"]) == 2
+                assert json_data["version"] == "1.0"
+                assert len(json_data["materials"]) == 1
+                material = json_data["materials"][0]
+                assert material["metadata"]["video_id"] == metadata.video_id
+                assert len(material["chunks"]) == 2
+                # Verify context header in chunk text
+                chunk_text = material["chunks"][0]["text"]
+                assert "Тема: Test Video" in chunk_text
+                assert "## Introduction" in chunk_text
 
                 # Verify summary content
                 summary_content = (archive_dir / "summary.md").read_text(encoding="utf-8")
