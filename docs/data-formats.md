@@ -274,13 +274,13 @@ class CleanedTranscript(CamelCaseModel):
 - H2 в `text` получает суффикс `(1/N)`, `(2/N)` для навигации
 - Пример: `## Подготовка помещения (1/2)`, `## Подготовка помещения (2/2)`
 
-### Генерация description (v0.60+)
+### Генерация description (v0.62+)
 
-`description` и `short_description` генерируются через Claude (`describe_model`, по умолчанию `claude-haiku-4-5`). Источник контента по приоритету:
+`description` и `short_description` генерируются на этапе **Chunk** через Claude (`describe_model`, по умолчанию `claude-haiku-4-5`). Источник контента по приоритету:
 1. Summary (essence + key_concepts + practical_tools)
 2. Longread / Story
 
-При ошибке Claude — файл сохраняется с пустыми описаниями + warning в лог.
+Описания хранятся в `TranscriptChunks` и передаются в saver при сохранении. При ошибке Claude — chunk возвращается с пустыми описаниями + warning в лог.
 
 ### Отличие от pipeline_results.json
 

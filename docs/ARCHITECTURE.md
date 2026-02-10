@@ -82,13 +82,14 @@ tags:
 ## Pipeline
 
 ```
-Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longread → Summary → Chunk (H2) → Save (educational)
-                                            └─→ [Slides] → Story → Chunk (H2) → Save (leadership)
+Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longread → Summary → Chunk (H2) + Describe → Save (educational)
+                                            └─→ [Slides] → Story → Chunk (H2) + Describe → Save (leadership)
 ```
 
 - **EDUCATIONAL** → longread.md + summary.md
 - **LEADERSHIP** → story.md (8 блоков)
-- **Chunk** — детерминистический (H2 парсинг, без LLM), выполняется ПОСЛЕ longread/story
+- **Chunk** — детерминистический H2 парсинг + опциональная генерация описаний через Claude (v0.62+)
+- **Save** — чистое сохранение файлов, без LLM (v0.62+)
 - **Slides** — опционально, между clean и longread/story
 
 > Детали: [pipeline/](pipeline/) (14 документов) | [pipeline/stages.md](pipeline/stages.md) — stage абстракция

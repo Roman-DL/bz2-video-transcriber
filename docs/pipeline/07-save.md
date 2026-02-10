@@ -1,7 +1,7 @@
 ---
 doc_type: reference
 status: active
-updated: 2026-01-24
+updated: 2026-02-11
 audience: [developer, ai-agent]
 tags:
   - pipeline
@@ -40,7 +40,7 @@ class SaveStage(BaseStage):
 - `chunk` → Tuple[TranscriptChunks, outline, text_parts]
 - `longread` + `summarize` (EDUCATIONAL) или `story` (LEADERSHIP)
 
-**Output:** `list[str]` — список созданных файлов
+**Output:** `SaveResult` — объект с полем `files: list[str]` (v0.62+, ранее `list[str]`)
 
 ## Структура архива
 
@@ -185,7 +185,7 @@ JSON для импорта в BZ2-Bot:
 - `materials[].metadata` — информация о видео
 - `materials[].chunks[]` — массив с контекстной шапкой и метаданными
 
-Генерация description: `_generate_description()` вызывает Claude (`describe_model`) до сохранения chunks. При ошибке — сохраняется с пустыми описаниями.
+Описания (`description`, `short_description`) генерируются на этапе Chunk (v0.62+), saver читает их из `TranscriptChunks`. См. [04-chunk.md](04-chunk.md#генерация-описаний-v062).
 
 Подробная структура: [data-formats.md](../data-formats.md#1-transcript_chunksjson)
 
@@ -222,7 +222,6 @@ JSON для веб-интерфейса:
 
 | Метод | Описание |
 |-------|----------|
-| `_generate_description()` | Генерация description/short_description через Claude (v0.60+) |
 | `_save_chunks_json()` | Генерация JSON в формате BZ2-Bot v1.0 (v0.60+) |
 | `_save_longread_md()` | Сохранение лонгрида |
 | `_save_summary_md()` | Сохранение конспекта |
@@ -249,7 +248,7 @@ async def save_educational(
     summary: Summary,
     audio_path: Path | None = None,
     slides_extraction: SlidesExtractionResult | None = None,  # v0.51+
-) -> list[str]
+) -> SaveResult  # v0.62+: SaveResult(files=list[str])
 ```
 
 ## Параметры save_leadership()
@@ -263,7 +262,7 @@ async def save_leadership(
     story: Story,
     audio_path: Path | None = None,
     slides_extraction: SlidesExtractionResult | None = None,  # v0.51+
-) -> list[str]
+) -> SaveResult  # v0.62+: SaveResult(files=list[str])
 ```
 
 ## Тестирование
@@ -290,7 +289,8 @@ python -m backend.app.services.saver
 
 ## История изменений
 
-- **v0.60:** BZ2-Bot v1.0 формат transcript_chunks.json. Генерация description через Claude (`describe_model`). Контекстная шапка в каждом chunk. Разбиение >600 слов с суффиксом (N/M).
+- **v0.62:** Description generation перенесена в Chunk stage. Save — чистое сохранение файлов, без LLM. `SaveResult` вместо `list[str]`.
+- **v0.60:** BZ2-Bot v1.0 формат transcript_chunks.json. Контекстная шапка в каждом chunk. Разбиение >600 слов с суффиксом (N/M).
 - **v0.58:** camelCase сериализация в pipeline_results.json (`by_alias=True`).
 - **v0.51:** Поддержка `slides_extraction` в методах save.
 - **v0.23:** Разделение на `save_educational()` и `save_leadership()`. Добавлен `story.md` для leadership контента.

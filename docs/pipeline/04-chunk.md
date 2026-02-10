@@ -1,7 +1,7 @@
 ---
 doc_type: reference
 status: active
-updated: 2026-01-24
+updated: 2026-02-11
 audience: [developer, ai-agent]
 tags:
   - pipeline
@@ -18,7 +18,8 @@ tags:
 
 Разбиение сгенерированного контента на смысловые блоки для RAG-поиска в БЗ 2.0.
 
-> **Примечание:** Этап детерминистический — LLM не используется, промптов нет.
+> **Примечание:** H2 парсинг детерминистический — LLM не используется для разбиения.
+> **v0.62+:** После парсинга опционально вызывается Claude для генерации описаний (description/short_description).
 
 ## Input / Output
 
@@ -50,6 +51,12 @@ tags:
 | `total_tokens` | `int \| None` | Всего токенов (v0.42+) |
 | `total_chunks` | computed | Количество чанков |
 | `avg_chunk_size` | computed | Средний размер в словах |
+| `description` | `str` | Семантическое описание для поиска (v0.62+) |
+| `short_description` | `str` | Краткое описание для Telegram (v0.62+) |
+| `describe_model_name` | `str \| None` | Модель для генерации описаний (v0.62+) |
+| `describe_tokens_used` | `TokensUsed \| None` | Токены (v0.62+) |
+| `describe_cost` | `float \| None` | Стоимость генерации (v0.62+) |
+| `describe_processing_time_sec` | `float \| None` | Время генерации (v0.62+) |
 
 ## v0.26: Детерминированное чанкирование
 
@@ -160,6 +167,32 @@ MAX_CHUNK_WORDS = 600
 
 **Сохранение topic:** все подчанки сохраняют оригинальный `topic` (заголовок H2). Суффикс `(1/N)` добавляется только в saver при формировании контекстной шапки для BZ2-Bot.
 
+## Генерация описаний (v0.62+)
+
+После H2 парсинга, chunk endpoint опционально генерирует `description` и `short_description` через Claude (`describe_model`).
+
+### Условие вызова
+
+Описания генерируются если в запросе передан хотя бы один из: `summary`, `longread`, `story`. В step-by-step режиме frontend передаёт все доступные данные автоматически.
+
+### DescriptionGenerator (`app.services.description_generator`)
+
+Извлечён из saver.py в v0.62. Приоритет источника контента:
+1. **Summary** — essence + key_concepts + practical_tools
+2. **Longread** — секции лонгрида
+3. **Story** — блоки истории
+
+При ошибке Claude — chunk возвращается с пустыми описаниями (warning в лог, НЕ PipelineError).
+
+### Оценка времени
+
+| Этап | Время |
+|------|-------|
+| H2 parsing | < 0.1 сек |
+| Description generation | ~3-5 сек (Claude API) |
+
+---
+
 ## Преимущества v0.26
 
 1. **Детерминированность** — одинаковый input всегда даёт одинаковый output
@@ -168,12 +201,6 @@ MAX_CHUNK_WORDS = 600
 4. **Качество** — структура определяется longread/story промптами
 
 ---
-
-## Оценка времени обработки
-
-| Этап | Время |
-|------|-------|
-| H2 parsing | < 0.1 сек |
 
 ---
 
@@ -193,4 +220,5 @@ cd backend && python -m app.services.stages.chunk_stage
 
 - **Stage:** [`backend/app/services/stages/chunk_stage.py`](../../backend/app/services/stages/chunk_stage.py)
 - **H2 Chunker:** [`backend/app/utils/h2_chunker.py`](../../backend/app/utils/h2_chunker.py)
+- **Description Generator:** [`backend/app/services/description_generator.py`](../../backend/app/services/description_generator.py) (v0.62+)
 - **Модели:** [`backend/app/models/schemas.py`](../../backend/app/models/schemas.py) — `TranscriptChunks`, `TranscriptChunk`
