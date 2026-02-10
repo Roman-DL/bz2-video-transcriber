@@ -1,7 +1,7 @@
 ---
 doc_type: moc
 status: active
-updated: 2026-01-24
+updated: 2026-02-10
 audience: [developer, ai-agent]
 tags:
   - documentation
@@ -24,6 +24,7 @@ tags:
 | Документ | Описание |
 |----------|----------|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Техническая архитектура, схемы |
+| [architecture/](architecture/) | Индекс архитектурной документации |
 | [configuration.md](configuration.md) | Конфигурация моделей, промптов, pricing |
 | [web-ui.md](web-ui.md) | Документация Web UI |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Процесс разработки новых функций |
@@ -37,6 +38,7 @@ tags:
 | 1 | [pipeline/01-parse.md](pipeline/01-parse.md) | Парсинг имени файла |
 | 2 | [pipeline/02-transcribe.md](pipeline/02-transcribe.md) | Whisper транскрипция |
 | 3 | [pipeline/03-clean.md](pipeline/03-clean.md) | Очистка LLM + глоссарий |
+| 3a | [pipeline/03a-slides.md](pipeline/03a-slides.md) | Извлечение текста со слайдов |
 | 4 | [pipeline/04-chunk.md](pipeline/04-chunk.md) | H2 chunking (v0.25+, детерминированный) |
 | 5 | [pipeline/05-longread.md](pipeline/05-longread.md) | Генерация лонгрида (educational) |
 | 5b | [pipeline/05b-story.md](pipeline/05b-story.md) | Генерация истории (leadership) |
@@ -55,32 +57,23 @@ tags:
 | [logging.md](logging.md) | Система логирования |
 | [testing.md](testing.md) | Тестирование |
 | [model-testing.md](model-testing.md) | Тестирование моделей |
-| [reference/terminology.md](reference/terminology.md) | Глоссарий терминологии |
-| [reference/progress-calibration.md](reference/progress-calibration.md) | Калибровка прогресса |
+| [reference/](reference/) | Справочные материалы |
 
-## Architecture Decision Records
+## Решения и планирование
 
-| ADR | Описание |
-|-----|----------|
-| [001](decisions/001-stage-abstraction.md) | Stage абстракция |
-| [002](decisions/002-pipeline-decomposition.md) | Декомпозиция pipeline |
-| [003](decisions/003-shared-utils.md) | Shared utilities |
-| [004](decisions/004-ai-client-abstraction.md) | AI client абстракция |
-| [005](decisions/005-result-caching.md) | Stage result cache |
-| [006](decisions/006-cloud-model-integration.md) | Cloud model integration (Claude) |
-| [007](decisions/007-remove-fallback-use-claude.md) | Remove fallback, use Claude |
-| [008](decisions/008-external-prompts.md) | External prompts |
-| [009](decisions/009-extended-metrics.md) | Extended metrics (v0.42+) |
-| [010](decisions/010-slides-integration.md) | Slides integration (v0.51+) |
-| [011](decisions/011-processing-mode-separation.md) | Processing mode separation |
-| [012](decisions/012-statistics-tab.md) | Statistics tab (v0.58+) |
-| [013](decisions/013-api-camelcase-serialization.md) | API camelCase serialization (v0.59+) |
+| Документ | Описание |
+|----------|----------|
+| [decisions/](decisions/) | Architecture Decision Records (13 ADR) |
+| [requirements/](requirements/) | Спецификации требований |
+| [plans/](plans/) | Планы реализации |
 
 ## Гайдлайны
 
 | Документ | Описание |
 |----------|----------|
 | [DOCUMENTATION_GUIDELINES.md](DOCUMENTATION_GUIDELINES.md) | Правила документирования кода |
+| [reference/diataxis-framework.md](reference/diataxis-framework.md) | Фреймворк Diátaxis |
+| [reference/standards/](reference/standards/) | Стандарты документации |
 
 ## Быстрые ссылки
 
