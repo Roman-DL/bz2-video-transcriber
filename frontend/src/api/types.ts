@@ -375,6 +375,23 @@ export interface PipelineResults {
   story?: Story;
   // Slides extraction (v0.55+)
   slidesExtraction?: SlidesExtractionResult;
+  // Description (v0.61+)
+  description?: string;
+  shortDescription?: string;
+}
+
+/**
+ * Result from /api/step/save endpoint.
+ * v0.61+: Includes description and LLM metrics.
+ */
+export interface SaveResult {
+  files: string[];
+  description: string;
+  shortDescription: string;
+  modelName?: string;
+  tokensUsed?: TokensUsed;
+  cost?: number;
+  processingTimeSec?: number;
 }
 
 // Response from /archive/results endpoint

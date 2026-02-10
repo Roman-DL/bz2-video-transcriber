@@ -20,6 +20,7 @@ from app.models.schemas import (
     ProcessingStatus,
     PromptOverrides,
     RawTranscript,
+    SaveResult,
     SlidesExtractionResult,
     Story,
     Summary,
@@ -466,7 +467,7 @@ class PipelineOrchestrator:
         story: Story | None = None,
         audio_path: Path | None = None,
         slides_extraction: SlidesExtractionResult | None = None,
-    ) -> list[str]:
+    ) -> SaveResult:
         """
         Save all processing results to archive.
 
@@ -484,7 +485,7 @@ class PipelineOrchestrator:
             slides_extraction: Slides extraction result (optional, v0.55+)
 
         Returns:
-            List of created file names
+            SaveResult with created files and description metrics
         """
         saver = FileSaver(self.settings)
 
@@ -774,7 +775,7 @@ class PipelineOrchestrator:
             )
 
         try:
-            files = await saver.save_educational(
+            save_result = await saver.save_educational(
                 metadata, raw_transcript, cleaned_transcript, chunks,
                 longread, summary, audio_path
             )
@@ -789,10 +790,10 @@ class PipelineOrchestrator:
                 ticker,
                 ProcessingStatus.SAVING,
                 lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-                f"Saved {len(files)} files",
+                f"Saved {len(save_result.files)} files",
             )
 
-        return files
+        return save_result.files
 
     async def _do_save_leadership(
         self,
@@ -819,7 +820,7 @@ class PipelineOrchestrator:
             )
 
         try:
-            files = await saver.save_leadership(
+            save_result = await saver.save_leadership(
                 metadata, raw_transcript, cleaned_transcript, chunks,
                 story, audio_path
             )
@@ -834,7 +835,7 @@ class PipelineOrchestrator:
                 ticker,
                 ProcessingStatus.SAVING,
                 lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-                f"Saved {len(files)} files",
+                f"Saved {len(save_result.files)} files",
             )
 
-        return files
+        return save_result.files

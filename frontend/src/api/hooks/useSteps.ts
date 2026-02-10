@@ -11,6 +11,7 @@ import type {
   Story,
   TranscribeResult,
   SlidesExtractionResult,
+  SaveResult,
   StepParseRequest,
   StepCleanRequest,
   StepChunkRequest,
@@ -229,11 +230,12 @@ export const useStepSlides = createStepWithProgress<SlidesExtractionResult, Step
 /**
  * Save all processing results to archive.
  * Fast operation - uses regular HTTP.
+ * v0.61+: Returns SaveResult with description and LLM metrics.
  */
 export function useStepSave() {
   return useMutation({
     mutationFn: async (request: StepSaveRequest) => {
-      const { data } = await apiClient.post<string[]>('/api/step/save', request);
+      const { data } = await apiClient.post<SaveResult>('/api/step/save', request);
       return data;
     },
   });

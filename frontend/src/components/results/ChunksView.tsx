@@ -6,13 +6,29 @@ import { formatNumber } from '@/utils/formatUtils';
 
 interface ChunksViewProps {
   chunks: TranscriptChunks;
+  description?: string;
+  shortDescription?: string;
 }
 
-export function ChunksView({ chunks }: ChunksViewProps) {
+export function ChunksView({ chunks, description, shortDescription }: ChunksViewProps) {
   const [expandedChunk, setExpandedChunk] = useState<string | null>(null);
 
   return (
     <div className="h-full flex flex-col">
+      {/* Description block */}
+      {description && (
+        <div className="mb-3 shrink-0 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2.5">
+          {shortDescription && (
+            <p className="text-sm font-medium text-gray-900 mb-1">
+              {shortDescription}
+            </p>
+          )}
+          <p className="text-xs text-gray-600 leading-relaxed">
+            {description}
+          </p>
+        </div>
+      )}
+
       {/* Header with metrics */}
       <div className="text-xs text-gray-500 mb-3 shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1">
         <span>

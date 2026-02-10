@@ -33,6 +33,7 @@ import type {
   Longread,
   Summary,
   Story,
+  SaveResult,
   TranscriptChunks,
   ContentType,
   TokensUsed,
@@ -61,7 +62,7 @@ interface StatisticsData {
   summary?: Summary;
   story?: Story;
   chunks?: TranscriptChunks;
-  savedFiles?: string[];
+  saveResult?: SaveResult;
   contentType?: ContentType;
 }
 
@@ -186,12 +187,18 @@ function buildStepStats(data: StatisticsData): StepStats[] {
     });
   }
 
-  // Save step (deterministic)
-  if (data.savedFiles) {
+  // Save step (with optional description generation metrics)
+  if (data.saveResult) {
+    const model = data.saveResult.modelName;
     steps.push({
       id: 'save',
       name: 'Сохранение в архив',
       icon: Save,
+      time: data.saveResult.processingTimeSec,
+      model: model || undefined,
+      modelType: model && isCloudModel(model) ? 'cloud' : undefined,
+      tokens: data.saveResult.tokensUsed,
+      cost: data.saveResult.cost,
     });
   }
 
@@ -413,13 +420,13 @@ export function StatisticsView({
       </div>
 
       {/* Files Created */}
-      {showFiles && data.savedFiles && data.savedFiles.length > 0 && (
+      {showFiles && data.saveResult?.files && data.saveResult.files.length > 0 && (
         <div className="shrink-0">
           <h4 className="text-xs font-semibold text-gray-700 mb-2">
-            Созданные файлы ({data.savedFiles.length})
+            Созданные файлы ({data.saveResult.files.length})
           </h4>
           <div className="grid grid-cols-2 gap-1.5">
-            {data.savedFiles.map((filename, idx) => (
+            {data.saveResult.files.map((filename, idx) => (
               <div
                 key={idx}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-50 rounded border border-gray-100"

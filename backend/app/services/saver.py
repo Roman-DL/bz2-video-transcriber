@@ -8,6 +8,7 @@ v0.60+: BZ2-Bot chunk format with description generation.
 import json
 import logging
 import shutil
+import time
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -19,9 +20,11 @@ from app.models.schemas import (
     Longread,
     PipelineResults,
     RawTranscript,
+    SaveResult,
     SlidesExtractionResult,
     Story,
     Summary,
+    TokensUsed,
     TranscriptChunks,
     VideoMetadata,
     VideoSummary,
@@ -80,7 +83,7 @@ class FileSaver:
         longread: Longread,
         summary: Summary,
         audio_path: Path | None = None,
-    ) -> list[str]:
+    ) -> SaveResult:
         """
         Save all processing results to archive.
         Backwards compatibility wrapper - calls save_educational.
@@ -100,7 +103,7 @@ class FileSaver:
         summary: Summary,
         audio_path: Path | None = None,
         slides_extraction: SlidesExtractionResult | None = None,
-    ) -> list[str]:
+    ) -> SaveResult:
         """
         Save educational content results to archive.
 
@@ -125,7 +128,7 @@ class FileSaver:
             slides_extraction: Slides extraction result (optional)
 
         Returns:
-            List of created file names
+            SaveResult with created files and description metrics
         """
         archive_path = metadata.archive_path
 
@@ -136,17 +139,20 @@ class FileSaver:
 
         created_files = []
 
-        # Save pipeline results JSON (for archive viewing)
-        pipeline_path = self._save_pipeline_results_educational(
-            archive_path, metadata, raw_transcript, cleaned_transcript,
-            chunks, longread, summary, slides_extraction
-        )
-        created_files.append(pipeline_path.name)
-
-        # Generate BZ2-Bot description via Claude
+        # Generate BZ2-Bot description via Claude (before pipeline_results so descriptions are included)
+        desc_start = time.monotonic()
         description, short_description, usage = await self._generate_description(
             summary=summary, longread=longread, story=None, metadata=metadata
         )
+        desc_time = time.monotonic() - desc_start
+
+        # Save pipeline results JSON (for archive viewing)
+        pipeline_path = self._save_pipeline_results_educational(
+            archive_path, metadata, raw_transcript, cleaned_transcript,
+            chunks, longread, summary, slides_extraction,
+            description=description, short_description=short_description,
+        )
+        created_files.append(pipeline_path.name)
 
         # Save transcript chunks JSON (BZ2-Bot format)
         chunks_path = self._save_chunks_json(
@@ -184,7 +190,24 @@ class FileSaver:
 
         logger.info("save_educational_complete", extra={"files": len(created_files)})
 
-        return created_files
+        # Build SaveResult with description metrics
+        desc_cost = None
+        desc_tokens = None
+        if usage:
+            desc_tokens = TokensUsed(input=usage.input_tokens, output=usage.output_tokens)
+            desc_cost = calculate_cost(
+                self.settings.describe_model, usage.input_tokens, usage.output_tokens
+            )
+
+        return SaveResult(
+            files=created_files,
+            description=description,
+            short_description=short_description,
+            model_name=self.settings.describe_model if usage else None,
+            tokens_used=desc_tokens,
+            cost=desc_cost,
+            processing_time_sec=round(desc_time, 2),
+        )
 
     async def save_leadership(
         self,
@@ -195,7 +218,7 @@ class FileSaver:
         story: Story,
         audio_path: Path | None = None,
         slides_extraction: SlidesExtractionResult | None = None,
-    ) -> list[str]:
+    ) -> SaveResult:
         """
         Save leadership content results to archive.
 
@@ -218,7 +241,7 @@ class FileSaver:
             slides_extraction: Slides extraction result (optional)
 
         Returns:
-            List of created file names
+            SaveResult with created files and description metrics
         """
         archive_path = metadata.archive_path
 
@@ -229,17 +252,20 @@ class FileSaver:
 
         created_files = []
 
-        # Save pipeline results JSON (for archive viewing)
-        pipeline_path = self._save_pipeline_results_leadership(
-            archive_path, metadata, raw_transcript, cleaned_transcript,
-            chunks, story, slides_extraction
-        )
-        created_files.append(pipeline_path.name)
-
-        # Generate BZ2-Bot description via Claude
+        # Generate BZ2-Bot description via Claude (before pipeline_results so descriptions are included)
+        desc_start = time.monotonic()
         description, short_description, usage = await self._generate_description(
             summary=None, longread=None, story=story, metadata=metadata
         )
+        desc_time = time.monotonic() - desc_start
+
+        # Save pipeline results JSON (for archive viewing)
+        pipeline_path = self._save_pipeline_results_leadership(
+            archive_path, metadata, raw_transcript, cleaned_transcript,
+            chunks, story, slides_extraction,
+            description=description, short_description=short_description,
+        )
+        created_files.append(pipeline_path.name)
 
         # Save transcript chunks JSON (BZ2-Bot format)
         chunks_path = self._save_chunks_json(
@@ -273,7 +299,24 @@ class FileSaver:
 
         logger.info("save_leadership_complete", extra={"files": len(created_files)})
 
-        return created_files
+        # Build SaveResult with description metrics
+        desc_cost = None
+        desc_tokens = None
+        if usage:
+            desc_tokens = TokensUsed(input=usage.input_tokens, output=usage.output_tokens)
+            desc_cost = calculate_cost(
+                self.settings.describe_model, usage.input_tokens, usage.output_tokens
+            )
+
+        return SaveResult(
+            files=created_files,
+            description=description,
+            short_description=short_description,
+            model_name=self.settings.describe_model if usage else None,
+            tokens_used=desc_tokens,
+            cost=desc_cost,
+            processing_time_sec=round(desc_time, 2),
+        )
 
     def _save_pipeline_results_educational(
         self,
@@ -285,6 +328,8 @@ class FileSaver:
         longread: Longread,
         summary: Summary,
         slides_extraction: SlidesExtractionResult | None = None,
+        description: str = "",
+        short_description: str = "",
     ) -> Path:
         """
         Save complete pipeline results for educational content.
@@ -325,6 +370,8 @@ class FileSaver:
             longread=longread,
             summary=summary,
             slides_extraction=slides_extraction,
+            description=description or None,
+            short_description=short_description or None,
         )
 
         file_path = archive_path / "pipeline_results.json"
@@ -351,6 +398,8 @@ class FileSaver:
         chunks: TranscriptChunks,
         story: Story,
         slides_extraction: SlidesExtractionResult | None = None,
+        description: str = "",
+        short_description: str = "",
     ) -> Path:
         """
         Save complete pipeline results for leadership content.
@@ -388,6 +437,8 @@ class FileSaver:
             chunks=chunks,
             story=story,
             slides_extraction=slides_extraction,
+            description=description or None,
+            short_description=short_description or None,
         )
 
         file_path = archive_path / "pipeline_results.json"

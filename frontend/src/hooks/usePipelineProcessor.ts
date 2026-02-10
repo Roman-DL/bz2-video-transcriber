@@ -19,6 +19,7 @@ import type {
   Summary,
   Story,
   SlidesExtractionResult,
+  SaveResult,
   SlideInput,
   PipelineStep,
   ContentType,
@@ -44,7 +45,7 @@ export interface StepData {
   longread?: Longread;
   summary?: Summary;
   story?: Story;
-  savedFiles?: string[];
+  saveResult?: SaveResult;
 }
 
 export type ProcessorStatus = 'idle' | 'running' | 'completed' | 'error';
@@ -197,7 +198,7 @@ export function usePipelineProcessor({
     stepSave.isPending;
 
   const currentStepIndex = pipelineSteps.indexOf(currentStep);
-  const isComplete = data.savedFiles !== undefined;
+  const isComplete = data.saveResult !== undefined;
 
   // Status calculation
   const status: ProcessorStatus = useMemo(() => {
@@ -340,7 +341,7 @@ export function usePipelineProcessor({
       summarize: ['summary'],
       story: ['story'],
       chunk: ['chunks'],
-      save: ['savedFiles'],
+      save: ['saveResult'],
     };
 
     setData(prev => {
@@ -508,7 +509,7 @@ export function usePipelineProcessor({
         case 'save': {
           if (contentType === 'leadership') {
             if (!data.metadata || !data.rawTranscript || !data.cleanedTranscript || !data.chunks || !data.story) return;
-            const savedFiles = await stepSave.mutateAsync({
+            const saveResult = await stepSave.mutateAsync({
               metadata: data.metadata,
               rawTranscript: data.rawTranscript,
               cleanedTranscript: data.cleanedTranscript,
@@ -517,12 +518,12 @@ export function usePipelineProcessor({
               audioPath: data.audioPath,
               slidesExtraction: data.slidesExtraction,
             });
-            const newData = { ...data, savedFiles };
+            const newData = { ...data, saveResult };
             setData(newData);
             onStepComplete?.('save', newData);
           } else {
             if (!data.metadata || !data.rawTranscript || !data.cleanedTranscript || !data.chunks || !data.longread || !data.summary) return;
-            const savedFiles = await stepSave.mutateAsync({
+            const saveResult = await stepSave.mutateAsync({
               metadata: data.metadata,
               rawTranscript: data.rawTranscript,
               cleanedTranscript: data.cleanedTranscript,
@@ -532,7 +533,7 @@ export function usePipelineProcessor({
               audioPath: data.audioPath,
               slidesExtraction: data.slidesExtraction,
             });
-            const newData = { ...data, savedFiles };
+            const newData = { ...data, saveResult };
             setData(newData);
             onStepComplete?.('save', newData);
           }
@@ -668,6 +669,13 @@ export function usePipelineProcessor({
       totalInputTokens += data.story.tokensUsed?.input || 0;
       totalOutputTokens += data.story.tokensUsed?.output || 0;
       totalCost += data.story.cost || 0;
+    }
+
+    if (data.saveResult) {
+      totalTime += data.saveResult.processingTimeSec || 0;
+      totalInputTokens += data.saveResult.tokensUsed?.input || 0;
+      totalOutputTokens += data.saveResult.tokensUsed?.output || 0;
+      totalCost += data.saveResult.cost || 0;
     }
 
     return { totalTime, totalInputTokens, totalOutputTokens, totalCost };
@@ -819,7 +827,7 @@ export function getStepStats(step: PipelineStep, data: StepData): string | null 
     case 'chunk':
       return data.chunks ? `${data.chunks.totalChunks} чанков` : null;
     case 'save':
-      return data.savedFiles ? `${data.savedFiles.length} файлов` : null;
+      return data.saveResult ? `${data.saveResult.files.length} файлов` : null;
     default:
       return null;
   }

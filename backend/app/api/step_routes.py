@@ -24,6 +24,7 @@ from app.models.schemas import (
     Longread,
     ProcessingStatus,
     RawTranscript,
+    SaveResult,
     SlidesExtractionResult,
     StepChunkRequest,
     StepCleanRequest,
@@ -535,19 +536,18 @@ async def step_story(request: StepStoryRequest) -> StreamingResponse:
     )
 
 
-@router.post("/save", response_model=list[str])
-async def step_save(request: StepSaveRequest) -> list[str]:
+@router.post("/save", response_model=SaveResult)
+async def step_save(request: StepSaveRequest) -> SaveResult:
     """
     Save all processing results to archive.
 
-    Updated in v0.23: Supports both educational (longread+summary) and leadership (story).
-    Fast operation - no SSE needed.
+    v0.61+: Returns SaveResult with description and LLM metrics.
 
     Args:
         request: StepSaveRequest with all pipeline outputs
 
     Returns:
-        List of created file names
+        SaveResult with created files, description, and LLM metrics
 
     Raises:
         500: Save error
@@ -558,7 +558,7 @@ async def step_save(request: StepSaveRequest) -> list[str]:
     audio_path = Path(request.audio_path) if request.audio_path else None
 
     try:
-        files = await orchestrator.save(
+        return await orchestrator.save(
             metadata=request.metadata,
             raw_transcript=request.raw_transcript,
             cleaned_transcript=request.cleaned_transcript,
@@ -569,7 +569,6 @@ async def step_save(request: StepSaveRequest) -> list[str]:
             audio_path=audio_path,
             slides_extraction=request.slides_extraction,
         )
-        return files
     except Exception as e:
         logger.exception("Save error")
         raise HTTPException(status_code=500, detail=str(e))

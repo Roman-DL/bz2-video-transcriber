@@ -14,6 +14,7 @@ from app.models.schemas import (
     Longread,
     ProcessingStatus,
     RawTranscript,
+    SaveResult,
     Story,
     Summary,
     TranscriptChunks,
@@ -61,14 +62,14 @@ class SaveStage(BaseStage):
         self.settings = settings
         self.saver = FileSaver(settings)
 
-    async def execute(self, context: StageContext) -> list[str]:
+    async def execute(self, context: StageContext) -> SaveResult:
         """Save all results to archive.
 
         Args:
             context: Context with all previous stage results
 
         Returns:
-            List of created file names
+            SaveResult with created files and description metrics
 
         Raises:
             StageError: If saving fails

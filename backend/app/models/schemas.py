@@ -1005,6 +1005,46 @@ class PipelineResults(CamelCaseModel):
     # Slides extraction (v0.55+)
     slides_extraction: SlidesExtractionResult | None = None
 
+    # Description (v0.61+)
+    description: str | None = Field(
+        default=None,
+        description="Semantic description for search/indexing",
+    )
+    short_description: str | None = Field(
+        default=None,
+        description="Brief description for Telegram",
+    )
+
+
+class SaveResult(CamelCaseModel):
+    """Result from save stage including description and LLM metrics.
+
+    v0.61+: Replaces plain list[str] to expose description generation
+    metrics (model, tokens, cost) to the frontend.
+    """
+
+    files: list[str] = Field(..., description="Created file names")
+    description: str = Field(default="", description="Semantic description")
+    short_description: str = Field(default="", description="Brief description")
+    model_name: str | None = Field(
+        default=None,
+        description="Model used for description generation",
+    )
+    tokens_used: TokensUsed | None = Field(
+        default=None,
+        description="Token usage from description generation",
+    )
+    cost: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Cost of description generation in USD",
+    )
+    processing_time_sec: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Time for description generation in seconds",
+    )
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # API Request/Response Models

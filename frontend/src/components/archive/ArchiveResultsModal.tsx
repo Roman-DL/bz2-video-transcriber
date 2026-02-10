@@ -328,7 +328,11 @@ export function ArchiveResultsModal({
                   <h3 className="text-sm font-semibold text-gray-900">Чанки</h3>
                 </div>
                 <div className="p-4 flex-1 overflow-y-auto">
-                  <ChunksView chunks={results.chunks} />
+                  <ChunksView
+                    chunks={results.chunks}
+                    description={results.description}
+                    shortDescription={results.shortDescription}
+                  />
                 </div>
               </div>
             )}

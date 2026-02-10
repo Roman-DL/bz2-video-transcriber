@@ -232,7 +232,7 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
     if (data.story) tabs.push('story');
     if (data.chunks) tabs.push('chunks');
     // Show statistics tab after save
-    if (data.savedFiles) tabs.push('statistics');
+    if (data.saveResult) tabs.push('statistics');
     return tabs;
   };
 
@@ -389,9 +389,9 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
           )}
 
           {/* Success card */}
-          {isComplete && data.savedFiles && (
+          {isComplete && data.saveResult && (
             <CompletionCard
-              files={data.savedFiles}
+              files={data.saveResult.files}
               onClose={onComplete}
             />
           )}
@@ -728,12 +728,16 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                       <h3 className="text-sm font-semibold text-gray-900">Чанки</h3>
                     </div>
                     <div className="p-4 flex-1 overflow-y-auto">
-                      <ChunksView chunks={data.chunks} />
+                      <ChunksView
+                        chunks={data.chunks}
+                        description={data.saveResult?.description}
+                        shortDescription={data.saveResult?.shortDescription}
+                      />
                     </div>
                   </div>
                 )}
 
-                {activeTab === 'statistics' && data.savedFiles && (
+                {activeTab === 'statistics' && data.saveResult && (
                   <div className="bg-white border border-gray-200 rounded-lg overflow-hidden h-full flex flex-col">
                     <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100 shrink-0">
                       <h3 className="text-sm font-semibold text-gray-900">Статистика обработки</h3>
@@ -748,7 +752,7 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                           summary: data.summary,
                           story: data.story,
                           chunks: data.chunks,
-                          savedFiles: data.savedFiles,
+                          saveResult: data.saveResult,
                           contentType: data.metadata?.contentType,
                         }}
                       />
