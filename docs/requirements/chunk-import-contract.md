@@ -2,8 +2,8 @@
 
 > Спецификация взаимодействия между внешней системой обработки видео (bz2-video-transcribe) и BZ2-Bot
 
-**Версия контракта:** 1.0
-**Обновлено:** 9 февраля 2026
+**Версия контракта:** 1.2
+**Обновлено:** 10 февраля 2026
 
 ---
 
@@ -44,11 +44,11 @@
       },
       "chunks": [
         {
-          "text": "Тема: Закрытие полной оценки — работа с возражениями.\nСпикер: Иванова А., Понедельничная Школа — Супервайзеры.\n\nСпасибо всем, кто присоединился, особенно тем, кто на более серьёзной школе впервые. Сегодня мы будем говорить про полную оценку...",
+          "text": "Тема: Закрытие полной оценки — работа с возражениями\nСпикер: Иванова А. | ПШ — Супервайзеры | 22.01.2026\n\n## Подготовка к встрече\n\nСпасибо всем, кто присоединился, особенно тем, кто на более серьёзной школе впервые. Сегодня мы будем говорить про полную оценку...",
           "metadata": {
             "chunk_id": "2026-01-22_ПШ-SV_тестовая-запись_001",
             "chunk_index": 1,
-            "topic": "Закрытие полной оценки — работа с возражениями",
+            "topic": "Подготовка к встрече",
             "word_count": 414
           }
         }
@@ -80,16 +80,53 @@
 
 ### Формирование `text`
 
-Контекст (тема, спикер, мероприятие) включается **прямо в тело `text`** — так он участвует во всех этапах поиска:
+Контекст включается **прямо в тело `text`** — так он участвует во всех этапах поиска (vector, FTS, LLM).
+
+#### Структура чанка
 
 ```
-Тема: {topic}
-Спикер: {speaker}, {stream_name}.
+Тема: {material_title}
+Спикер: {speaker} | {stream_name} | {date}
 
-{оригинальный текст транскрипта}
+## {H2-заголовок раздела}
+
+{текст раздела}
 ```
 
-Формат контекстной «шапки» свободный — главное, чтобы информация была в теле чанка.
+- **Тема** — название материала (общая тема записи), связывает раздел с контекстом
+- **Мета-строка** — спикер, мероприятие, дата (компактно, одна строка)
+- **H2-заголовок** — название раздела внутри лонгрида (уже в тексте)
+- **Текст** — содержание раздела
+
+#### Размер чанка
+
+| Параметр | Значение | Примечание |
+|----------|----------|------------|
+| Целевой размер | 150-500 слов | Оптимально для text-embedding-3-small |
+| Максимум (без шапки) | **600 слов** | Выше — качество embedding снижается |
+| Контекстная шапка | ~30-40 слов | Не учитывается в лимите |
+
+Если H2-раздел превышает 600 слов — внешняя система разбивает по параграфам с сохранением шапки и H2-заголовка в каждом подчанке:
+
+```
+Тема: Закрытие полной оценки — работа с возражениями
+Спикер: Иванова А. | ПШ — Супервайзеры | 22.01.2026
+
+## Работа с возражениями (1/2)
+
+[первая часть параграфов...]
+```
+
+```
+Тема: Закрытие полной оценки — работа с возражениями
+Спикер: Иванова А. | ПШ — Супервайзеры | 22.01.2026
+
+## Работа с возражениями (2/2)
+
+[вторая часть параграфов...]
+```
+
+Суффикс `(1/2)` — информационный, на embedding почти не влияет. В `metadata.topic` хранится оригинальный H2-заголовок без суффикса.
 
 ### Формирование `description`
 
@@ -110,8 +147,6 @@
 ```
 Закрытие полной оценки: работа с возражениями и сомнениями клиентов. Скрипты и готовые тексты для ответов на возражения. Как реагировать на "я подумаю", работа с возвратами, перевод скептика в клиента. Техника заучивания скриптов, адаптация под свою интонацию. Уверенность при проведении встреч. Разница между экспресс-оценкой и полной оценкой, 100 встреч для навыка. Настройка рекламной кампании, поиск клиентов. Спикер: Иванова А., ПШ Супервайзеры, 22.01.2026.
 ```
-
-> Для видео-транскриптов `description` может генерироваться AI-суммаризацией содержимого чанков на этапе обработки во внешней системе.
 
 ### Метаданные материала (`materials[].metadata`)
 
@@ -136,7 +171,7 @@
 |------|----------|--------|
 | `chunk_id` | Уникальный ID чанка во внешней системе | `"2026-01-22_ПШ-SV_001"` |
 | `chunk_index` | Порядковый номер чанка | `1` |
-| `topic` | Тема чанка (оригинал, до вставки в text) | `"Работа с возражениями"` |
+| `topic` | H2-заголовок раздела (оригинал, до вставки в text) | `"Подготовка к встрече"` |
 | `word_count` | Количество слов | `414` |
 
 ---
@@ -165,6 +200,19 @@
 - Найденные чанки передаются в Claude как контекст для ответа
 - **Контекст в `text`** улучшает и поиск (embedding), и качество ответа (LLM видит тему)
 
+#### Уровни поиска (trust_tier)
+
+Q&A поиск разделён на два уровня по степени доверия к источникам:
+
+| | Tier 1 (основной) | Tier 2 (расширенный) |
+|---|---|---|
+| Источники | Документы (`source_type="document"`) | Транскрипты (`source_type="transcript"`) |
+| Качество | Выверенная, точная информация | Менее точная, но полезные общие концепции |
+| Доступ | Все пользователи | Настраивается (`qa_tier2_min_role`) |
+| Fallback | — | Автоматический, если tier 1 не дал результатов (`qa_auto_fallback`) |
+
+Импортированные чанки получают `trust_tier=2` по умолчанию — они попадают в расширенный поиск.
+
 ### Схема: какое поле куда попадает
 
 ```
@@ -179,10 +227,13 @@ metadata             →  materials.metadata (merge)     →  отображен
 chunks[].text        →  embeddings.chunk_text          →  Q&A SEARCH embedding
                         + fts (tsvector, auto)             chunk_type="content"
                                                         →  LLM промпт (ответ)
+                                                           trust_tier=2
 
 chunks[].metadata    →  embeddings.source_metadata     →  отображение в админке
                                                           (topic, word_count...)
 ```
+
+> **Принцип:** внешняя система формирует **контекстуализированные чанки** — контекст (тема, спикер, мероприятие) включён прямо в `text`. Это даёт максимальное качество: контекст влияет на vector search, keyword search и LLM-ответ одновременно.
 
 ---
 
@@ -209,6 +260,7 @@ chunks[].metadata    →  embeddings.source_metadata     →  отображен
 | Допустимые типы материала | `topic_video`, `topic_longread` |
 | Массив `chunks` | Не может быть пустым |
 | `text` в чанке | Обязательное, не может быть пустой строкой |
+| Размер чанка (без шапки) | Макс. 600 слов (оптимально 150-500) |
 | Повторный импорт | Полная замена (delete-before-insert) |
 | Авторизация | JWT-токен администратора |
 
@@ -266,23 +318,32 @@ Body: file (JSON-файл)
 | `metadata` (корень) | **переместить** внутрь materials[0] | `materials[].metadata` |
 | `video_id` | **переместить** внутрь metadata | `materials[].metadata.video_id` |
 | `chunks` | **переместить** внутрь materials[0] | `materials[].chunks` |
-| `chunks[].topic` + `chunks[].text` | **объединить** в новое поле | `chunks[].text` (с контекстной шапкой) |
+| `chunks[].text` | **обернуть** контекстной шапкой + H2 | `chunks[].text` (шапка: `material_title`, спикер, мероприятие, дата + `## topic`) |
+| `chunks[].text` | **разбить** если > 600 слов | По параграфам, с дублированием шапки и H2 |
 | `chunks[].id` | **переименовать** | `chunks[].metadata.chunk_id` |
 | `chunks[].index` | **переименовать** | `chunks[].metadata.chunk_index` |
-| `chunks[].word_count` | **переместить** | `chunks[].metadata.word_count` |
-| `chunks[].topic` | **скопировать** (оригинал) | `chunks[].metadata.topic` |
+| `chunks[].word_count` | **пересчитать** (после разбиения) | `chunks[].metadata.word_count` |
+| `chunks[].topic` | **скопировать** (оригинал без суффикса) | `chunks[].metadata.topic` |
 
 ### Псевдокод трансформации
 
 ```python
-def transform_to_bz2_format(old_json: dict, description: str, short_description: str) -> dict:
+MAX_CHUNK_WORDS = 600  # Без учёта контекстной шапки
+
+def transform_to_bz2_format(
+    old_json: dict,
+    material_title: str,
+    description: str,
+    short_description: str,
+) -> dict:
     """
     Трансформация из текущего формата bz2-video-transcribe в целевой.
 
     Args:
         old_json: Текущий JSON внешней системы
-        description: Семантический индекс материала (AI-суммаризация содержимого).
-        short_description: Краткое описание (1-2 предложения) для Telegram.
+        material_title: Название материала (общая тема записи) для шапки чанков
+        description: Семантический индекс материала (AI-суммаризация содержимого)
+        short_description: Краткое описание (1-2 предложения) для Telegram
     """
     meta = old_json.get("metadata", {})
 
@@ -298,30 +359,45 @@ def transform_to_bz2_format(old_json: dict, description: str, short_description:
         "whisper_model": meta.get("whisper_model"),
     }
 
+    # Контекстная шапка (одинаковая для всех чанков материала)
+    header_parts = [f"Тема: {material_title}"]
+    meta_parts = []
+    if meta.get("speaker"):
+        meta_parts.append(meta["speaker"])
+    if meta.get("stream_name"):
+        meta_parts.append(meta["stream_name"])
+    if meta.get("date"):
+        meta_parts.append(meta["date"])
+    if meta_parts:
+        header_parts.append(f"Спикер: {' | '.join(meta_parts)}")
+    context_header = "\n".join(header_parts)
+
     # Трансформация чанков
     new_chunks = []
     for chunk in old_json.get("chunks", []):
-        # Контекстная шапка в тело text
-        header_lines = []
-        if chunk.get("topic"):
-            header_lines.append(f"Тема: {chunk['topic']}")
-        if meta.get("speaker"):
-            speaker_info = meta["speaker"]
-            if meta.get("stream_name"):
-                speaker_info += f", {meta['stream_name']}"
-            header_lines.append(f"Спикер: {speaker_info}.")
-        header = "\n".join(header_lines)
-        text = f"{header}\n\n{chunk['text']}" if header else chunk["text"]
+        topic = chunk.get("topic", "")
+        body = chunk["text"]
 
-        new_chunks.append({
-            "text": text,
-            "metadata": {
-                "chunk_id": chunk.get("id"),
-                "chunk_index": chunk.get("index"),
-                "topic": chunk.get("topic"),
-                "word_count": chunk.get("word_count"),
-            },
-        })
+        # Разбиение больших разделов
+        sub_chunks = _split_if_needed(body, MAX_CHUNK_WORDS)
+
+        for part_idx, part_text in enumerate(sub_chunks):
+            # H2-заголовок с суффиксом части (если разбит)
+            h2 = topic
+            if len(sub_chunks) > 1:
+                h2 = f"{topic} ({part_idx + 1}/{len(sub_chunks)})"
+
+            text = f"{context_header}\n\n## {h2}\n\n{part_text}"
+
+            new_chunks.append({
+                "text": text,
+                "metadata": {
+                    "chunk_id": chunk.get("id"),
+                    "chunk_index": chunk.get("index"),
+                    "topic": topic,  # Оригинал без суффикса
+                    "word_count": len(part_text.split()),
+                },
+            })
 
     return {
         "version": "1.0",
@@ -332,9 +408,32 @@ def transform_to_bz2_format(old_json: dict, description: str, short_description:
             "chunks": new_chunks,
         }],
     }
+
+
+def _split_if_needed(text: str, max_words: int) -> list[str]:
+    """Разбить текст по параграфам, если превышает лимит."""
+    if len(text.split()) <= max_words:
+        return [text]
+
+    paragraphs = text.split("\n\n")
+    parts, current, current_words = [], [], 0
+
+    for para in paragraphs:
+        para_words = len(para.split())
+        if current and current_words + para_words > max_words:
+            parts.append("\n\n".join(current))
+            current, current_words = [para], para_words
+        else:
+            current.append(para)
+            current_words += para_words
+
+    if current:
+        parts.append("\n\n".join(current))
+
+    return parts
 ```
 
-> **`description` не формируется автоматически из метаданных.** Это семантический индекс, который должен содержать ключевые темы и понятия из содержимого. Рекомендуется генерировать AI-суммаризацией всех чанков.
+> **`description` не формируется автоматически из метаданных.** Это семантический индекс, который должен содержать ключевые темы и понятия из содержимого. Рекомендуется генерировать на основе лонгрида.
 
 ---
 
@@ -377,28 +476,17 @@ if "materials" not in data:
 
 Показать `metadata` материала (спикер, мероприятие, дата) в карточке материала — рядом с секцией чанков. Пока информационный блок без редактирования.
 
----
+### 4. Удалить `contextualized_text` из кода
 
-## Альтернатива: два поля (text + contextualized_text)
+Поле `contextualized_text` больше не нужно — внешняя система формирует контекстуализированные чанки, контекст включён прямо в `text`.
 
-Если внешняя система не может включить контекст в тело `text` (например, нужен оригинальный текст без изменений), поддерживается отдельное поле `contextualized_text`:
-
-```json
-{
-  "text": "Оригинальный текст транскрипта без изменений...",
-  "contextualized_text": "Тема: Закрытие полной оценки.\nСпикер: Иванова А.\n\nОригинальный текст транскрипта без изменений..."
-}
-```
-
-| Поле | Embedding (поиск) | FTS (keyword) | LLM промпт (ответ) |
-|------|:-:|:-:|:-:|
-| `text` | да | да | fallback |
-| `contextualized_text` | нет | нет | **приоритет** |
-
-`contextualized_text` используется **только** в промпте Claude при генерации ответа. Для поиска (vector + keyword) всегда используется `text`.
-
-**Рекомендация:** включать контекст прямо в `text` — так он влияет на все этапы поиска.
+Что убрать:
+- **Модель:** `contextualized_text` из `Embedding` (`src/content/models.py`)
+- **Импорт:** `chunk.get("contextualized_text")` из `import_transcript_batch()` (`src/content/services/indexer.py`)
+- **LLM:** fallback `chunk.get("contextualized_text") or chunk.get("chunk_text")` → просто `chunk.get("chunk_text")` (`src/search/services/llm_provider.py`)
+- **SQL:** `contextualized_text` из `hybrid_search()` (миграция)
+- **БД:** колонка `contextualized_text` из таблицы `embeddings` (миграция)
 
 ---
 
-_Версия: 1.0 | Обновлено: 9 февраля 2026_
+_Версия: 1.2 | Обновлено: 10 февраля 2026_
