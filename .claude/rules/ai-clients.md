@@ -37,3 +37,6 @@ globs: backend/app/services/ai_clients/**,backend/app/services/cleaner.py,*_gene
 - Цены моделей: `config/models.yaml` → `claude_models[].pricing`
 - Расчёт: `pricing_utils.calculate_cost(model_id, input_tokens, output_tokens)`
 - Локальные модели (Ollama) — бесплатны, pricing не указывается
+
+## Документация
+- Тестирование моделей: `docs/model-testing.md`

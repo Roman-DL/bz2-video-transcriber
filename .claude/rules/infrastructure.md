@@ -41,3 +41,6 @@ globs: backend/app/utils/**,backend/app/config.py,config/**,docker-compose.yml,s
 ## macOS разработка
 - Системный Python защищён — ВСЕГДА использовать venv: `python3 -m venv .venv`
 - Проверка синтаксиса без venv: `python3 -m py_compile backend/app/...`
+
+## Документация
+- Стандарты именования и frontmatter: `docs/reference/`

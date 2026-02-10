@@ -73,16 +73,9 @@ Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longr
 | Развёртывание | [docs/deployment.md](docs/deployment.md) |
 | Логирование | [docs/logging.md](docs/logging.md) |
 | Тестирование | [docs/testing.md](docs/testing.md) |
-| Тестирование моделей | [docs/model-testing.md](docs/model-testing.md) |
 | Прокси для Claude | [docs/Прокси для Docker-приложений.md](docs/Прокси%20для%20Docker-приложений.md) |
-| Гайдлайны документации | [docs/DOCUMENTATION_GUIDELINES.md](docs/DOCUMENTATION_GUIDELINES.md) |
-| Процесс разработки | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) |
-| Workflow с Claude Code | [docs/WORKFLOW.md](docs/WORKFLOW.md) |
-| Справочник команд | [docs/COMMANDS-REFERENCE.md](docs/COMMANDS-REFERENCE.md) |
 | Модульная архитектура | [docs/architecture/](docs/architecture/) |
 | Требования | [docs/requirements/](docs/requirements/) |
-| Web UI | [docs/web-ui.md](docs/web-ui.md) |
-| Справочники и стандарты | [docs/reference/](docs/reference/) |
 | ADR (решения) | [docs/decisions/](docs/decisions/) |
 
 ---

@@ -19,3 +19,6 @@ globs: frontend/src/components/**,frontend/src/utils/**,frontend/src/hooks/**,fr
 ## Настройки
 - `SettingsContext` (`frontend/src/contexts/SettingsContext.tsx`) — единственный способ доступа к настройкам
 - НЕ пробрасывать settings через props если есть контекст
+
+## Документация
+- Описание UI: `docs/web-ui.md`
