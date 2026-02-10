@@ -7,6 +7,7 @@
 - **Язык общения:** Русский
 - **Язык кода:** Английский (имена переменных, функций, комментарии в коде)
 - **Язык документации:** Русский
+- **Git commits:** Русский, формат "{тип}: описание" (docs, feat, fix, refactor)
 - **Версионирование:** После коммита новых фич — ОБЯЗАТЕЛЬНО предложи обновить версию в `frontend/package.json`
 
 ## Документирование кода
@@ -75,6 +76,11 @@ Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longr
 | Тестирование моделей | [docs/model-testing.md](docs/model-testing.md) |
 | Прокси для Claude | [docs/Прокси для Docker-приложений.md](docs/Прокси%20для%20Docker-приложений.md) |
 | Гайдлайны документации | [docs/DOCUMENTATION_GUIDELINES.md](docs/DOCUMENTATION_GUIDELINES.md) |
+| Процесс разработки | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) |
+| Workflow с Claude Code | [docs/WORKFLOW.md](docs/WORKFLOW.md) |
+| Справочник команд | [docs/COMMANDS-REFERENCE.md](docs/COMMANDS-REFERENCE.md) |
+| Модульная архитектура | [docs/architecture/](docs/architecture/) |
+| Требования | [docs/requirements/](docs/requirements/) |
 | ADR (решения) | [docs/decisions/](docs/decisions/) |
 
 ---
@@ -123,15 +129,16 @@ Claude выполняет эти проверки после каждого за
 
 После каждого завершённого блока работы проверь:
 
-1. **Архитектура изменилась?** → обнови `docs/ARCHITECTURE.md`
-2. **Pipeline изменился?** → обнови соответствующий документ в `docs/pipeline/`
-3. **Новый паттерн или значимое решение?** → предложи создать ADR в `docs/decisions/`
-4. **Структура проекта изменилась?** → обнови секцию "Структура проекта" ниже
-5. **Правила `.claude/rules/`:**
+1. **Архитектура изменилась?** → обнови `docs/ARCHITECTURE.md` (обзор)
+2. **Реализован модуль/подсистема?** → создай или обнови `docs/architecture/{module}.md`, обнови индекс `docs/architecture/README.md`
+3. **Pipeline изменился?** → обнови соответствующий документ в `docs/pipeline/`
+4. **Новый паттерн или значимое решение?** → предложи создать ADR в `docs/decisions/`
+5. **Структура проекта изменилась?** → обнови секцию "Структура проекта" ниже
+6. **Правила `.claude/rules/`:**
    - Новый модуль → нужен новый файл правил или `globs:` в существующем?
    - Изменился паттерн → обновить правило или откатить код?
    - Устаревшее правило → удалить
-6. **Edge case или ошибка AI?** → добавь ограничение в секцию выше
+7. **Edge case или ошибка AI?** → добавь ограничение в секцию выше
 
 > Для полного аудита документации — `/sync-docs`
 
@@ -176,6 +183,8 @@ docs/pipeline/                    # Документация pipeline (14 фай
 | Правило инфраструктуры | `.claude/rules/infrastructure.md` | "sshpass для сервера" |
 | Общее ограничение | Секция "Ключевые ограничения" выше | "НИКОГДА не удалять ADR" |
 | Архитектурное решение | `docs/decisions/ADR-NNN.md` | "Почему Claude default" |
+| Описание системы (обзор) | `docs/ARCHITECTURE.md` | "Добавлен новый компонент" |
+| Описание подсистемы | `docs/architecture/{module}.md` | "Как устроен экспорт чанков" |
 
 ---
 
