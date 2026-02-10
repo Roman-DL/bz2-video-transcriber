@@ -4,9 +4,13 @@
 
 ## Активные планы
 
-| План | Статус | Описание |
-|------|--------|----------|
-| [methodology-adaptation](../../.claude/plans/methodology-adaptation-plan.md) | in-progress | Адаптация под claude-dev-framework |
+_Нет активных планов._
+
+## Завершённые планы
+
+| План | Описание |
+|------|----------|
+| [methodology-adaptation](archive/methodology-adaptation-plan.md) | Адаптация под claude-dev-framework |
 
 ## Создание нового плана
 
