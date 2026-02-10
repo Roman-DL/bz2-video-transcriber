@@ -8,7 +8,7 @@ import { whisperToOptions, buildLLMOptions } from '@/utils/modelUtils';
 import type { ModelSettings, ModelConfig } from '@/api/types';
 import { RotateCcw, X } from 'lucide-react';
 
-type PipelineStage = 'transcribe' | 'clean' | 'longread' | 'summarize';
+type PipelineStage = 'transcribe' | 'clean' | 'longread' | 'summarize' | 'describe';
 
 export function SettingsModal() {
   const { models, setModels, isSettingsOpen, closeSettings } = useSettings();
@@ -130,7 +130,7 @@ export function SettingsModal() {
               </div>
 
               {/* Summarize */}
-              <div className="py-5">
+              <div className="py-5 border-b border-gray-100">
                 <ModelSelector
                   stage="summarize"
                   value={localModels.summarize}
@@ -138,6 +138,18 @@ export function SettingsModal() {
                   options={llmOptions}
                   onChange={(v) => handleChange('summarize', v)}
                   config={getModelConfig(localModels.summarize || defaultModels?.summarize)}
+                />
+              </div>
+
+              {/* Describe */}
+              <div className="py-5">
+                <ModelSelector
+                  stage="describe"
+                  value={localModels.describe}
+                  defaultValue={defaultModels?.describe || ''}
+                  options={llmOptions}
+                  onChange={(v) => handleChange('describe', v)}
+                  config={getModelConfig(localModels.describe || defaultModels?.describe)}
                 />
               </div>
             </div>

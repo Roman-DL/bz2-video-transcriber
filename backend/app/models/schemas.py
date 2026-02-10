@@ -1288,6 +1288,7 @@ class DefaultModelsResponse(CamelCaseModel):
     clean: str = Field(..., description="Default model for cleaning")
     longread: str = Field(..., description="Default model for longread")
     summarize: str = Field(..., description="Default model for summary")
+    describe: str = Field(..., description="Default model for BZ2 description generation")
 
 
 class ArchiveItem(CamelCaseModel):

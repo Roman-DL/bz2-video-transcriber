@@ -5,13 +5,14 @@ import { ChevronDown } from 'lucide-react';
 import type { ModelOption } from '@/utils/modelUtils';
 import type { ModelConfig, StageConfig } from '@/api/types';
 
-type PipelineStage = 'transcribe' | 'clean' | 'longread' | 'summarize';
+type PipelineStage = 'transcribe' | 'clean' | 'longread' | 'summarize' | 'describe';
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
   transcribe: 'Транскрипция',
   clean: 'Очистка',
   longread: 'Лонгрид',
   summarize: 'Конспект',
+  describe: 'Описание',
 };
 
 const STAGE_CONFIG_KEYS: Record<PipelineStage, keyof ModelConfig | null> = {
@@ -19,6 +20,7 @@ const STAGE_CONFIG_KEYS: Record<PipelineStage, keyof ModelConfig | null> = {
   clean: 'cleaner',
   longread: null, // Longread doesn't have stage-specific config
   summarize: null, // Summarizer doesn't have stage-specific config
+  describe: null, // Describe doesn't have stage-specific config
 };
 
 function formatTokens(tokens: number): string {

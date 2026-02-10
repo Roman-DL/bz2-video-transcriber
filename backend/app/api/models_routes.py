@@ -122,6 +122,7 @@ async def get_default_models() -> DefaultModelsResponse:
         clean=settings.cleaner_model,
         longread=settings.longread_model,
         summarize=settings.summarizer_model,
+        describe=settings.describe_model,
     )
 
 
