@@ -81,6 +81,8 @@ Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longr
 | Справочник команд | [docs/COMMANDS-REFERENCE.md](docs/COMMANDS-REFERENCE.md) |
 | Модульная архитектура | [docs/architecture/](docs/architecture/) |
 | Требования | [docs/requirements/](docs/requirements/) |
+| Web UI | [docs/web-ui.md](docs/web-ui.md) |
+| Справочники и стандарты | [docs/reference/](docs/reference/) |
 | ADR (решения) | [docs/decisions/](docs/decisions/) |
 
 ---
@@ -94,6 +96,7 @@ Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longr
 - `docs/architecture/` — детали затрагиваемых подсистем
 - `docs/pipeline/` — ключевая подсистема, этапы обработки
 - `docs/decisions/` — почему приняты текущие решения, какие ограничения
+- `docs/requirements/` — активные требования на разработку
 - `.claude/rules/` — правила модулей, которые будут затронуты
 
 Это критически важно для качественного плана.
@@ -182,6 +185,7 @@ docs/pipeline/                    # Документация pipeline (14 фай
 | Правило API/моделей | `.claude/rules/api.md` | "CamelCaseModel обязателен" |
 | Правило контента | `.claude/rules/content.md` | "educational vs leadership" |
 | Правило инфраструктуры | `.claude/rules/infrastructure.md` | "sshpass для сервера" |
+| Правило frontend | `.claude/rules/frontend.md` | "formatUtils для метрик" |
 | Общее ограничение | Секция "Ключевые ограничения" выше | "НИКОГДА не удалять ADR" |
 | Архитектурное решение | `docs/decisions/ADR-NNN.md` | "Почему Claude default" |
 | Описание системы (обзор) | `docs/ARCHITECTURE.md` | "Добавлен новый компонент" |

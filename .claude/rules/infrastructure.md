@@ -1,5 +1,5 @@
 ---
-globs: backend/app/utils/**,backend/app/config.py,config/**,docker-compose.yml,scripts/**
+globs: backend/app/utils/**,backend/app/config.py,config/**,docker-compose.yml,scripts/**,backend/app/services/text_splitter.py
 ---
 
 # Rules: Infrastructure

@@ -1,5 +1,5 @@
 ---
-globs: backend/app/services/ai_clients/**,backend/app/services/cleaner.py,*_generator.py,slides_extractor.py
+globs: backend/app/services/ai_clients/**,backend/app/services/cleaner.py,*_generator.py,slides_extractor.py,backend/app/services/transcriber.py,backend/app/services/summarizer.py,backend/app/services/outline_extractor.py
 ---
 
 # Rules: AI Clients & Services
