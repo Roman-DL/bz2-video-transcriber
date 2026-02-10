@@ -59,4 +59,6 @@ credentials.json
 *.backup
 
 # Claude Code (local session files)
-.claude/
+.claude/*
+!.claude/commands/
+!.claude/rules/
