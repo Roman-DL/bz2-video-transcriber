@@ -178,27 +178,27 @@ function buildStepStats(data: StatisticsData): StepStats[] {
     }
   }
 
-  // Chunk step (deterministic, no LLM)
+  // Chunk step (v0.62+: includes description generation metrics)
   if (data.chunks) {
+    const model = data.chunks.describeModelName;
     steps.push({
       id: 'chunk',
       name: 'Разбиение на чанки',
       icon: Layers,
+      time: data.chunks.describeProcessingTimeSec,
+      model: model || undefined,
+      modelType: model && isCloudModel(model) ? 'cloud' : undefined,
+      tokens: data.chunks.describeTokensUsed,
+      cost: data.chunks.describeCost,
     });
   }
 
-  // Save step (with optional description generation metrics)
+  // Save step (v0.62+: pure file save, no LLM)
   if (data.saveResult) {
-    const model = data.saveResult.modelName;
     steps.push({
       id: 'save',
       name: 'Сохранение в архив',
       icon: Save,
-      time: data.saveResult.processingTimeSec,
-      model: model || undefined,
-      modelType: model && isCloudModel(model) ? 'cloud' : undefined,
-      tokens: data.saveResult.tokensUsed,
-      cost: data.saveResult.cost,
     });
   }
 

@@ -730,8 +730,8 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                     <div className="p-4 flex-1 overflow-y-auto">
                       <ChunksView
                         chunks={data.chunks}
-                        description={data.saveResult?.description}
-                        shortDescription={data.saveResult?.shortDescription}
+                        description={data.chunks?.description}
+                        shortDescription={data.chunks?.shortDescription}
                       />
                     </div>
                   </div>

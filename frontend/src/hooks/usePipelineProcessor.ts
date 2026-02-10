@@ -498,6 +498,9 @@ export function usePipelineProcessor({
           const chunks = await stepChunk.mutateAsync({
             markdownContent: markdownContent,
             metadata: data.metadata,
+            summary: data.summary,
+            longread: data.longread,
+            story: data.story,
           });
           const newData = { ...data, chunks };
           setData(newData);
@@ -671,11 +674,11 @@ export function usePipelineProcessor({
       totalCost += data.story.cost || 0;
     }
 
-    if (data.saveResult) {
-      totalTime += data.saveResult.processingTimeSec || 0;
-      totalInputTokens += data.saveResult.tokensUsed?.input || 0;
-      totalOutputTokens += data.saveResult.tokensUsed?.output || 0;
-      totalCost += data.saveResult.cost || 0;
+    if (data.chunks) {
+      totalTime += data.chunks.describeProcessingTimeSec || 0;
+      totalInputTokens += data.chunks.describeTokensUsed?.input || 0;
+      totalOutputTokens += data.chunks.describeTokensUsed?.output || 0;
+      totalCost += data.chunks.describeCost || 0;
     }
 
     return { totalTime, totalInputTokens, totalOutputTokens, totalCost };

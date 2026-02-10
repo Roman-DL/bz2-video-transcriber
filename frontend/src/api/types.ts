@@ -104,6 +104,13 @@ export interface TranscriptChunks {
   modelName: string;
   // Metrics (v0.42+)
   totalTokens?: number;
+  // Description fields (v0.62+)
+  description?: string;
+  shortDescription?: string;
+  describeModelName?: string;
+  describeTokensUsed?: TokensUsed;
+  describeCost?: number;
+  describeProcessingTimeSec?: number;
 }
 
 export interface VideoSummary {
@@ -257,6 +264,10 @@ export interface StepCleanRequest {
 export interface StepChunkRequest {
   markdownContent: string;
   metadata: VideoMetadata;
+  // Optional content for description generation (v0.62+)
+  summary?: Summary;
+  longread?: Longread;
+  story?: Story;
 }
 
 export interface StepLongreadRequest {
@@ -375,23 +386,14 @@ export interface PipelineResults {
   story?: Story;
   // Slides extraction (v0.55+)
   slidesExtraction?: SlidesExtractionResult;
-  // Description (v0.61+)
-  description?: string;
-  shortDescription?: string;
 }
 
 /**
  * Result from /api/step/save endpoint.
- * v0.61+: Includes description and LLM metrics.
+ * v0.62+: Pure file save, no LLM. Descriptions moved to TranscriptChunks.
  */
 export interface SaveResult {
   files: string[];
-  description: string;
-  shortDescription: string;
-  modelName?: string;
-  tokensUsed?: TokensUsed;
-  cost?: number;
-  processingTimeSec?: number;
 }
 
 // Response from /archive/results endpoint

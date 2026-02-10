@@ -2,18 +2,17 @@
 File saver service.
 
 Saves processing results to the archive directory structure.
-v0.60+: BZ2-Bot chunk format with description generation.
+v0.62+: Pure file save, no LLM. Descriptions are in TranscriptChunks.
 """
 
 import json
 import logging
 import shutil
-import time
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
-from app.config import Settings, get_settings, load_events_config, load_prompt
+from app.config import Settings, get_settings, load_events_config
 from app.models.schemas import (
     CleanedTranscript,
     ContentType,
@@ -24,15 +23,10 @@ from app.models.schemas import (
     SlidesExtractionResult,
     Story,
     Summary,
-    TokensUsed,
     TranscriptChunks,
     VideoMetadata,
     VideoSummary,
 )
-from app.services.ai_clients import ClaudeClient
-from app.services.ai_clients.base import ChatUsage
-from app.utils import calculate_cost
-from app.utils.json_utils import extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -107,28 +101,20 @@ class FileSaver:
         """
         Save educational content results to archive.
 
-        Creates archive directory structure and saves:
-        - pipeline_results.json (full results for archive viewing)
-        - transcript_chunks.json
-        - longread.md (full longread document)
-        - summary.md (condensed summary / конспект)
-        - transcript_raw.txt
-        - transcript_cleaned.txt
-        - audio.mp3 (if provided)
-        - moves video file
+        v0.62+: Pure file save, no LLM. Descriptions read from chunks.
 
         Args:
             metadata: Video metadata
             raw_transcript: Raw transcript from Whisper
             cleaned_transcript: Cleaned transcript after LLM processing
-            chunks: Semantic chunks
+            chunks: Semantic chunks (with description fields from v0.62+)
             longread: Longread document
             summary: Condensed summary (конспект)
             audio_path: Path to extracted audio file (optional)
             slides_extraction: Slides extraction result (optional)
 
         Returns:
-            SaveResult with created files and description metrics
+            SaveResult with created file names
         """
         archive_path = metadata.archive_path
 
@@ -139,18 +125,10 @@ class FileSaver:
 
         created_files = []
 
-        # Generate BZ2-Bot description via Claude (before pipeline_results so descriptions are included)
-        desc_start = time.monotonic()
-        description, short_description, usage = await self._generate_description(
-            summary=summary, longread=longread, story=None, metadata=metadata
-        )
-        desc_time = time.monotonic() - desc_start
-
         # Save pipeline results JSON (for archive viewing)
         pipeline_path = self._save_pipeline_results_educational(
             archive_path, metadata, raw_transcript, cleaned_transcript,
             chunks, longread, summary, slides_extraction,
-            description=description, short_description=short_description,
         )
         created_files.append(pipeline_path.name)
 
@@ -158,8 +136,6 @@ class FileSaver:
         chunks_path = self._save_chunks_json(
             archive_path, metadata, raw_transcript, chunks,
             material_title=metadata.title,
-            description=description,
-            short_description=short_description,
         )
         created_files.append(chunks_path.name)
 
@@ -190,24 +166,7 @@ class FileSaver:
 
         logger.info("save_educational_complete", extra={"files": len(created_files)})
 
-        # Build SaveResult with description metrics
-        desc_cost = None
-        desc_tokens = None
-        if usage:
-            desc_tokens = TokensUsed(input=usage.input_tokens, output=usage.output_tokens)
-            desc_cost = calculate_cost(
-                self.settings.describe_model, usage.input_tokens, usage.output_tokens
-            )
-
-        return SaveResult(
-            files=created_files,
-            description=description,
-            short_description=short_description,
-            model_name=self.settings.describe_model if usage else None,
-            tokens_used=desc_tokens,
-            cost=desc_cost,
-            processing_time_sec=round(desc_time, 2),
-        )
+        return SaveResult(files=created_files)
 
     async def save_leadership(
         self,
@@ -222,26 +181,19 @@ class FileSaver:
         """
         Save leadership content results to archive.
 
-        Creates archive directory structure and saves:
-        - pipeline_results.json (full results for archive viewing)
-        - transcript_chunks.json
-        - story.md (8-block leadership story)
-        - transcript_raw.txt
-        - transcript_cleaned.txt
-        - audio.mp3 (if provided)
-        - moves video file
+        v0.62+: Pure file save, no LLM. Descriptions read from chunks.
 
         Args:
             metadata: Video metadata
             raw_transcript: Raw transcript from Whisper
             cleaned_transcript: Cleaned transcript after LLM processing
-            chunks: Semantic chunks
+            chunks: Semantic chunks (with description fields from v0.62+)
             story: Leadership story (8 blocks)
             audio_path: Path to extracted audio file (optional)
             slides_extraction: Slides extraction result (optional)
 
         Returns:
-            SaveResult with created files and description metrics
+            SaveResult with created file names
         """
         archive_path = metadata.archive_path
 
@@ -252,18 +204,10 @@ class FileSaver:
 
         created_files = []
 
-        # Generate BZ2-Bot description via Claude (before pipeline_results so descriptions are included)
-        desc_start = time.monotonic()
-        description, short_description, usage = await self._generate_description(
-            summary=None, longread=None, story=story, metadata=metadata
-        )
-        desc_time = time.monotonic() - desc_start
-
         # Save pipeline results JSON (for archive viewing)
         pipeline_path = self._save_pipeline_results_leadership(
             archive_path, metadata, raw_transcript, cleaned_transcript,
             chunks, story, slides_extraction,
-            description=description, short_description=short_description,
         )
         created_files.append(pipeline_path.name)
 
@@ -271,8 +215,6 @@ class FileSaver:
         chunks_path = self._save_chunks_json(
             archive_path, metadata, raw_transcript, chunks,
             material_title=metadata.title,
-            description=description,
-            short_description=short_description,
         )
         created_files.append(chunks_path.name)
 
@@ -299,24 +241,7 @@ class FileSaver:
 
         logger.info("save_leadership_complete", extra={"files": len(created_files)})
 
-        # Build SaveResult with description metrics
-        desc_cost = None
-        desc_tokens = None
-        if usage:
-            desc_tokens = TokensUsed(input=usage.input_tokens, output=usage.output_tokens)
-            desc_cost = calculate_cost(
-                self.settings.describe_model, usage.input_tokens, usage.output_tokens
-            )
-
-        return SaveResult(
-            files=created_files,
-            description=description,
-            short_description=short_description,
-            model_name=self.settings.describe_model if usage else None,
-            tokens_used=desc_tokens,
-            cost=desc_cost,
-            processing_time_sec=round(desc_time, 2),
-        )
+        return SaveResult(files=created_files)
 
     def _save_pipeline_results_educational(
         self,
@@ -328,21 +253,20 @@ class FileSaver:
         longread: Longread,
         summary: Summary,
         slides_extraction: SlidesExtractionResult | None = None,
-        description: str = "",
-        short_description: str = "",
     ) -> Path:
         """
         Save complete pipeline results for educational content.
 
         This JSON contains all data needed to display processing results
         without re-parsing other files. Uses camelCase serialization (v0.58+).
+        v0.62+: Descriptions are inside chunks object, not top-level.
 
         Args:
             archive_path: Archive directory path
             metadata: Video metadata
             raw_transcript: Raw transcript from Whisper
             cleaned_transcript: Cleaned transcript after LLM processing
-            chunks: Semantic chunks
+            chunks: Semantic chunks (with description fields)
             longread: Longread document
             summary: Condensed summary
             slides_extraction: Slides extraction result (optional)
@@ -370,8 +294,6 @@ class FileSaver:
             longread=longread,
             summary=summary,
             slides_extraction=slides_extraction,
-            description=description or None,
-            short_description=short_description or None,
         )
 
         file_path = archive_path / "pipeline_results.json"
@@ -398,20 +320,19 @@ class FileSaver:
         chunks: TranscriptChunks,
         story: Story,
         slides_extraction: SlidesExtractionResult | None = None,
-        description: str = "",
-        short_description: str = "",
     ) -> Path:
         """
         Save complete pipeline results for leadership content.
 
         Uses camelCase serialization (v0.58+).
+        v0.62+: Descriptions are inside chunks object, not top-level.
 
         Args:
             archive_path: Archive directory path
             metadata: Video metadata
             raw_transcript: Raw transcript from Whisper
             cleaned_transcript: Cleaned transcript after LLM processing
-            chunks: Semantic chunks
+            chunks: Semantic chunks (with description fields)
             story: Leadership story (8 blocks)
             slides_extraction: Slides extraction result (optional)
 
@@ -437,8 +358,6 @@ class FileSaver:
             chunks=chunks,
             story=story,
             slides_extraction=slides_extraction,
-            description=description or None,
-            short_description=short_description or None,
         )
 
         file_path = archive_path / "pipeline_results.json"
@@ -456,126 +375,6 @@ class FileSaver:
 
         return file_path
 
-    async def _generate_description(
-        self,
-        summary: Summary | None,
-        longread: Longread | None,
-        story: Story | None,
-        metadata: VideoMetadata,
-    ) -> tuple[str, str, ChatUsage | None]:
-        """Generate description and short_description via Claude.
-
-        Uses Summary as primary source (most compact), falls back to
-        Longread/Story markdown. On error, returns empty strings with
-        warning (does not fail the pipeline).
-
-        Args:
-            summary: Condensed summary (priority source)
-            longread: Longread document (fallback)
-            story: Leadership story (fallback)
-            metadata: Video metadata for prompt context
-
-        Returns:
-            Tuple of (description, short_description, ChatUsage or None)
-        """
-        source_content = self._build_source_content(summary, longread, story)
-        if not source_content:
-            logger.warning("description_skip", extra={"reason": "no_source_content"})
-            return "", "", None
-
-        stream_name = self._get_stream_name(metadata.event_type, metadata.stream)
-
-        try:
-            system_prompt = load_prompt("export", "system", self.settings)
-            user_template = load_prompt("export", "user", self.settings)
-        except FileNotFoundError:
-            logger.warning("description_skip", extra={"reason": "prompts_not_found"})
-            return "", "", None
-
-        user_prompt = user_template.format(
-            material_title=metadata.title,
-            speaker=metadata.speaker,
-            event_name=stream_name,
-            date=metadata.date.strftime("%d.%m.%Y"),
-            source_content=source_content,
-        )
-
-        try:
-            async with ClaudeClient.from_settings(self.settings) as client:
-                content, usage = await client.chat(
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    model=self.settings.describe_model,
-                )
-
-            parsed = json.loads(extract_json(content))
-            description = parsed.get("description", "")
-            short_description = parsed.get("short_description", "")
-
-            cost = calculate_cost(
-                self.settings.describe_model,
-                usage.input_tokens,
-                usage.output_tokens,
-            )
-            logger.info(
-                "description_generated",
-                extra={
-                    "model": self.settings.describe_model,
-                    "input_tokens": usage.input_tokens,
-                    "output_tokens": usage.output_tokens,
-                    "cost_usd": cost,
-                    "description_len": len(description),
-                },
-            )
-
-            return description, short_description, usage
-
-        except Exception as e:
-            logger.warning(
-                "description_generation_failed",
-                extra={"error": str(e), "video_id": metadata.video_id},
-            )
-            return "", "", None
-
-    @staticmethod
-    def _build_source_content(
-        summary: Summary | None,
-        longread: Longread | None,
-        story: Story | None,
-    ) -> str:
-        """Build source content for description generation.
-
-        Priority: Summary (most compact) > Longread/Story markdown.
-
-        Args:
-            summary: Condensed summary
-            longread: Longread document
-            story: Leadership story
-
-        Returns:
-            Source content string or empty string
-        """
-        if summary:
-            parts = []
-            if summary.essence:
-                parts.append(summary.essence)
-            if summary.key_concepts:
-                parts.append("Ключевые концепции: " + ", ".join(summary.key_concepts))
-            if summary.practical_tools:
-                parts.append("Инструменты: " + ", ".join(summary.practical_tools))
-            if parts:
-                return "\n\n".join(parts)
-
-        if longread:
-            return longread.to_markdown()
-
-        if story:
-            return story.to_markdown()
-
-        return ""
-
     def _save_chunks_json(
         self,
         archive_path: Path,
@@ -583,22 +382,18 @@ class FileSaver:
         raw_transcript: RawTranscript,
         chunks: TranscriptChunks,
         material_title: str,
-        description: str,
-        short_description: str,
     ) -> Path:
         """Save transcript chunks in BZ2-Bot import format.
 
         v0.60+: Outputs JSON matching the BZ2-Bot chunk-import contract v1.0.
-        Each chunk text includes a context header with topic, speaker, and date.
+        v0.62+: Descriptions read from chunks object instead of parameters.
 
         Args:
             archive_path: Archive directory path
             metadata: Video metadata
             raw_transcript: Raw transcript (for duration/model info)
-            chunks: Semantic chunks
+            chunks: Semantic chunks (with description fields)
             material_title: Title for context header
-            description: Semantic index for file search
-            short_description: Brief description for Telegram
 
         Returns:
             Path to created file
@@ -650,8 +445,8 @@ class FileSaver:
         data = {
             "version": "1.0",
             "materials": [{
-                "description": description,
-                "short_description": short_description,
+                "description": chunks.description,
+                "short_description": chunks.short_description,
                 "metadata": {
                     "video_id": metadata.video_id,
                     "speaker": metadata.speaker,
@@ -1058,9 +853,10 @@ if __name__ == "__main__":
 
                 # Run save
                 saver = FileSaver(settings)
-                files = await saver.save(
+                result = await saver.save(
                     metadata, raw_transcript, cleaned_transcript, chunks, summary
                 )
+                files = result.files
 
                 # Verify results
                 assert len(files) == 6, f"Expected 6 files, got {len(files)}"

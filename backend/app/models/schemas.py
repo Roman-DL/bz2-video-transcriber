@@ -273,6 +273,21 @@ class TranscriptChunks(CamelCaseModel):
         ge=0,
         description="Total tokens across all chunks (estimated)",
     )
+    # Description fields (v0.62+)
+    description: str = Field(default="", description="Semantic description for search/indexing")
+    short_description: str = Field(default="", description="Brief description for Telegram")
+    describe_model_name: str | None = Field(
+        default=None, description="Model used for description generation"
+    )
+    describe_tokens_used: TokensUsed | None = Field(
+        default=None, description="Token usage from description generation"
+    )
+    describe_cost: float | None = Field(
+        default=None, ge=0.0, description="Cost of description generation in USD"
+    )
+    describe_processing_time_sec: float | None = Field(
+        default=None, ge=0.0, description="Time for description generation in seconds"
+    )
 
     @computed_field
     @property
@@ -1005,45 +1020,14 @@ class PipelineResults(CamelCaseModel):
     # Slides extraction (v0.55+)
     slides_extraction: SlidesExtractionResult | None = None
 
-    # Description (v0.61+)
-    description: str | None = Field(
-        default=None,
-        description="Semantic description for search/indexing",
-    )
-    short_description: str | None = Field(
-        default=None,
-        description="Brief description for Telegram",
-    )
-
 
 class SaveResult(CamelCaseModel):
-    """Result from save stage including description and LLM metrics.
+    """Result from save stage.
 
-    v0.61+: Replaces plain list[str] to expose description generation
-    metrics (model, tokens, cost) to the frontend.
+    v0.62+: Pure file save, no LLM. Descriptions moved to TranscriptChunks.
     """
 
     files: list[str] = Field(..., description="Created file names")
-    description: str = Field(default="", description="Semantic description")
-    short_description: str = Field(default="", description="Brief description")
-    model_name: str | None = Field(
-        default=None,
-        description="Model used for description generation",
-    )
-    tokens_used: TokensUsed | None = Field(
-        default=None,
-        description="Token usage from description generation",
-    )
-    cost: float | None = Field(
-        default=None,
-        ge=0.0,
-        description="Cost of description generation in USD",
-    )
-    processing_time_sec: float | None = Field(
-        default=None,
-        ge=0.0,
-        description="Time for description generation in seconds",
-    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1101,13 +1085,22 @@ class StepChunkRequest(CamelCaseModel):
     """Request for /step/chunk endpoint.
 
     v0.25+: Now accepts markdown content for deterministic H2 chunking.
-    No LLM needed - parses H2 headers from longread/story markdown.
+    v0.62+: Optional summary/longread/story for description generation.
     """
 
     markdown_content: str = Field(
         description="Longread or Story markdown to chunk by H2 headers"
     )
     metadata: VideoMetadata
+    summary: Summary | None = Field(
+        default=None, description="Summary for description generation (v0.62+)"
+    )
+    longread: Longread | None = Field(
+        default=None, description="Longread for description generation (v0.62+)"
+    )
+    story: Story | None = Field(
+        default=None, description="Story for description generation (v0.62+)"
+    )
 
 
 class StepLongreadRequest(CamelCaseModel):

@@ -15,17 +15,19 @@ export function ChunksView({ chunks, description, shortDescription }: ChunksView
 
   return (
     <div className="h-full flex flex-col">
-      {/* Description block */}
+      {/* Краткое описание */}
+      {shortDescription && (
+        <div className="mb-2 shrink-0">
+          <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Краткое описание</span>
+          <p className="text-sm font-medium text-gray-900 mt-0.5">{shortDescription}</p>
+        </div>
+      )}
+
+      {/* Описание */}
       {description && (
-        <div className="mb-3 shrink-0 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2.5">
-          {shortDescription && (
-            <p className="text-sm font-medium text-gray-900 mb-1">
-              {shortDescription}
-            </p>
-          )}
-          <p className="text-xs text-gray-600 leading-relaxed">
-            {description}
-          </p>
+        <div className="mb-3 shrink-0">
+          <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Описание</span>
+          <p className="text-xs text-gray-600 leading-relaxed mt-0.5">{description}</p>
         </div>
       )}
 

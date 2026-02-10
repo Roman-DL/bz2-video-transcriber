@@ -397,16 +397,16 @@ async def step_slides(request: StepSlidesRequest) -> StreamingResponse:
 @router.post("/chunk", response_model=TranscriptChunks)
 async def step_chunk(request: StepChunkRequest) -> TranscriptChunks:
     """
-    Chunk markdown by H2 headers (deterministic).
+    Chunk markdown by H2 headers and optionally generate descriptions.
 
-    v0.25+: No LLM needed - instant operation that parses H2 headers
-    from longread/story markdown. No SSE needed as it's instant.
+    v0.25+: Deterministic H2 chunking, no LLM needed for chunking itself.
+    v0.62+: If summary/longread/story provided, generates descriptions via Claude.
 
     Args:
-        request: StepChunkRequest with markdown_content and metadata
+        request: StepChunkRequest with markdown_content, metadata, and optional content
 
     Returns:
-        TranscriptChunks with H2-based chunks
+        TranscriptChunks with H2-based chunks and optional descriptions
     """
     orchestrator = get_orchestrator()
 
@@ -414,6 +414,25 @@ async def step_chunk(request: StepChunkRequest) -> TranscriptChunks:
         markdown_content=request.markdown_content,
         metadata=request.metadata,
     )
+
+    # Generate descriptions if source content is provided
+    if request.summary or request.longread or request.story:
+        from app.services.description_generator import DescriptionGenerator
+
+        settings = get_settings()
+        generator = DescriptionGenerator(settings)
+        desc = await generator.generate(
+            summary=request.summary,
+            longread=request.longread,
+            story=request.story,
+            metadata=request.metadata,
+        )
+        chunks.description = desc.description
+        chunks.short_description = desc.short_description
+        chunks.describe_model_name = desc.model_name
+        chunks.describe_tokens_used = desc.tokens_used
+        chunks.describe_cost = desc.cost
+        chunks.describe_processing_time_sec = desc.processing_time_sec
 
     return chunks
 
@@ -541,13 +560,13 @@ async def step_save(request: StepSaveRequest) -> SaveResult:
     """
     Save all processing results to archive.
 
-    v0.61+: Returns SaveResult with description and LLM metrics.
+    v0.62+: Pure file save, no LLM. Descriptions are in TranscriptChunks.
 
     Args:
         request: StepSaveRequest with all pipeline outputs
 
     Returns:
-        SaveResult with created files, description, and LLM metrics
+        SaveResult with created file names
 
     Raises:
         500: Save error

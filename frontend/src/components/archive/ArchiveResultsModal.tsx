@@ -330,8 +330,8 @@ export function ArchiveResultsModal({
                 <div className="p-4 flex-1 overflow-y-auto">
                   <ChunksView
                     chunks={results.chunks}
-                    description={results.description}
-                    shortDescription={results.shortDescription}
+                    description={results.chunks?.description}
+                    shortDescription={results.chunks?.shortDescription}
                   />
                 </div>
               </div>

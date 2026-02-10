@@ -35,13 +35,14 @@ http://100.64.0.1:8801      # Backend API
 ## Архитектура
 
 ```
-Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longread → Summary → Chunk (H2, ≤600w) → Describe → Save (educational)
-                                            └─→ [Slides] → Story → Chunk (H2, ≤600w) → Describe → Save (leadership)
+Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longread → Summary → Chunk (H2, ≤600w) + Describe → Save (educational)
+                                            └─→ [Slides] → Story → Chunk (H2, ≤600w) + Describe → Save (leadership)
 ```
 
 > **v0.25+:** Chunk теперь детерминированный (парсинг H2 заголовков), выполняется ПОСЛЕ longread/story.
 > **v0.51+:** Опциональный шаг Slides появляется перед Longread/Story если пользователь прикрепил слайды.
-> **v0.60+:** Chunk разбивает секции >600 слов по параграфам. Save генерирует description через Claude и выводит BZ2-Bot v1.0 формат.
+> **v0.60+:** Chunk разбивает секции >600 слов по параграфам. BZ2-Bot v1.0 формат.
+> **v0.62+:** Description generation перенесена из Save в Chunk. Save — чистое сохранение файлов.
 
 ## Ключевые ограничения
 
@@ -145,7 +146,7 @@ Claude выполняет эти проверки после каждого за
 ## Структура проекта
 
 ```
-backend/app/services/             # Сервисы pipeline
+backend/app/services/             # Сервисы pipeline (incl. description_generator.py)
 backend/app/services/ai_clients/  # AI клиенты (v0.17+)
 backend/app/services/pipeline/    # Pipeline package (v0.15+)
 backend/app/services/stages/      # Stage абстракция (v0.14+)
@@ -213,6 +214,7 @@ docs/pipeline/                    # Документация pipeline (14 фай
 
 | Версия | Ключевые изменения |
 |--------|--------------------|
+| v0.62 | Description generation moved from Save to Chunk stage |
 | v0.60 | BZ2-Bot chunk format, describe_model, split >600w |
 | v0.59 | API camelCase serialization, Statistics tab |
 | v0.51 | Slides extraction (Claude Vision API) |

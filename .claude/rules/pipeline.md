@@ -34,10 +34,17 @@ globs: backend/app/services/pipeline/**,backend/app/services/stages/**,backend/a
 - MAX_CHUNK_WORDS=600 — чанки >600 слов разбиваются по параграфам (v0.60+)
 - Суффикс `(N/M)` в H2 добавляется в saver, НЕ в h2_chunker
 
-## Save — Description Generation (v0.60+)
-- `_generate_description()` вызывает Claude (`describe_model`) для генерации description/short_description
-- При ошибке Claude — save продолжается с пустыми описаниями (warning в лог, НЕ PipelineError)
+## Chunk — Description Generation (v0.62+)
+- `DescriptionGenerator` (`app.services.description_generator`) вызывает Claude (`describe_model`) для генерации description/short_description
+- Вызывается из chunk endpoint (`/api/step/chunk`), НЕ из saver
+- Описания хранятся в `TranscriptChunks` (поля с префиксом `describe_`)
+- При ошибке Claude — chunk продолжается с пустыми описаниями (warning в лог, НЕ PipelineError)
+
+## Save (v0.62+)
+- Save — чистое сохранение файлов, без LLM вызовов
+- `SaveResult` содержит только `files: list[str]`
 - `transcript_chunks.json` — формат BZ2-Bot v1.0 (snake_case, НЕ camelCase)
+- Описания читаются из `TranscriptChunks`, НЕ генерируются в saver
 
 ## Slides
 - Slides — отдельный API endpoint (`/api/step/slides`), НЕ часть stage абстракции
