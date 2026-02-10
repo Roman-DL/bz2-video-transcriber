@@ -35,12 +35,13 @@ http://100.64.0.1:8801      # Backend API
 ## Архитектура
 
 ```
-Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longread → Summary → Chunk (H2) → Save (educational)
-                                            └─→ [Slides] → Story → Chunk (H2) → Save (leadership)
+Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longread → Summary → Chunk (H2, ≤600w) → Describe → Save (educational)
+                                            └─→ [Slides] → Story → Chunk (H2, ≤600w) → Describe → Save (leadership)
 ```
 
 > **v0.25+:** Chunk теперь детерминированный (парсинг H2 заголовков), выполняется ПОСЛЕ longread/story.
 > **v0.51+:** Опциональный шаг Slides появляется перед Longread/Story если пользователь прикрепил слайды.
+> **v0.60+:** Chunk разбивает секции >600 слов по параграфам. Save генерирует description через Claude и выводит BZ2-Bot v1.0 формат.
 
 ## Ключевые ограничения
 
@@ -212,6 +213,7 @@ docs/pipeline/                    # Документация pipeline (14 фай
 
 | Версия | Ключевые изменения |
 |--------|--------------------|
+| v0.60 | BZ2-Bot chunk format, describe_model, split >600w |
 | v0.59 | API camelCase serialization, Statistics tab |
 | v0.51 | Slides extraction (Claude Vision API) |
 | v0.29 | Claude default, fallback удалён |

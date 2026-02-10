@@ -31,6 +31,13 @@ globs: backend/app/services/pipeline/**,backend/app/services/stages/**,backend/a
 ## Chunk
 - Chunk детерминистический — парсинг H2 заголовков (v0.25+), без LLM
 - Выполняется ПОСЛЕ longread/story, НЕ параллельно
+- MAX_CHUNK_WORDS=600 — чанки >600 слов разбиваются по параграфам (v0.60+)
+- Суффикс `(N/M)` в H2 добавляется в saver, НЕ в h2_chunker
+
+## Save — Description Generation (v0.60+)
+- `_generate_description()` вызывает Claude (`describe_model`) для генерации description/short_description
+- При ошибке Claude — save продолжается с пустыми описаниями (warning в лог, НЕ PipelineError)
+- `transcript_chunks.json` — формат BZ2-Bot v1.0 (snake_case, НЕ camelCase)
 
 ## Slides
 - Slides — отдельный API endpoint (`/api/step/slides`), НЕ часть stage абстракции

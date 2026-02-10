@@ -176,13 +176,16 @@ tags: [лидерство, история]
 
 Подробная структура: [data-formats.md](../data-formats.md#5-storymd)
 
-## Формат transcript_chunks.json
+## Формат transcript_chunks.json (BZ2-Bot v1.0, v0.60+)
 
-JSON для RAG-индексации:
-- `video_id` — уникальный идентификатор
-- `metadata` — информация о видео
-- `statistics` — статистика по чанкам
-- `chunks[]` — массив с id, topic, text
+JSON для импорта в BZ2-Bot:
+- `version` — версия контракта (`"1.0"`)
+- `materials[].description` — семантический индекс (Claude-generated)
+- `materials[].short_description` — краткое описание для Telegram
+- `materials[].metadata` — информация о видео
+- `materials[].chunks[]` — массив с контекстной шапкой и метаданными
+
+Генерация description: `_generate_description()` вызывает Claude (`describe_model`) до сохранения chunks. При ошибке — сохраняется с пустыми описаниями.
 
 Подробная структура: [data-formats.md](../data-formats.md#1-transcript_chunksjson)
 
@@ -219,7 +222,8 @@ JSON для веб-интерфейса:
 
 | Метод | Описание |
 |-------|----------|
-| `_save_chunks_json()` | Генерация JSON для RAG |
+| `_generate_description()` | Генерация description/short_description через Claude (v0.60+) |
+| `_save_chunks_json()` | Генерация JSON в формате BZ2-Bot v1.0 (v0.60+) |
 | `_save_longread_md()` | Сохранение лонгрида |
 | `_save_summary_md()` | Сохранение конспекта |
 | `_save_story_md()` | Сохранение истории (v0.23+) |
@@ -286,6 +290,7 @@ python -m backend.app.services.saver
 
 ## История изменений
 
+- **v0.60:** BZ2-Bot v1.0 формат transcript_chunks.json. Генерация description через Claude (`describe_model`). Контекстная шапка в каждом chunk. Разбиение >600 слов с суффиксом (N/M).
 - **v0.58:** camelCase сериализация в pipeline_results.json (`by_alias=True`).
 - **v0.51:** Поддержка `slides_extraction` в методах save.
 - **v0.23:** Разделение на `save_educational()` и `save_leadership()`. Добавлен `story.md` для leadership контента.

@@ -8,7 +8,8 @@
 
 | Фича | Статус | Дата | План |
 |------|--------|------|------|
-| — | — | — | — |
+| [BZ2-Bot chunk import контракт](chunk-import-contract.md) | Done | 2026-02-08 | v0.60 |
+| [Обработка преамбулы в H2 chunker](h2-chunker-preamble.md) | Draft | 2026-02-10 | v0.60.x |
 
 ## Статусы
 
