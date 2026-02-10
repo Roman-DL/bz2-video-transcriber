@@ -161,4 +161,4 @@ backend/app/services/stages/
 ## Связанные документы
 
 - [docs/pipeline/stages.md](../pipeline/stages.md) — детальная документация
-- [docs/architecture.md](../architecture.md) — общая архитектура системы
+- [docs/ARCHITECTURE.md](../ARCHITECTURE.md) — общая архитектура системы

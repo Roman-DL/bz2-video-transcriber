@@ -179,4 +179,4 @@ python -m app.services.slides_extractor
   - [`config/prompts/slides/user.md`](../../config/prompts/slides/user.md)
 - **Модели:** [`backend/app/models/schemas.py`](../../backend/app/models/schemas.py) — `SlideInput`, `SlidesExtractionResult`
 - **Утилиты:** [`backend/app/utils/pdf_utils.py`](../../backend/app/utils/pdf_utils.py) — `pdf_to_images()`
-- **ADR:** [`docs/adr/010-slides-integration.md`](../adr/010-slides-integration.md)
+- **ADR:** [`docs/decisions/010-slides-integration.md`](../decisions/010-slides-integration.md)

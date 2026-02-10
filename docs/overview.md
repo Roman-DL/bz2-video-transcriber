@@ -149,10 +149,10 @@ docker-compose up -d
 
 | Документ | Описание |
 |----------|----------|
-| [architecture.md](architecture.md) | Техническая архитектура, схемы |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Техническая архитектура, схемы |
 | [pipeline/](pipeline/) | Детальный pipeline (7 этапов) |
 | [configuration.md](configuration.md) | Конфигурация моделей и промптов |
 | [data-formats.md](data-formats.md) | Форматы файлов, метрики (v0.42+) |
 | [api-reference.md](api-reference.md) | HTTP API |
 | [deployment.md](deployment.md) | Развёртывание на TrueNAS |
-| [adr/](adr/) | Architecture Decision Records |
+| [adr/](decisions/) | Architecture Decision Records |

@@ -167,7 +167,7 @@ class CleanedTranscript(CamelCaseModel):
 - **Ответы** API всегда в camelCase
 - Старые `pipeline_results.json` в snake_case требуют обработки или пересохранения
 
-Подробнее: [ADR-013: CamelCase сериализация](adr/013-api-camelcase-serialization.md)
+Подробнее: [ADR-013: CamelCase сериализация](decisions/013-api-camelcase-serialization.md)
 
 ---
 
@@ -685,7 +685,7 @@ access_level: leader
 
 ### Поля верхнего уровня
 
-> **v0.58+:** API и файл `pipeline_results.json` используют camelCase (см. [ADR-012](adr/012-statistics-tab.md)).
+> **v0.58+:** API и файл `pipeline_results.json` используют camelCase (см. [ADR-012](decisions/012-statistics-tab.md)).
 
 | Поле | Тип | Описание |
 |------|-----|----------|
@@ -1151,6 +1151,6 @@ parser:
 
 ## Связанные документы
 
-- [architecture.md](architecture.md) — схема системы
+- [ARCHITECTURE.md](ARCHITECTURE.md) — схема системы
 - [pipeline/](pipeline/) — этапы обработки
 - [configuration.md](configuration.md) — настройки системы

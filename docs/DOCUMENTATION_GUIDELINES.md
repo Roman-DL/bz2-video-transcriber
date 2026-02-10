@@ -129,7 +129,7 @@ python -m backend.app.services.<service_name>
 ```
 docs/
 ├── DOCUMENTATION_GUIDELINES.md  # Этот файл
-├── architecture.md              # Общая архитектура
+├── ARCHITECTURE.md              # Общая архитектура
 ├── api-reference.md             # API внешних сервисов
 ├── data-formats.md              # Форматы данных
 ├── deployment.md                # Инструкции по деплою
@@ -148,7 +148,7 @@ docs/
 - [ ] Docstrings для класса и публичных методов
 - [ ] Встроенные тесты в `if __name__ == "__main__"`
 - [ ] Добавить этап в docs/pipeline/ (если новый этап)
-- [ ] Обновить docs/architecture.md (если меняется архитектура)
+- [ ] Обновить docs/ARCHITECTURE.md (если меняется архитектура)
 - [ ] Обновить CLAUDE.md (если новая конфигурация)
 
 ---

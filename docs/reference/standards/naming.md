@@ -20,8 +20,8 @@ tags:
 
 | Область | Язык | Примеры |
 |---------|------|---------|
-| Мета-документация (`docs/meta/`) | Русский | MOC, workflows, standards |
-| Проектная документация (`docs/`) | Английский | architecture.md, adr/*.md |
+| Мета-документация (`docs/reference/`) | Русский | MOC, workflows, standards |
+| Проектная документация (`docs/`) | Английский | ARCHITECTURE.md, adr/*.md |
 | Комментарии в коде | Английский | docstrings, TODO |
 
 > [!note] Язык содержимого ≠ язык названия файла
@@ -143,8 +143,8 @@ docs/
 Используем относительные markdown-ссылки:
 
 ```markdown
-См. [Architecture](../architecture.md)
-См. [ADR-007](../adr/007-remove-fallback-use-claude.md)
+См. [Architecture](../ARCHITECTURE.md)
+См. [ADR-007](../decisions/007-remove-fallback-use-claude.md)
 ```
 
 **Почему:**
@@ -185,7 +185,7 @@ docs/
 │   │   └── naming.md                         ✓
 │   └── workflows/
 │       └── update.md                         ✓
-├── architecture.md                           ✓
+├── ARCHITECTURE.md                           ✓
 ├── api-reference.md                          ✓
 ├── adr/
 │   ├── 001-stage-abstraction.md              ✓

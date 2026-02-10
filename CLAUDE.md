@@ -63,7 +63,7 @@ Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longr
 | Тема | Документ |
 |------|----------|
 | Обзор системы | [docs/overview.md](docs/overview.md) |
-| Архитектура | [docs/architecture.md](docs/architecture.md) |
+| Архитектура | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Конфигурация | [docs/configuration.md](docs/configuration.md) |
 | Pipeline (этапы) | [docs/pipeline/](docs/pipeline/) |
 | Stage абстракция | [docs/pipeline/stages.md](docs/pipeline/stages.md) |
@@ -84,7 +84,7 @@ Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longr
 ### При планировании (Plan Mode)
 
 **Перед созданием плана изучи архитектуру:**
-- `docs/architecture.md` — как устроена система, какие компоненты есть
+- `docs/ARCHITECTURE.md` — как устроена система, какие компоненты есть
 - `docs/pipeline/` — ключевая подсистема, этапы обработки
 - `docs/decisions/` — почему приняты текущие решения, какие ограничения
 - `.claude/rules/` — правила модулей, которые будут затронуты
@@ -123,7 +123,7 @@ Claude выполняет эти проверки после каждого за
 
 После каждого завершённого блока работы проверь:
 
-1. **Архитектура изменилась?** → обнови `docs/architecture.md`
+1. **Архитектура изменилась?** → обнови `docs/ARCHITECTURE.md`
 2. **Pipeline изменился?** → обнови соответствующий документ в `docs/pipeline/`
 3. **Новый паттерн или значимое решение?** → предложи создать ADR в `docs/decisions/`
 4. **Структура проекта изменилась?** → обнови секцию "Структура проекта" ниже

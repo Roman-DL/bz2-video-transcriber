@@ -83,7 +83,7 @@ uvicorn app.main:app --reload --port 8801
 | POST | `/api/cache/rerun` | Перезапуск этапа с другой моделью (SSE) |
 | POST | `/api/cache/version` | Установка текущей версии результата |
 
-> **Подробнее:** [ADR-005: Result Caching](../adr/005-result-caching.md)
+> **Подробнее:** [ADR-005: Result Caching](../decisions/005-result-caching.md)
 
 ---
 

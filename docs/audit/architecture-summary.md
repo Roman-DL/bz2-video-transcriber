@@ -119,19 +119,19 @@ tags:
 
 | ADR | Суть решения | Затронутые компоненты |
 |-----|--------------|----------------------|
-| [001](../adr/001-stage-abstraction.md) | Stage абстракция с BaseStage, StageContext, StageRegistry | stages/, orchestrator |
-| [002](../adr/002-pipeline-decomposition.md) | Декомпозиция pipeline.py на pipeline/ пакет | pipeline/ |
-| [003](../adr/003-shared-utils.md) | Shared utils для LLM сервисов | utils/ |
-| [004](../adr/004-ai-client-abstraction.md) | AI клиенты с Context Profiles | ai_clients/, models.yaml |
-| [005](../adr/005-result-caching.md) | Версионирование промежуточных результатов | stage_cache, .cache/ |
-| [006](../adr/006-cloud-model-integration.md) | Интеграция Claude API | ClaudeClient, ProcessingStrategy |
-| [007](../adr/007-remove-fallback-use-claude.md) | Удаление fallback, Claude по умолчанию | orchestrator, stages |
-| [008](../adr/008-external-prompts.md) | Внешние промпты с приоритетом загрузки | config/prompts/, PROMPTS_DIR |
-| [009](../adr/009-extended-metrics.md) | Расширенные метрики (tokens, cost, time) | schemas, ai_clients |
-| [010](../adr/010-slides-integration.md) | Интеграция слайдов презентаций | slides_extractor, SlidesAttachment |
-| [011](../adr/011-processing-mode-separation.md) | Разделение auto/step-by-step режимов | AutoProcessingCompact, StepByStep |
-| [012](../adr/012-statistics-tab.md) | Вкладка "Статистика" для метрик | StatisticsView |
-| [013](../adr/013-api-camelcase-serialization.md) | CamelCase сериализация в API | CamelCaseModel, все endpoints |
+| [001](../decisions/001-stage-abstraction.md) | Stage абстракция с BaseStage, StageContext, StageRegistry | stages/, orchestrator |
+| [002](../decisions/002-pipeline-decomposition.md) | Декомпозиция pipeline.py на pipeline/ пакет | pipeline/ |
+| [003](../decisions/003-shared-utils.md) | Shared utils для LLM сервисов | utils/ |
+| [004](../decisions/004-ai-client-abstraction.md) | AI клиенты с Context Profiles | ai_clients/, models.yaml |
+| [005](../decisions/005-result-caching.md) | Версионирование промежуточных результатов | stage_cache, .cache/ |
+| [006](../decisions/006-cloud-model-integration.md) | Интеграция Claude API | ClaudeClient, ProcessingStrategy |
+| [007](../decisions/007-remove-fallback-use-claude.md) | Удаление fallback, Claude по умолчанию | orchestrator, stages |
+| [008](../decisions/008-external-prompts.md) | Внешние промпты с приоритетом загрузки | config/prompts/, PROMPTS_DIR |
+| [009](../decisions/009-extended-metrics.md) | Расширенные метрики (tokens, cost, time) | schemas, ai_clients |
+| [010](../decisions/010-slides-integration.md) | Интеграция слайдов презентаций | slides_extractor, SlidesAttachment |
+| [011](../decisions/011-processing-mode-separation.md) | Разделение auto/step-by-step режимов | AutoProcessingCompact, StepByStep |
+| [012](../decisions/012-statistics-tab.md) | Вкладка "Статистика" для метрик | StatisticsView |
+| [013](../decisions/013-api-camelcase-serialization.md) | CamelCase сериализация в API | CamelCaseModel, все endpoints |
 
 ---
 
@@ -283,7 +283,7 @@ archive/{year}/
 | Утилиты форматирования | `frontend/src/utils/formatUtils.ts` |
 | Логика обработки UI | `frontend/src/hooks/usePipelineProcessor.ts` |
 | Настройки деплоя | `docker-compose.yml`, `scripts/deploy.sh` |
-| Архитектурные решения | `docs/adr/` |
+| Архитектурные решения | `docs/decisions/` |
 | Документация pipeline | `docs/pipeline/` |
 | API reference | `docs/api-reference.md` |
 

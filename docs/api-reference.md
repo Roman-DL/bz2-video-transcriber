@@ -1093,7 +1093,7 @@ curl -X POST "http://100.64.0.1:8801/api/step/slides" \
 
 ## Связанные документы
 
-- [architecture.md](architecture.md) — схема системы
+- [ARCHITECTURE.md](ARCHITECTURE.md) — схема системы
 - [pipeline.md](pipeline.md) — этапы обработки
 - [adr/005-result-caching.md](adr/005-result-caching.md) — решение по кэшированию
 - [configuration.md](configuration.md) — настройка промптов

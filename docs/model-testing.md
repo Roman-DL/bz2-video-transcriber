@@ -148,5 +148,5 @@ curl -s http://100.64.0.1:11434/api/tags | jq '.models[].name'
 ## Связанные документы
 
 - [testing.md](testing.md) — базовое тестирование pipeline
-- [architecture.md](architecture.md) — архитектура системы
+- [ARCHITECTURE.md](ARCHITECTURE.md) — архитектура системы
 - [pipeline/](pipeline/) — документация этапов обработки

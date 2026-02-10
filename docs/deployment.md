@@ -359,7 +359,7 @@ curl http://100.64.0.1:8801/health/services
 | API JSON | camelCase | `rawTranscript`, `tokensUsed` |
 | TypeScript | camelCase | `rawTranscript`, `tokensUsed` |
 
-Подробнее: [ADR-013: API camelCase Serialization](adr/013-api-camelcase-serialization.md)
+Подробнее: [ADR-013: API camelCase Serialization](decisions/013-api-camelcase-serialization.md)
 
 ---
 

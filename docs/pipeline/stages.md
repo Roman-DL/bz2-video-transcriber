@@ -437,7 +437,7 @@ POST /api/step/slides
 {"type": "result", "data": {...SlidesExtractionResult...}}
 ```
 
-Подробнее: [ADR-010: Slides Integration](../adr/010-slides-integration.md)
+Подробнее: [ADR-010: Slides Integration](../decisions/010-slides-integration.md)
 
 ---
 
@@ -458,7 +458,7 @@ async def execute(self, context: StageContext) -> Result:
 
 > **v0.29+:** Fallback логика удалена. При ошибках LLM генерации (longread, summary) выбрасывается `PipelineError`, пользователь видит явное сообщение об ошибке.
 
-См. [ADR-007: Remove Fallback](../adr/007-remove-fallback-use-claude.md)
+См. [ADR-007: Remove Fallback](../decisions/007-remove-fallback-use-claude.md)
 
 ---
 
@@ -474,5 +474,5 @@ PYTHONPATH=backend python3 backend/app/services/stages/chunk_stage.py
 ## Связанные документы
 
 - [Pipeline Orchestrator](08-orchestrator.md) — координация stages
-- [ADR-004: AI Client Abstraction](../adr/004-ai-client-abstraction.md) — OllamaClient, ClaudeClient
-- [ADR-006: Cloud Model Integration](../adr/006-cloud-model-integration.md) — ProcessingStrategy
+- [ADR-004: AI Client Abstraction](../decisions/004-ai-client-abstraction.md) — OllamaClient, ClaudeClient
+- [ADR-006: Cloud Model Integration](../decisions/006-cloud-model-integration.md) — ProcessingStrategy

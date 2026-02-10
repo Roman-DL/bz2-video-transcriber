@@ -139,7 +139,7 @@ chunks = factory.create_chunks(cleaned_transcript, metadata)
 
 ## Связанные документы
 
-- [architecture.md](../architecture.md) — обновлённая архитектура
+- [ARCHITECTURE.md](../ARCHITECTURE.md) — обновлённая архитектура
 - [001-stage-abstraction.md](001-stage-abstraction.md) — Stage абстракция
 - [CLAUDE.md](../../CLAUDE.md) — структура проекта
 

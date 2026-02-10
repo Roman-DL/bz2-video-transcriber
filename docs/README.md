@@ -23,7 +23,7 @@ tags:
 
 | Документ | Описание |
 |----------|----------|
-| [architecture.md](architecture.md) | Техническая архитектура, схемы |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Техническая архитектура, схемы |
 | [configuration.md](configuration.md) | Конфигурация моделей, промптов, pricing |
 | [web-ui.md](web-ui.md) | Документация Web UI |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Процесс разработки новых функций |
@@ -62,19 +62,19 @@ tags:
 
 | ADR | Описание |
 |-----|----------|
-| [001](adr/001-stage-abstraction.md) | Stage абстракция |
-| [002](adr/002-pipeline-decomposition.md) | Декомпозиция pipeline |
-| [003](adr/003-shared-utils.md) | Shared utilities |
-| [004](adr/004-ai-client-abstraction.md) | AI client абстракция |
-| [005](adr/005-result-caching.md) | Stage result cache |
-| [006](adr/006-cloud-model-integration.md) | Cloud model integration (Claude) |
-| [007](adr/007-remove-fallback-use-claude.md) | Remove fallback, use Claude |
-| [008](adr/008-external-prompts.md) | External prompts |
-| [009](adr/009-extended-metrics.md) | Extended metrics (v0.42+) |
-| [010](adr/010-slides-integration.md) | Slides integration (v0.51+) |
-| [011](adr/011-processing-mode-separation.md) | Processing mode separation |
-| [012](adr/012-statistics-tab.md) | Statistics tab (v0.58+) |
-| [013](adr/013-api-camelcase-serialization.md) | API camelCase serialization (v0.59+) |
+| [001](decisions/001-stage-abstraction.md) | Stage абстракция |
+| [002](decisions/002-pipeline-decomposition.md) | Декомпозиция pipeline |
+| [003](decisions/003-shared-utils.md) | Shared utilities |
+| [004](decisions/004-ai-client-abstraction.md) | AI client абстракция |
+| [005](decisions/005-result-caching.md) | Stage result cache |
+| [006](decisions/006-cloud-model-integration.md) | Cloud model integration (Claude) |
+| [007](decisions/007-remove-fallback-use-claude.md) | Remove fallback, use Claude |
+| [008](decisions/008-external-prompts.md) | External prompts |
+| [009](decisions/009-extended-metrics.md) | Extended metrics (v0.42+) |
+| [010](decisions/010-slides-integration.md) | Slides integration (v0.51+) |
+| [011](decisions/011-processing-mode-separation.md) | Processing mode separation |
+| [012](decisions/012-statistics-tab.md) | Statistics tab (v0.58+) |
+| [013](decisions/013-api-camelcase-serialization.md) | API camelCase serialization (v0.59+) |
 
 ## Гайдлайны
 

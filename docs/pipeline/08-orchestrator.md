@@ -71,7 +71,7 @@ backend/app/services/pipeline/
 | **stage_cache** | Сохранение/загрузка версионированных результатов этапов |
 | **processing_strategy** | Выбор между local (Ollama) и cloud (Claude) провайдером |
 
-> **Архитектурные решения:** [ADR-002](../adr/002-pipeline-decomposition.md)
+> **Архитектурные решения:** [ADR-002](../decisions/002-pipeline-decomposition.md)
 
 ---
 
@@ -241,7 +241,7 @@ async with strategy.create_client("claude-sonnet-4-5") as client:
 
 > **v0.29+:** Метод `get_client_with_fallback()` удалён. Ошибки пробрасываются вызывающему коду.
 
-> **Подробнее:** [ADR-006](../adr/006-cloud-model-integration.md)
+> **Подробнее:** [ADR-006](../decisions/006-cloud-model-integration.md)
 
 ---
 
@@ -281,7 +281,7 @@ archive/2025/01.09 ПШ/Video Title/
     └── ...
 ```
 
-> **Подробнее:** [ADR-005](../adr/005-result-caching.md)
+> **Подробнее:** [ADR-005](../decisions/005-result-caching.md)
 
 ---
 
@@ -346,9 +346,9 @@ files = await orchestrator.save(
 ## Связанные документы
 
 - [Stage Abstraction](stages.md) — система этапов обработки
-- [ADR-002: Pipeline Decomposition](../adr/002-pipeline-decomposition.md)
-- [ADR-005: Result Caching](../adr/005-result-caching.md)
-- [ADR-006: Cloud Model Integration](../adr/006-cloud-model-integration.md)
+- [ADR-002: Pipeline Decomposition](../decisions/002-pipeline-decomposition.md)
+- [ADR-005: Result Caching](../decisions/005-result-caching.md)
+- [ADR-006: Cloud Model Integration](../decisions/006-cloud-model-integration.md)
 
 ## История изменений
 

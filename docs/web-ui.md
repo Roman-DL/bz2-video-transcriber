@@ -149,7 +149,7 @@ frontend/src/
 - Progress tracking (progress, estimatedSeconds, elapsedSeconds)
 - Prompt и model overrides (для пошагового режима)
 
-**Подробнее:** [architecture.md#frontend-processing-architecture](architecture.md#frontend-processing-architecture-v056)
+**Подробнее:** [ARCHITECTURE.md#frontend-processing-architecture](ARCHITECTURE.md#frontend-processing-architecture-v056)
 
 ## API интеграция
 
@@ -213,6 +213,6 @@ npm run build
 
 ## Связанные документы
 
-- [architecture.md](architecture.md) — техническая архитектура
+- [ARCHITECTURE.md](ARCHITECTURE.md) — техническая архитектура
 - [pipeline/](pipeline/) — детальный pipeline
 - [deployment.md](deployment.md) — развёртывание

@@ -304,8 +304,8 @@ models:
 ```
 
 Дополнительно см.:
-- [ADR-004: Абстракция AI клиентов](adr/004-ai-client-abstraction.md)
-- [ADR-006: Интеграция облачных моделей](adr/006-cloud-model-integration.md)
+- [ADR-004: Абстракция AI клиентов](decisions/004-ai-client-abstraction.md)
+- [ADR-006: Интеграция облачных моделей](decisions/006-cloud-model-integration.md)
 
 ### glossary.yaml
 
@@ -418,7 +418,7 @@ vim /mnt/main/work/bz2/video/prompts/cleaning/system.md
 rm /mnt/main/work/bz2/video/prompts/cleaning/system.md
 ```
 
-Подробнее: [ADR-008: Внешние промпты](adr/008-external-prompts.md)
+Подробнее: [ADR-008: Внешние промпты](decisions/008-external-prompts.md)
 
 ## Варианты промптов (v0.31+)
 

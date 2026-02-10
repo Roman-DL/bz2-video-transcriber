@@ -72,9 +72,9 @@ print('OK' if result else 'FAIL')
 
 ### Для крупных функций
 
-1. Создать RFC-документ в `docs/proposals/{название}.md`
+1. Создать RFC-документ в `docs/requirements/{название}.md`
 2. Описать: цель, подход, затрагиваемые компоненты
-3. После реализации: создать ADR в `docs/adr/`
+3. После реализации: создать ADR в `docs/decisions/`
 4. Перенести описание в [overview.md](overview.md), RFC остаётся как история
 
 ---
@@ -84,7 +84,7 @@ print('OK' if result else 'FAIL')
 При принятии значимых архитектурных решений создавать ADR:
 
 ```
-docs/adr/
+docs/decisions/
 ├── 001-stage-abstraction.md
 ├── 002-pipeline-decomposition.md
 ...
@@ -135,7 +135,7 @@ docs/adr/
 ### Новый API endpoint
 
 - [ ] Добавить route в `backend/app/api/`
-- [ ] Обновить `docs/architecture.md` (таблица API Endpoints)
+- [ ] Обновить `docs/ARCHITECTURE.md` (таблица API Endpoints)
 - [ ] Обновить `docs/api-reference.md`
 - [ ] Обновить `docs/pipeline/09-api.md` если endpoint связан с pipeline
 
@@ -175,7 +175,7 @@ docs/adr/
 | Категория | Где | Пример |
 |-----------|-----|--------|
 | Архитектура | docs/*.md | Схемы, потоки данных |
-| Решения | docs/adr/*.md | Почему выбран подход A, а не B |
+| Решения | docs/decisions/*.md | Почему выбран подход A, а не B |
 | API контракты | docs/api-reference.md | HTTP API endpoints |
 | Pipeline этапы | docs/pipeline/*.md | Логика, модели данных |
 | Конфигурация | docs/configuration.md | Переменные окружения, модели |
@@ -200,7 +200,7 @@ docs/adr/
 |-----------|----------------|--------------|
 | Новый сервис/этап | Да | docs/pipeline/, stages.md |
 | Рефакторинг метода | Нет | Только docstring в коде |
-| Изменение публичного API | Да | architecture.md, api-reference.md |
+| Изменение публичного API | Да | ARCHITECTURE.md, api-reference.md |
 | Новая конфигурация | Да | configuration.md, CLAUDE.md |
 | Архитектурное решение | Да | Создать ADR |
 | Новый формат данных | Да | data-formats.md |
@@ -213,7 +213,7 @@ docs/adr/
 docs/
 ├── README.md                    # Навигация
 ├── overview.md                  # Обзор системы (для всех)
-├── architecture.md              # Техническая архитектура
+├── ARCHITECTURE.md              # Техническая архитектура
 ├── configuration.md             # Конфигурация моделей, промптов
 ├── web-ui.md                    # Web интерфейс
 ├── CONTRIBUTING.md              # Этот документ

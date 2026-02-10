@@ -103,16 +103,16 @@ tags:
 
 ## Связанные документы
 
-- [architecture.md](../architecture.md) — схема системы, компоненты
+- [ARCHITECTURE.md](../ARCHITECTURE.md) — схема системы, компоненты
 - [data-formats.md](../data-formats.md) — форматы файлов
 - [api-reference.md](../api-reference.md) — HTTP API сервисов
 - [error-handling.md](error-handling.md) — обработка ошибок
 
 ### Architecture Decision Records
 
-- [ADR-002: Pipeline Decomposition](../adr/002-pipeline-decomposition.md) — декомпозиция на модули
-- [ADR-004: AI Client Abstraction](../adr/004-ai-client-abstraction.md) — OllamaClient, ClaudeClient
-- [ADR-005: Result Caching](../adr/005-result-caching.md) — версионирование результатов
-- [ADR-006: Cloud Model Integration](../adr/006-cloud-model-integration.md) — ProcessingStrategy
-- [ADR-007: Remove Fallback, Use Claude](../adr/007-remove-fallback-use-claude.md) — Claude по умолчанию (v0.29+)
-- [ADR-010: Slides Integration](../adr/010-slides-integration.md) — извлечение текста со слайдов (v0.51+)
+- [ADR-002: Pipeline Decomposition](../decisions/002-pipeline-decomposition.md) — декомпозиция на модули
+- [ADR-004: AI Client Abstraction](../decisions/004-ai-client-abstraction.md) — OllamaClient, ClaudeClient
+- [ADR-005: Result Caching](../decisions/005-result-caching.md) — версионирование результатов
+- [ADR-006: Cloud Model Integration](../decisions/006-cloud-model-integration.md) — ProcessingStrategy
+- [ADR-007: Remove Fallback, Use Claude](../decisions/007-remove-fallback-use-claude.md) — Claude по умолчанию (v0.29+)
+- [ADR-010: Slides Integration](../decisions/010-slides-integration.md) — извлечение текста со слайдов (v0.51+)

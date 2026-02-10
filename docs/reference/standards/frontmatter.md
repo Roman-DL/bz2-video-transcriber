@@ -164,14 +164,14 @@ tags:
 
 ```yaml
 related:
-  - ../architecture.md
-  - ../adr/007-remove-fallback-use-claude.md
+  - ../ARCHITECTURE.md
+  - ../decisions/007-remove-fallback-use-claude.md
 ```
 
 > [!note] Формат ссылок
 > Используем относительные markdown-ссылки — они понятны AI, работают в Obsidian, GitHub и VS Code.
 > ```markdown
-> См. [Architecture](../architecture.md)
+> См. [Architecture](../ARCHITECTURE.md)
 > ```
 
 ---
@@ -191,7 +191,7 @@ ai_scope: none
 | `project` | Использовать для работы с проектом (по умолчанию) |
 | `none` | Не использовать (мета-документация) |
 
-> [!warning] Только для docs/meta/
+> [!warning] Только для docs/reference/
 > Это поле нужно только для мета-документации, чтобы агенты её игнорировали при работе с кодом проекта.
 
 ---
@@ -286,7 +286,7 @@ tags:
 ✓ doc_type — одно из допустимых значений
 ✓ status — одно из допустимых значений  
 ✓ updated — формат YYYY-MM-DD
-✓ Для docs/meta/ — есть ai_scope: none
+✓ Для docs/reference/ — есть ai_scope: none
 ```
 
 ---
@@ -298,8 +298,8 @@ tags:
 Добавить frontmatter в первую очередь:
 
 - `docs/overview.md`
-- `docs/architecture.md`
-- `docs/adr/*.md` (все ADR)
+- `docs/ARCHITECTURE.md`
+- `docs/decisions/*.md` (все ADR)
 - `docs/pipeline/stages.md`
 
 ### Приоритет 2: Справочные
@@ -311,14 +311,14 @@ tags:
 
 ### Приоритет 3: Остальные
 
-- `docs/proposals/*`
+- `docs/requirements/*`
 - `docs/research/*`
 - `docs/deployment.md`
 
 > [!tip] Промпт для Claude Code
 > ```
 > Добавь стандартный frontmatter во все .md файлы в docs/.
-> Используй стандарт из docs/meta/standards/frontmatter.md.
+> Используй стандарт из docs/reference/standards/frontmatter.md.
 > Определи doc_type по содержимому и расположению.
 > Определи status по baseline-2026-01.md.
 > Сохрани существующие поля (created, tags, related).

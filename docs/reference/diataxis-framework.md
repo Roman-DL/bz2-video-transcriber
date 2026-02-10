@@ -322,7 +322,7 @@ Audit не обновляется. Для нового состояния соз
 - `docs/pipeline/*.md` — описание этапов
 
 ### Explanation
-- `docs/architecture.md` — как устроена система
+- `docs/ARCHITECTURE.md` — как устроена система
 - `docs/overview.md` — общая картина
 - `docs/research/*.md` — исследования и обоснования
 
@@ -331,12 +331,12 @@ Audit не обновляется. Для нового состояния соз
 - `docs/testing.md` — как тестировать
 
 ### ADR
-- `docs/adr/001-stage-abstraction.md`
-- `docs/adr/007-remove-fallback-use-claude.md`
+- `docs/decisions/001-stage-abstraction.md`
+- `docs/decisions/007-remove-fallback-use-claude.md`
 - ... (13 ADR в проекте)
 
 ### Proposal
-- `docs/proposals/transcriptor-v2-requirements.md`
+- `docs/requirements/transcriptor-v2-requirements.md`
 
 ### Audit
 - `docs/audit/baseline-2026-01.md`
@@ -380,7 +380,7 @@ Audit не обновляется. Для нового состояния соз
 ### Смешение типов
 ❌ Документ одновременно объясняет "почему" и даёт справку по API
 
-✅ Разделить на `architecture.md` (Explanation) и `api-reference.md` (Reference)
+✅ Разделить на `ARCHITECTURE.md` (Explanation) и `api-reference.md` (Reference)
 
 ### Reference с рассуждениями
 ❌ В таблице параметров — абзацы о причинах выбора значений
