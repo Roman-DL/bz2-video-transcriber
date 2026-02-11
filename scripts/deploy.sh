@@ -58,5 +58,5 @@ sshpass -p "$DEPLOY_PASSWORD" ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
 
 echo ""
 echo "Deployed successfully!"
-echo "App: http://100.64.0.1:8801"
-echo "Health: curl http://100.64.0.1:8801/health"
+echo "App: https://transcriber.home"
+echo "Health: curl https://transcriber.home/health"

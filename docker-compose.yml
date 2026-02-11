@@ -3,8 +3,8 @@ services:
     build: ./backend
     container_name: bz2-transcriber
     restart: unless-stopped
-    ports:
-      - "8801:80"
+    expose:
+      - "80"
     volumes:
       # Data - videos and processing results
       - /mnt/main/work/bz2/video:/data:rw

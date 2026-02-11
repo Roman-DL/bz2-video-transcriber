@@ -31,8 +31,8 @@ tags:
 |----------|----------|
 | Путь проекта | `/mnt/apps-pool/dev/projects/bz2-video-transcribe/` |
 | Управление контейнерами | Dockge UI (http://100.64.0.1:5001) |
-| Порт Backend (API) | 8801 |
-| Порт Frontend (Web UI) | 8802 |
+| HTTPS доступ | https://transcriber.home (через Traefik) |
+| Порт Frontend (для Traefik) | 8802 |
 | Диапазон dev-портов | 8800-8899 |
 
 ---
@@ -143,8 +143,8 @@ services:
     build: ./backend
     container_name: bz2-transcriber
     restart: unless-stopped
-    ports:
-      - "8801:80"
+    expose:
+      - "80"
     volumes:
       - /mnt/main/work/bz2/video:/data:rw
       - ./config:/app/config:ro
@@ -231,36 +231,24 @@ sudo docker compose up -d --build
 
 ### URL приложения
 
-| Сервис | Локальная сеть | Tailscale |
-|--------|----------------|-----------|
-| Frontend (Web UI) | http://192.168.1.152:8802 | http://100.64.0.1:8802 |
-| Backend (API) | http://192.168.1.152:8801 | http://100.64.0.1:8801 |
+| Сервис | URL |
+|--------|-----|
+| Web UI (основной) | https://transcriber.home |
+| Health check | https://transcriber.home/health |
+| Frontend (прямой, для Traefik) | http://192.168.1.152:8802 |
 
-### HTTPS через Traefik (опционально)
+> **v0.63+:** HTTPS через Traefik — основной способ доступа. Бэкенд не имеет прямого порта, доступен только через nginx внутри Docker-сети.
 
-Если нужен HTTPS с доменом `transcriber.home`:
+### HTTPS через Traefik
 
-1. **DNS в Headscale** (на VPS):
-   ```bash
-   ssh root@83.222.22.23
-   nano /opt/beget/headscale/config/config.yaml
-   # Добавить в dns.extra_records:
-   #   - name: "transcriber.home"
-   #     type: "A"  
-   #     value: "100.64.0.1"
-   cd /opt/beget/headscale && docker compose restart headscale
-   ```
+Traefik выступает reverse proxy с TLS termination (mkcert сертификаты). Приложение работает по HTTP, Traefik терминирует TLS.
 
-2. **Сертификат mkcert** (на Mac):
-   ```bash
-   cd ~/Documents/Certificates/home-lab
-   mkcert -cert-file cert.pem -key-file key.pem \
-     media.home cloud.home nas.home ... transcriber.home home
-   ```
+**Автоматическая настройка:**
+```bash
+./scripts/setup-https.sh
+```
 
-3. **Скопировать на сервер и добавить роутер в Traefik**
-
-После настройки: https://transcriber.home
+**Ручная настройка** — см. [Подключение приложения по HTTPS](research/Подключение_приложения_по_HTTPS.md)
 
 ---
 
@@ -340,10 +328,10 @@ sudo docker exec -it bz2-transcriber ls -la /app/config/
 ### Health endpoint
 
 ```bash
-curl http://100.64.0.1:8801/health
+curl https://transcriber.home/health
 # {"status":"ok"}
 
-curl http://100.64.0.1:8801/health/services
+curl https://transcriber.home/health/services
 # {"whisper":true,"ollama":true,...}
 ```
 
@@ -390,8 +378,8 @@ sshpass -p "$DEPLOY_PASSWORD" ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
   "cd ${DEPLOY_PATH} && echo '$DEPLOY_PASSWORD' | sudo -S docker compose up -d --build"
 
 echo "Deployed:"
-echo "  Frontend: http://100.64.0.1:8802"
-echo "  Backend:  http://100.64.0.1:8801"
+echo "  App: https://transcriber.home"
+echo "  Health: https://transcriber.home/health"
 ```
 
 ### Credentials (.env.local)
@@ -429,8 +417,7 @@ sudo docker exec bz2-transcriber rm -rf /data/temp/*
 
 | Ресурс | URL |
 |--------|-----|
-| Frontend (Web UI) | http://100.64.0.1:8802 |
-| Backend (API) | http://100.64.0.1:8801 |
+| Web UI (HTTPS) | https://transcriber.home |
 | Dockge (управление) | http://100.64.0.1:5001 |
 | Ollama API | http://100.64.0.1:11434 |
 | Whisper API | http://100.64.0.1:9000 |

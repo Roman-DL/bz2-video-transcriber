@@ -27,9 +27,9 @@ curl http://100.64.0.1:9000/health        # Whisper
 # Деплой на сервер (локальный docker-compose не работает!)
 ./scripts/deploy.sh
 
-# Web UI
-http://100.64.0.1:8802      # Frontend
-http://100.64.0.1:8801      # Backend API
+# Web UI (HTTPS через Traefik)
+https://transcriber.home     # Основной доступ
+https://transcriber.home/health  # Health check
 ```
 
 ## Архитектура
