@@ -214,6 +214,7 @@ docs/pipeline/                    # Документация pipeline (14 фай
 
 | Версия | Ключевые изменения |
 |--------|--------------------|
+| v0.63 | HTTPS через Traefik, убран прямой порт бэкенда |
 | v0.62 | Description generation moved from Save to Chunk stage |
 | v0.60 | BZ2-Bot chunk format, describe_model, split >600w |
 | v0.59 | API camelCase serialization, Statistics tab |
