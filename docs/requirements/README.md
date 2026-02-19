@@ -8,10 +8,15 @@
 
 | Фича | Статус | Дата | План |
 |------|--------|------|------|
-| [BZ2-Bot chunk import контракт](chunk-import-contract.md) | Done | 2026-02-08 | v0.60 |
 | [Обработка преамбулы в H2 chunker](h2-chunker-preamble.md) | Draft | 2026-02-10 | v0.60.x |
 | [Импорт готовых MD-транскриптов](md-transcript-import.md) | Draft | 2026-02-19 | v0.64 |
 | [Поддержка мультиспикерного контента](multi-speaker-support.md) | Draft | 2026-02-19 | v0.65 |
+
+## Архив
+
+| Фича | Версия | Дата |
+|------|--------|------|
+| [BZ2-Bot chunk import контракт](archive/chunk-import-contract.md) | v0.60 | 2026-02-08 |
 
 ## Статусы
 
