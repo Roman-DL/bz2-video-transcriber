@@ -127,6 +127,59 @@
 | Сущность | Изменение | Описание |
 |----------|-----------|----------|
 | `RawTranscript` | Использование существующей модели | Один сегмент с полным текстом, `whisper_model="macwhisper-large-v2"` |
+| `VideoMetadata` | Новое поле `speaker_info` | `SpeakerInfo | None = None` — результат парсинга спикеров из MD |
+
+### SpeakerInfo (новая модель)
+
+Модель для хранения информации о спикерах, извлечённой из содержимого MD-файла. Создаётся в v0.64 для отображения в UI, в v0.65 используется для адаптации промптов и шапки чанков.
+
+```python
+# backend/app/models/schemas.py
+class SpeakerInfo(CamelCaseModel):
+    named_speakers: list[str]      # ["Беркин Андрей", "Дмитрук Светлана"]
+    anonymous_speakers: list[str]   # ["Speaker3", "Speaker5"]
+    scenario: str                   # "single" | "co_speakers" | "lineup" | "qa" | ...
+```
+
+Хранится в `VideoMetadata.speaker_info` — доступна во всех stages и saver без изменения сигнатур. Для не-MD файлов — `None`.
+
+### Парсер спикеров (новый модуль)
+
+```python
+# backend/app/utils/speaker_utils.py
+
+SPEAKER_PATTERN = re.compile(r'^(Speaker\d+|[А-ЯЁA-Z][а-яёa-z]+ [А-ЯЁA-Z][а-яёa-z]+)$')
+
+def parse_speakers(text: str) -> SpeakerInfo:
+    """Анализирует текст MD-файла и определяет спикеров и сценарий."""
+    named = set()
+    anonymous = set()
+
+    for line in text.splitlines():
+        line = line.strip()
+        if SPEAKER_PATTERN.match(line):
+            if line.startswith("Speaker"):
+                anonymous.add(line)
+            else:
+                named.add(line)
+
+    return SpeakerInfo(
+        named_speakers=sorted(named),
+        anonymous_speakers=sorted(anonymous),
+        scenario=_determine_scenario(len(named), len(anonymous) > 0),
+    )
+
+def _determine_scenario(named_count: int, has_anonymous: bool) -> str:
+    if named_count <= 1 and not has_anonymous:
+        return "single"
+    if named_count <= 1 and has_anonymous:
+        return "qa"
+    if named_count == 2:
+        return "co_speakers_qa" if has_anonymous else "co_speakers"
+    return "lineup_qa" if has_anonymous else "lineup"
+```
+
+> **Подготовка для v0.65:** Парсер и модель создаются в v0.64 для UI-отображения. В v0.65 они переиспользуются для адаптации промптов и шапки чанков — без рефакторинга.
 
 ### Создание RawTranscript из MD-файла
 
@@ -144,6 +197,10 @@ transcript = RawTranscript(
     confidence=None,
     processing_time_sec=0,
 )
+
+# Парсинг спикеров → в metadata
+speaker_info = parse_speakers(text)
+metadata.speaker_info = speaker_info
 ```
 
 ---
@@ -171,6 +228,11 @@ transcript = RawTranscript(
 - [ ] Адаптировать `TranscribeStage` — загрузка текста из .md вместо Whisper
 - [ ] Создание `RawTranscript` из текста файла (один сегмент, `whisper_model="macwhisper-large-v2"`)
 - [ ] Оценка `duration_seconds` по количеству слов (~130 слов/мин)
+- [ ] Создать `SpeakerInfo` модель в `schemas.py`
+- [ ] Создать `backend/app/utils/speaker_utils.py` — парсинг спикеров из текста
+- [ ] Добавить `speaker_info: SpeakerInfo | None = None` в `VideoMetadata`
+- [ ] В TranscribeStage для MD: парсинг спикеров → `metadata.speaker_info`
+- [ ] Обновить clean prompt: сохранять метки спикеров (`Фамилия Имя`, `SpeakerN`) — не удалять как "реплики ведущих"
 - [ ] Копирование исходного .md файла в архив (без изменения имени)
 - [ ] Адаптировать Save — не копировать audio.mp3 для MD-файлов
 - [ ] Проверить, что DATED_OFFSITE_PATTERN корректно парсит имена `.md` файлов
@@ -199,6 +261,14 @@ transcript = RawTranscript(
 | MD + слайды | Слайды прикрепляются и используются в longread/story |
 | Оценка длительности | Соответствует формуле words/130*60 |
 | Архив для MD-файла | Исходный .md скопирован, нет audio.mp3, остальные файлы присутствуют |
+| Парсер: MD с 1 спикером | `speaker_info.scenario == "single"` |
+| Парсер: MD с 2 спикерами | `scenario == "co_speakers"`, оба в `named_speakers` |
+| Парсер: MD с SpeakerN | `scenario == "qa"`, SpeakerN в `anonymous_speakers` |
+| Парсер: MD без меток | `scenario == "single"`, пустые списки |
+| Не-MD файл | `speaker_info is None` |
+| Clean: метки спикеров | `Фамилия Имя` на отдельных строках сохранены |
+| Clean: SpeakerN | `SpeakerN` сохранён как есть |
+| UI step-by-step | Показывает количество и имена спикеров из `speaker_info` |
 
 ---
 
@@ -207,6 +277,9 @@ transcript = RawTranscript(
 - [x] **Исходный .md в архив** — да, копируется без изменения имени для повторного запуска
 - [x] **Метки спикеров** — plain text без таймкодов (`Фамилия Имя` на отдельной строке). Выделение `**` — на будущее
 - [x] **whisper_model маркер** — `"macwhisper-large-v2"` (конкретный источник, отображается в UI и metadata BZ2-Bot)
+- [x] **Парсер спикеров в v0.64** — создаётся для UI-отображения, переиспользуется в v0.65 для промптов и saver
+- [x] **SpeakerInfo в VideoMetadata** — `speaker_info: SpeakerInfo | None = None`, доступна во всех stages
+- [x] **Clean prompt** — обновить для сохранения меток спикеров (подготовка для v0.65)
 
 ---
 
@@ -215,6 +288,7 @@ transcript = RawTranscript(
 | Дата | Версия | Изменения |
 |------|--------|-----------|
 | 2026-02-19 | 1.0 | Первоначальная версия |
+| 2026-02-19 | 1.1 | Подготовка для v0.65: SpeakerInfo + speaker_utils.py, speaker_info в VideoMetadata, clean prompt для меток спикеров |
 
 ---
 
