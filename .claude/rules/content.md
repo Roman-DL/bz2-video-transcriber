@@ -13,17 +13,17 @@ globs: backend/app/services/parser.py,backend/app/services/saver.py,*longread*,*
 - `regular`: `archive/{year}/{event_type}/{MM.DD}/{Title}/`
 - `offsite`: `archive/{year}/Выездные/{event_name}/{Title}/`
 
-## Определение типа по имени файла
-- Regular events (ПШ): дата + тип в имени → `educational`
-- Dated offsite с маркером `#` в имени → `leadership`
-- Dated offsite без `#` → `educational`
-- Offsite folder `Фамилия (Имя)` → `leadership`
-- Offsite folder `Фамилия — Название` → `educational`
+## Определение типа по имени файла (v0.69+)
+- Единый формат: `{дата} {тип}[.{поток}]. {тема} ({спикер}).ext`
+- Тема = `"История"` → `content_type=LEADERSHIP` (на любом типе события)
+- Иначе → `content_type=EDUCATIONAL`
+- `event_category` определяется через `events.yaml` → поле `category` у типа события
 - ВСЕГДА использовать `config/events.yaml` для типов событий при парсинге
 
 ## Модели
-- `VideoMetadata`: `content_type`, `event_category`, `event_name`, `is_offsite` (computed)
+- `VideoMetadata`: `content_type`, `event_category`, `event_name: str` (всегда заполнен, v0.69+), `is_offsite` (computed)
 - `ContentType` и `EventCategory` — Enum из `app.models.schemas`
+- `event_name` — display name из `resolve_event_name()`: `"ПШ.SV"`, `"Форум TABTeam"` и т.д.
 
 ## Slides Integration
 - Слайды опциональны — появляются если пользователь прикрепил файлы
