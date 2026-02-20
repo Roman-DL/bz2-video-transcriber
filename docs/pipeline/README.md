@@ -1,7 +1,7 @@
 ---
 doc_type: reference
 status: active
-updated: 2026-01-24
+updated: 2026-02-20
 audience: [developer, ai-agent]
 tags:
   - pipeline
@@ -59,13 +59,14 @@ tags:
 
 > **v0.25+:** Chunk — детерминированный (парсинг H2 заголовков), выполняется ПОСЛЕ Longread/Story.
 > **v0.51+:** Slides — опциональный шаг извлечения текста со слайдов (если пользователь прикрепил файлы).
+> **v0.64+:** MD-файлы — готовые транскрипты из MacWhisper, Whisper пропускается, текст загружается напрямую.
 
 ## Этапы
 
 | # | Этап | Документ | Инструмент | Вход | Выход |
 |---|------|----------|------------|------|-------|
 | 1 | Parse Filename | [01-parse.md](01-parse.md) | Python regex | `video_path` (Path) | `VideoMetadata` |
-| 2 | Transcribe | [02-transcribe.md](02-transcribe.md) | Whisper API | `VideoMetadata`, `video_path` | `Tuple[RawTranscript, Path]` |
+| 2 | Transcribe | [02-transcribe.md](02-transcribe.md) | Whisper API / File Load | `VideoMetadata`, `video_path` | `Tuple[RawTranscript, Path \| None]` |
 | 3 | Clean | [03-clean.md](03-clean.md) | Claude + Glossary | `RawTranscript`, `VideoMetadata` | `CleanedTranscript` |
 | 4 | **Slides** | (опционально, API) | Claude Vision | Изображения/PDF | `SlidesExtractionResult` |
 | 5 | Longread | [05-longread.md](05-longread.md) | Claude | `CleanedTranscript`, `VideoMetadata` | `Longread` (EDUCATIONAL) |
