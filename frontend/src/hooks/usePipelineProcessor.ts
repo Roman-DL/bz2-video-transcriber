@@ -39,7 +39,7 @@ export interface StepData {
   metadata?: VideoMetadata;
   rawTranscript?: RawTranscript;
   displayText?: string;
-  audioPath?: string;
+  audioPath?: string | null;
   cleanedTranscript?: CleanedTranscript;
   slidesExtraction?: SlidesExtractionResult;
   chunks?: TranscriptChunks;

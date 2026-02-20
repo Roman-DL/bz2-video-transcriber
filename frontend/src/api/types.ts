@@ -311,7 +311,7 @@ export interface StepSaveRequest {
   summary?: Summary;
   // Leadership content (optional)
   story?: Story;
-  audioPath?: string;
+  audioPath?: string | null;
   slidesExtraction?: SlidesExtractionResult;
 }
 
