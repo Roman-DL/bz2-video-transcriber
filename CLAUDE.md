@@ -215,6 +215,7 @@ docs/pipeline/                    # Документация pipeline (14 фай
 
 | Версия | Ключевые изменения |
 |--------|--------------------|
+| v0.68 | Калибровка longread, slides в summary, json-repair, оценки прогресса v6 |
 | v0.67 | Single-pass лонгрид для моделей с большим контекстом, обновлённые промпты longread/summary |
 | v0.65 | Оптимизация очистки: семантический глоссарий, Haiku default, chunk 40K |
 | v0.64 | Импорт MD-транскриптов из MacWhisper, SpeakerInfo |

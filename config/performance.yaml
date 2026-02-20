@@ -14,9 +14,9 @@
 # v3 (2026-01-11): 55 min file, but with 20-30% margin (overestimated)
 # v4 (2026-01-12): same 55 min file, no margin (accurate estimates)
 
-version: 5
+version: 6
 updated: "2026-02-20"
-notes: "v5: Added longread and slides estimates, calibrated for Claude"
+notes: "v6: Calibrated for Claude single-pass longread, haiku clean/slides"
 
 # Transcription: depends on video duration
 # Formula: estimated_time = base_time + (video_duration_seconds * factor)
@@ -32,8 +32,9 @@ transcribe:
 clean:
   # Seconds per 1000 input characters
   # v3: 1.4 (ratio=0.87, completed at 85%)
-  # v4: (59.0-2)/47.2k = 1.21 → 1.2
-  factor_per_1k_chars: 1.2
+  # v4: (59.0-2)/47.2k = 1.21 → 1.2 (Ollama)
+  # v6: (340.1-2)/60.5k = 5.58 (Claude haiku, 60K chars, 2 runs avg)
+  factor_per_1k_chars: 5.6
   base_time: 2.0
 
 # Semantic chunking (LLM): depends on input text length
@@ -50,26 +51,29 @@ chunk:
 summarize:
   # Seconds per 1000 input characters
   # v3: 1.2 (ratio=0.78, completed at 75%)
-  # v4: (21.9-3)/20.9k = 0.90 → 0.9
-  # Includes: outline extraction + LLM generation
-  factor_per_1k_chars: 0.9
+  # v4: (21.9-3)/20.9k = 0.90 → 0.9 (Ollama)
+  # v6: (83.7-3)/49.9k = 1.62 (Claude sonnet, 50K chars, includes retry on JSON error)
+  # Includes: outline extraction + LLM generation + possible retry
+  factor_per_1k_chars: 1.6
   base_time: 3.0
 
 # Longread generation (LLM): depends on input text length
 # Formula: estimated_time = base_time + (input_chars / 1000 * factor)
 longread:
   # Seconds per 1000 input characters
-  # v5: initial estimate from map-reduce run (306s / 67K chars)
-  # Will be recalibrated after single-pass runs
-  factor_per_1k_chars: 4.4
+  # v5: 4.4 (map-reduce, 306s / 67K chars)
+  # v6: avg of 2 single-pass runs:
+  #   (209.3-10)/62.8k = 3.17, (232.2-10)/69.7k = 3.19 → 3.2
+  factor_per_1k_chars: 3.2
   base_time: 10.0
 
 # Slides extraction (Claude Vision): depends on slide count
 # Formula: estimated_time = base_time + (slides_count * factor)
 slides:
   # Seconds per slide (Haiku Vision API)
-  # v5: initial estimate from 19-slide run (43.4s / 19 slides)
-  factor_per_slide: 2.3
+  # v5: 2.3 (initial estimate from 19-slide run)
+  # v6: (43.5-3)/19 = 2.13 → 2.1 (confirmed with 19 slides)
+  factor_per_slide: 2.1
   base_time: 3.0
 
 # Fixed-time stages (not estimated dynamically)

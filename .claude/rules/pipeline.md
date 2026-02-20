@@ -64,7 +64,7 @@ globs: backend/app/services/pipeline/**,backend/app/services/stages/**,backend/a
 - **Single-pass** (1 LLM вызов) — когда текст помещается в контекст (Claude 200K)
 - **Map-reduce** (split → outline → sections → frame) — когда текст НЕ помещается (Ollama 8-32K)
 - Промпты (`system.md`, `instructions.md`, `template.md`) — общие для обоих путей
-- `_fits_in_context()` — оценка: Russian ~2.5 tokens/char, overhead ~45K tokens
+- `_fits_in_context()` — оценка: Russian ~2.0 tokens/char, overhead ~35K tokens
 - `max_input_chars` из `config/models.yaml` — лимит для large-контекста
 - ВСЕГДА передавать `num_predict` для single-pass (default 4096 недостаточно для полного лонгрида)
 - `SINGLE_PASS_MAX_TOKENS = 16384` — константа для single-pass генерации

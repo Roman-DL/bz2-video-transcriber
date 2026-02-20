@@ -26,11 +26,11 @@ class ProgressManager:
     v0.25+: Updated for new pipeline order:
         Parse -> Transcribe -> Clean -> Longread -> Summary -> Chunk -> Save
 
-    Weights are calibrated based on actual processing times:
-    - transcribe: 87s (dominant)
-    - clean: 7.5s
-    - longread: 20s (map-reduce sections)
-    - summary: 10s (from cleaned transcript)
+    Weights calibrated from PERF logs (v6, 2026-02-20, Claude models):
+    - transcribe: ~200s (Whisper, from v4 data)
+    - clean: ~340s (Claude haiku, 60K chars)
+    - longread: ~220s (Claude sonnet, single-pass 62-70K chars)
+    - summary: ~84s (Claude sonnet, 50K chars, includes retry)
     - chunk: <1s (deterministic H2 parsing)
     - save: <1s
 
@@ -38,19 +38,19 @@ class ProgressManager:
         manager = ProgressManager()
         overall = manager.calculate_overall_progress(
             ProcessingStatus.TRANSCRIBING, 50
-        )  # Returns ~24.5 (2 + 22.5)
+        )  # Returns ~12.5 (1 + 11.5)
     """
 
     # Progress weights for each stage (must sum to 100)
-    # v0.25+: Reordered - Longread/Summary before Chunk
+    # v6: Calibrated for Claude single-pass pipeline (200+340+220+84 ≈ 844s)
     STAGE_WEIGHTS = {
-        ProcessingStatus.PARSING: 2,        # 0-2%: instant
-        ProcessingStatus.TRANSCRIBING: 45,  # 2-47%: dominant stage
-        ProcessingStatus.CLEANING: 10,      # 47-57%
-        ProcessingStatus.LONGREAD: 25,      # 57-82%: map-reduce sections
-        ProcessingStatus.SUMMARIZING: 13,   # 82-95%: from cleaned transcript
-        ProcessingStatus.CHUNKING: 2,       # 95-97%: instant (H2 parsing)
-        ProcessingStatus.SAVING: 3,         # 97-100%: instant
+        ProcessingStatus.PARSING: 1,        # 0-1%: instant
+        ProcessingStatus.TRANSCRIBING: 23,  # 1-24%: Whisper (~200s)
+        ProcessingStatus.CLEANING: 38,      # 24-62%: Claude haiku (~340s)
+        ProcessingStatus.LONGREAD: 25,      # 62-87%: Claude sonnet single-pass (~220s)
+        ProcessingStatus.SUMMARIZING: 9,    # 87-96%: Claude sonnet (~84s)
+        ProcessingStatus.CHUNKING: 2,       # 96-98%: instant (H2 parsing)
+        ProcessingStatus.SAVING: 2,         # 98-100%: instant
     }
 
     # Define stage order for progress calculation
@@ -157,21 +157,21 @@ if __name__ == "__main__":
         # Test 3: PARSING at 100%
         print("Test 3: PARSING at 100%...", end=" ")
         progress = manager.calculate_overall_progress(ProcessingStatus.PARSING, 100)
-        assert progress == 2, f"Expected 2, got {progress}"
+        assert progress == 1, f"Expected 1, got {progress}"
         print("OK")
 
         # Test 4: TRANSCRIBING at 50%
         print("Test 4: TRANSCRIBING at 50%...", end=" ")
         progress = manager.calculate_overall_progress(ProcessingStatus.TRANSCRIBING, 50)
-        expected = 2 + 22.5  # Base (PARSING=2) + 50% of TRANSCRIBING (45*0.5)
+        expected = 1 + 11.5  # Base (PARSING=1) + 50% of TRANSCRIBING (23*0.5)
         assert abs(progress - expected) < 0.1, f"Expected {expected}, got {progress}"
         print("OK")
 
         # Test 5: SAVING at 0% (v0.25+: new order)
         print("Test 5: SAVING at 0%...", end=" ")
         progress = manager.calculate_overall_progress(ProcessingStatus.SAVING, 0)
-        # v0.25+: PARSING(2) + TRANSCRIBING(45) + CLEANING(10) + LONGREAD(25) + SUMMARIZING(13) + CHUNKING(2) = 97
-        expected = 2 + 45 + 10 + 25 + 13 + 2  # 97
+        # v6: PARSING(1) + TRANSCRIBING(23) + CLEANING(38) + LONGREAD(25) + SUMMARIZING(9) + CHUNKING(2) = 98
+        expected = 1 + 23 + 38 + 25 + 9 + 2  # 98
         assert progress == expected, f"Expected {expected}, got {progress}"
         print("OK")
 
@@ -193,8 +193,8 @@ if __name__ == "__main__":
         )
         assert len(received) == 1
         assert received[0][0] == ProcessingStatus.CLEANING
-        # PARSING(2) + TRANSCRIBING(45) + 50% of CLEANING(10*0.5=5) = 52
-        assert received[0][1] == 52, f"Expected 52, got {received[0][1]}"
+        # PARSING(1) + TRANSCRIBING(23) + 50% of CLEANING(38*0.5=19) = 43
+        assert received[0][1] == 43, f"Expected 43, got {received[0][1]}"
         print("OK")
 
         # Test 8: Update progress with None callback (no error)

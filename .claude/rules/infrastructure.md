@@ -25,10 +25,11 @@ globs: backend/app/utils/**,backend/app/config.py,config/**,docker-compose.yml,s
 - Настройка HTTPS инфраструктуры: `./scripts/setup-https.sh` (mkcert, Traefik, DNS)
 
 ## SSH к серверу
-- ВСЕГДА использовать `sshpass` с credentials из `.env.local`:
+- ВСЕГДА использовать `sshpass` с SSH_OPTS из deploy.sh (отключить pubkey чтобы избежать "Too many auth failures"):
   ```bash
   source .env.local
-  sshpass -p "$DEPLOY_PASSWORD" ssh -o StrictHostKeyChecking=no "$DEPLOY_USER@$DEPLOY_HOST" "COMMAND"
+  SSH_OPTS="-o StrictHostKeyChecking=no -o PubkeyAuthentication=no -o PreferredAuthentications=password"
+  sshpass -p "$DEPLOY_PASSWORD" ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "COMMAND"
   ```
 - Для логов контейнера: `docker logs bz2-transcriber --tail 50` (через sudo)
 - Для файлов архива: пути на хосте (`/mnt/main/work/bz2/video/archive/...`)
