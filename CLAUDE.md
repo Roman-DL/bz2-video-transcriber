@@ -214,6 +214,7 @@ docs/pipeline/                    # Документация pipeline (14 фай
 
 | Версия | Ключевые изменения |
 |--------|--------------------|
+| v0.65 | Оптимизация очистки: семантический глоссарий, Haiku default, chunk 40K |
 | v0.64 | Импорт MD-транскриптов из MacWhisper, SpeakerInfo |
 | v0.63 | HTTPS через Traefik, убран прямой порт бэкенда |
 | v0.62 | Description generation moved from Save to Chunk stage |

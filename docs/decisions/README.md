@@ -26,6 +26,7 @@ ADR (Architecture Decision Record) — документ, фиксирующий 
 | [011](011-processing-mode-separation.md) | accepted | Processing mode separation |
 | [012](012-statistics-tab.md) | accepted | Statistics tab (v0.58+) |
 | [013](013-api-camelcase-serialization.md) | accepted | API camelCase serialization (v0.59+) |
+| [014](014-haiku-default-cleaning.md) | accepted | Haiku default для очистки (v0.65+) |
 
 ## Статусы
 

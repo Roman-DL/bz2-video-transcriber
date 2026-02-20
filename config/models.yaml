@@ -101,10 +101,12 @@ context_profiles:
   large:
     context_tokens: 200000
     cleaner:
-      # With 200K context, no chunking needed for most documents
-      chunk_size: 100000
-      chunk_overlap: 10000
-      small_text_threshold: 150000
+      # Russian: ~2.3 tok/char. Target 70% of 200K = 140K tokens.
+      # Overhead after glossary v4.0: ~49K tokens (system + glossary + people).
+      # Max chunk: (140K - 49K) / 2.3 ≈ 40K chars.
+      chunk_size: 40000
+      chunk_overlap: 3000
+      small_text_threshold: 40000
     text_splitter:
       part_size: 80000
       overlap_size: 10000

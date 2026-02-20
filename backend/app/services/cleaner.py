@@ -116,6 +116,14 @@ class TranscriptCleaner:
         total_output_tokens = 0
 
         for i, chunk in enumerate(chunks):
+            # Estimate tokens (Russian: ~2.3 tok/char)
+            est_chunk_tokens = int(len(chunk) * 2.3)
+            est_total_tokens = est_chunk_tokens + int(len(self.glossary_text) * 2.3) + 7000  # +7K for system prompt
+            logger.info(
+                f"Chunk {i + 1}/{len(chunks)}: {len(chunk):,} chars, "
+                f"~{est_total_tokens:,} est. input tokens ({est_total_tokens * 100 // 200_000}% of 200K)"
+            )
+
             user_content = self.user_template.format(
                 glossary=self.glossary_text,
                 transcript=chunk,
@@ -216,7 +224,7 @@ class TranscriptCleaner:
         cleaned_text = cleaned_text.strip()
         cleaned_length = len(cleaned_text)
 
-        # Validate reduction (realistic: 5-20%, max acceptable: 25%)
+        # Validate reduction (realistic: 5-25%, max acceptable: 30% with task 3)
         reduction_percent = (
             100 - (cleaned_length * 100 // original_length)
             if original_length > 0
@@ -410,8 +418,7 @@ if __name__ == "__main__":
         try:
             cleaner = TranscriptCleaner(None, settings)  # type: ignore
             assert len(cleaner.glossary_text) > 1000, "Glossary text too short"
-            assert "canonical:" in cleaner.glossary_text, "Missing canonical field"
-            assert "variations:" in cleaner.glossary_text, "Missing variations field"
+            assert "canonical:" in cleaner.glossary_text, "Missing canonical field in glossary"
             print("OK")
             print(f"  Glossary text: {len(cleaner.glossary_text)} chars")
         except Exception as e:
