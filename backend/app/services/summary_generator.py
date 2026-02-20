@@ -10,11 +10,10 @@ v0.42+: Added tokens_used, cost, and processing_time_sec metrics.
 
 import json
 import logging
-import re
 import time
 from typing import Any
 
-from app.config import Settings, get_settings, load_prompt, get_model_config
+from app.config import Settings, load_prompt, get_model_config
 from app.utils.json_utils import extract_json
 from app.utils import calculate_cost
 from app.models.schemas import (
@@ -24,7 +23,7 @@ from app.models.schemas import (
     TokensUsed,
     VideoMetadata,
 )
-from app.services.ai_clients import BaseAIClient, OllamaClient
+from app.services.ai_clients import BaseAIClient
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -60,7 +59,7 @@ class SummaryGenerator:
     LLM generates topic_area, tags, and access_level.
 
     Example:
-        async with OllamaClient.from_settings(settings) as client:
+        async with ClaudeClient.from_settings(settings) as client:
             generator = SummaryGenerator(client, settings)
             summary = await generator.generate(cleaned_transcript, metadata)
             markdown = summary.to_markdown()
@@ -358,168 +357,3 @@ class SummaryGenerator:
         if access_level in VALID_ACCESS_LEVELS:
             return access_level
         return "consultant"  # Default
-
-
-if __name__ == "__main__":
-    """Run tests when executed directly."""
-    import asyncio
-    import sys
-    from datetime import date
-    from pathlib import Path
-
-    logging.basicConfig(level=logging.INFO)
-
-    async def run_tests():
-        """Run all summary generator tests."""
-        print("\nRunning summary generator tests (v0.24)...\n")
-
-        settings = get_settings()
-
-        # Test 1: Load prompts (v0.30+ hierarchical structure)
-        print("Test 1: Load prompts (v0.30+ hierarchical)...", end=" ")
-        try:
-            system_prompt = load_prompt("summary", "system", settings)
-            instructions = load_prompt("summary", "instructions", settings)
-            template = load_prompt("summary", "template", settings)
-            assert "навигационный документ" in system_prompt
-            assert "topic_area" in instructions
-            assert "JSON" in template
-            print("OK")
-        except Exception as e:
-            print(f"FAILED: {e}")
-            return 1
-
-        # Test 2: Text truncation
-        print("\nTest 2: Text truncation...", end=" ")
-        try:
-            generator = SummaryGenerator(None, settings)  # type: ignore
-            generator.max_input_chars = 100
-
-            long_text = "A" * 200
-            truncated = generator._truncate_text(long_text, 100)
-            assert len(truncated) <= 100 + 50  # Some room for truncation notice
-            assert "сокращено" in truncated
-            print("OK")
-        except Exception as e:
-            print(f"FAILED: {e}")
-            return 1
-
-        # Test 3: topic_area validation
-        print("\nTest 3: topic_area validation...", end=" ")
-        try:
-            generator = SummaryGenerator(None, settings)  # type: ignore
-
-            # Test string input
-            assert generator._validate_topic_area("продажи") == ["продажи"]
-
-            # Test list input
-            assert generator._validate_topic_area(["продажи", "мотивация"]) == ["продажи", "мотивация"]
-
-            # Test invalid values filtered
-            assert generator._validate_topic_area(["invalid", "продажи"]) == ["продажи"]
-
-            # Test empty/invalid returns default
-            assert generator._validate_topic_area([]) == ["мотивация"]
-            assert generator._validate_topic_area("invalid") == ["мотивация"]
-
-            print("OK")
-        except Exception as e:
-            print(f"FAILED: {e}")
-            return 1
-
-        # Test 4: access_level validation
-        print("\nTest 4: access_level validation...", end=" ")
-        try:
-            generator = SummaryGenerator(None, settings)  # type: ignore
-
-            assert generator._validate_access_level("consultant") == "consultant"
-            assert generator._validate_access_level("leader") == "leader"
-            assert generator._validate_access_level("personal") == "personal"
-            assert generator._validate_access_level("invalid") == "consultant"
-            assert generator._validate_access_level(None) == "consultant"
-
-            print("OK")
-        except Exception as e:
-            print(f"FAILED: {e}")
-            return 1
-
-        # Test 5: JSON extraction using shared utils
-        print("\nTest 5: JSON extraction (shared utils)...", end=" ")
-        try:
-            test_json = '```json\n{"essence": "Test", "quotes": [], "topic_area": ["продажи"]}\n```'
-            result = extract_json(test_json, json_type="object")
-            parsed = json.loads(result)
-            assert "essence" in parsed
-            assert "topic_area" in parsed
-            print("OK")
-        except Exception as e:
-            print(f"FAILED: {e}")
-            return 1
-
-        # Test 6: Full generation (requires Ollama)
-        print("\nTest 6: Full generation from CleanedTranscript...", end=" ")
-        async with OllamaClient.from_settings(settings) as client:
-            status = await client.check_services()
-
-            if not status["ollama"]:
-                print("SKIPPED (Ollama unavailable)")
-            else:
-                try:
-                    generator = SummaryGenerator(client, settings)
-
-                    mock_metadata = VideoMetadata(
-                        date=date(2025, 1, 20),
-                        event_type="ПШ",
-                        stream="SV",
-                        title="Работа с клиентами",
-                        speaker="Тест Спикер",
-                        original_filename="test.mp4",
-                        video_id="test-video",
-                        source_path=Path("/test/test.mp4"),
-                        archive_path=Path("/archive/test"),
-                    )
-
-                    mock_cleaned = CleanedTranscript(
-                        text=(
-                            "Сегодня мы поговорим о важной теме работы с клиентами. "
-                            "Первое, что нужно понять — клиент всегда ищет решение своей проблемы. "
-                            "Я использую инструмент под названием дом-магазин. "
-                            "Суть его в том, чтобы показать человеку два пути: "
-                            "покупать в магазине или покупать дома со скидкой. "
-                            "«Главное — не продавать, а помогать людям» — это мой принцип. "
-                            "Когда вы помогаете искренне, продажи случаются сами. "
-                            "Вот пример: одна моя клиентка начала с программы похудения, "
-                            "а через год стала СТ. Потому что я не давил, а помогал. "
-                            "Запомните: работа с клиентами — это прежде всего работа над собой."
-                        ),
-                        original_length=800,
-                        cleaned_length=700,
-                        model_name="test",
-                    )
-
-                    summary = await generator.generate(mock_cleaned, mock_metadata)
-
-                    assert summary.essence, "Essence is empty"
-                    assert isinstance(summary.topic_area, list), "topic_area should be list"
-                    assert all(t in VALID_TOPIC_AREAS for t in summary.topic_area), "Invalid topic_area"
-                    assert summary.access_level in VALID_ACCESS_LEVELS, "Invalid access_level"
-
-                    print("OK")
-                    print(f"  Essence: {summary.essence[:100]}...")
-                    print(f"  Concepts: {len(summary.key_concepts)}")
-                    print(f"  Quotes: {len(summary.quotes)}")
-                    print(f"  Topic area: {summary.topic_area}")
-                    print(f"  Access level: {summary.access_level}")
-                    print(f"  Insight: {summary.insight[:50]}..." if summary.insight else "  No insight")
-
-                except Exception as e:
-                    print(f"FAILED: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    return 1
-
-        print("\n" + "=" * 40)
-        print("All tests passed!")
-        return 0
-
-    sys.exit(asyncio.run(run_tests()))

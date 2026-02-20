@@ -14,7 +14,7 @@ import logging
 import time
 from typing import Any
 
-from app.config import Settings, get_settings, load_prompt, get_model_config
+from app.config import Settings, load_prompt, get_model_config
 from app.utils.json_utils import extract_json
 from app.utils import calculate_cost
 from app.models.schemas import (
@@ -25,7 +25,7 @@ from app.models.schemas import (
     TokensUsed,
     VideoMetadata,
 )
-from app.services.ai_clients import BaseAIClient, OllamaClient
+from app.services.ai_clients import BaseAIClient
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -60,7 +60,7 @@ class StoryGenerator:
     Used instead of longread + summary for leadership content_type.
 
     Example:
-        async with OllamaClient.from_settings(settings) as client:
+        async with ClaudeClient.from_settings(settings) as client:
             generator = StoryGenerator(client, settings)
             story = await generator.generate(cleaned_transcript, metadata)
             markdown = story.to_markdown()
@@ -315,138 +315,3 @@ class StoryGenerator:
             logger.error(f"Failed to parse JSON: {e}")
             logger.debug(f"Response was: {response[:500]}...")
             return {}
-
-
-if __name__ == "__main__":
-    """Run tests when executed directly."""
-    import sys
-    from datetime import date
-    from pathlib import Path
-
-    logging.basicConfig(level=logging.INFO)
-
-    async def run_tests():
-        """Run all story generator tests."""
-        print("\nRunning story generator tests...\n")
-
-        settings = get_settings()
-
-        # Test 1: Load prompts (v0.30+ hierarchical structure)
-        print("Test 1: Load prompts (v0.30+ hierarchical)...", end=" ")
-        try:
-            system_prompt = load_prompt("story", "system", settings)
-            instructions = load_prompt("story", "instructions", settings)
-            template = load_prompt("story", "template", settings)
-            assert "Story Generator" in system_prompt
-            assert "8 блоков" in instructions
-            assert "blocks" in template
-            print("OK")
-        except Exception as e:
-            print(f"FAILED: {e}")
-            return 1
-
-        # Test 2: Story model
-        print("\nTest 2: Story model...", end=" ")
-        try:
-            story = Story(
-                video_id="test-video",
-                names="Иванов Иван и Иванова Мария",
-                current_status="President's Team",
-                event_name="Форум TABTeam",
-                date=date(2025, 1, 20),
-                main_insight="Стагнация — не приговор",
-                blocks=[
-                    StoryBlock(
-                        block_number=1,
-                        block_name="Кто они",
-                        content="**Иван:** врач, 45 лет",
-                    ),
-                    StoryBlock(
-                        block_number=2,
-                        block_name="Путь в бизнес",
-                        content="Пришли в 2010 году через продукт",
-                    ),
-                ],
-                time_in_business="15 лет",
-                time_to_status="12 лет",
-                speed="долго",
-                business_format="гибрид",
-                is_family=True,
-                had_stagnation=True,
-                stagnation_years=10,
-                tags=["стагнация", "семейная-пара"],
-                model_name="test",
-            )
-            assert story.total_blocks == 2
-            markdown = story.to_markdown()
-            assert "leadership-story" in markdown
-            assert "Иванов Иван" in markdown
-            print("OK")
-            print(f"  Blocks: {story.total_blocks}")
-        except Exception as e:
-            print(f"FAILED: {e}")
-            import traceback
-            traceback.print_exc()
-            return 1
-
-        # Test 3: Full generation (requires Ollama)
-        print("\nTest 3: Full generation...", end=" ")
-        async with OllamaClient.from_settings(settings) as client:
-            status = await client.check_services()
-
-            if not status["ollama"]:
-                print("SKIPPED (Ollama unavailable)")
-            else:
-                try:
-                    from app.models.schemas import ContentType, EventCategory
-
-                    generator = StoryGenerator(client, settings)
-
-                    mock_metadata = VideoMetadata(
-                        date=date(2025, 1, 20),
-                        event_type="Выездные",
-                        stream="",
-                        title="Тест Лидер",
-                        speaker="Тест Лидер",
-                        original_filename="test.mp4",
-                        video_id="test-video",
-                        source_path=Path("/test/test.mp4"),
-                        archive_path=Path("/archive/test"),
-                        content_type=ContentType.LEADERSHIP,
-                        event_category=EventCategory.OFFSITE,
-                        event_name="Форум TABTeam",
-                    )
-
-                    mock_transcript = CleanedTranscript(
-                        text="Меня зовут Иван Иванов, я President's Team. "
-                             "В бизнесе 15 лет. Пришёл через продукт, похудел на 20 кг. "
-                             "Первые 5 лет были сложными, потом 10 лет стагнации. "
-                             "Ключ к прорыву — работа с командой. "
-                             "Сейчас у меня клуб и онлайн.",
-                        original_length=1000,
-                        cleaned_length=500,
-                        model_name=settings.cleaner_model,
-                    )
-
-                    story = await generator.generate(mock_transcript, mock_metadata)
-
-                    assert story.total_blocks > 0
-                    assert story.access_level in VALID_ACCESS_LEVELS
-
-                    print("OK")
-                    print(f"  Blocks: {story.total_blocks}")
-                    print(f"  Names: {story.names}")
-                    print(f"  Speed: {story.speed}")
-
-                except Exception as e:
-                    print(f"FAILED: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    return 1
-
-        print("\n" + "=" * 40)
-        print("All tests passed!")
-        return 0
-
-    import asyncio
-    sys.exit(asyncio.run(run_tests()))
