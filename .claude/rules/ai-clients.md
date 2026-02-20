@@ -21,7 +21,7 @@ globs: backend/app/services/ai_clients/**,backend/app/services/cleaner.py,*_gene
 - `get_client_with_fallback()` удалён — ошибки пробрасываются вызывающему коду
 
 ## Default Models (v0.29+)
-- Очистка: `claude-sonnet-4-6`
+- Очистка: `claude-haiku-4-5` (v0.65+, механическая задача, см. ADR-014)
 - Слайды: `claude-haiku-4-5` (быстро и дёшево)
 - Лонгрид: `claude-sonnet-4-6`
 - Конспект: `claude-sonnet-4-6`
