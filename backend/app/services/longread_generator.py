@@ -14,13 +14,12 @@ v0.67+: Single-pass path for large context models, auto-selection.
 """
 
 import asyncio
-import json
 import logging
 import time
 from typing import Any
 
 from app.config import Settings, load_prompt, get_model_config, load_model_config
-from app.utils.json_utils import extract_json
+from app.utils.json_utils import extract_and_parse_json
 from app.utils import calculate_cost
 from app.models.schemas import (
     CleanedTranscript,
@@ -722,11 +721,4 @@ class LongreadGenerator:
 
     def _parse_json_response(self, response: str) -> dict[str, Any]:
         """Parse JSON from LLM response."""
-        json_str = extract_json(response, json_type="object")
-
-        try:
-            return json.loads(json_str)
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON: {e}")
-            logger.debug(f"Response was: {response[:500]}...")
-            return {}
+        return extract_and_parse_json(response, json_type="object", default={})

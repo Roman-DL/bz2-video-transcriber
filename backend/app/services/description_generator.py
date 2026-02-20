@@ -5,7 +5,6 @@ Generates description and short_description via Claude for BZ2-Bot export.
 Extracted from saver.py in v0.62 to run during chunk stage instead of save.
 """
 
-import json
 import logging
 import time
 
@@ -19,7 +18,7 @@ from app.models.schemas import (
 )
 from app.services.ai_clients import ClaudeClient
 from app.utils import calculate_cost
-from app.utils.json_utils import extract_json
+from app.utils.json_utils import extract_and_parse_json
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +117,7 @@ class DescriptionGenerator:
                 )
 
             elapsed = round(time.monotonic() - start, 2)
-            parsed = json.loads(extract_json(content))
+            parsed = extract_and_parse_json(content, json_type="object", default={})
             description = parsed.get("description", "")
             short_description = parsed.get("short_description", "")
 

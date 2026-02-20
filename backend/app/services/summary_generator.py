@@ -8,13 +8,12 @@ v0.24+: Generates from CleanedTranscript (not Longread) using 3-component prompt
 v0.42+: Added tokens_used, cost, and processing_time_sec metrics.
 """
 
-import json
 import logging
 import time
 from typing import Any
 
 from app.config import Settings, load_prompt, get_model_config
-from app.utils.json_utils import extract_json
+from app.utils.json_utils import extract_and_parse_json
 from app.utils import calculate_cost
 from app.models.schemas import (
     CleanedTranscript,
@@ -334,18 +333,11 @@ class SummaryGenerator:
         Returns:
             Dict with summary fields
         """
-        json_str = extract_json(response, json_type="object")
-
-        try:
-            data = json.loads(json_str)
-            if not isinstance(data, dict):
-                logger.error(f"Expected dict, got {type(data).__name__}")
-                return {}
-            return data
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON: {e}")
-            logger.debug(f"Response was: {response[:500]}...")
+        data = extract_and_parse_json(response, json_type="object", default={})
+        if data and not isinstance(data, dict):
+            logger.error(f"Expected dict, got {type(data).__name__}")
             return {}
+        return data
 
     def _validate_topic_area(self, topic_area: Any) -> list[str]:
         """

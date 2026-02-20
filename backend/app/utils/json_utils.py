@@ -141,6 +141,36 @@ def _find_matching_bracket(text: str, open_bracket: str, close_bracket: str) -> 
     return text
 
 
+def extract_and_parse_json(
+    text: str,
+    json_type: Literal["object", "array", "auto"] = "auto",
+    default: T = None,  # type: ignore
+) -> Any | T:
+    """
+    Extract JSON from LLM response and parse with automatic repair.
+
+    Combines extract_json() + parse_json_safe() into a single call
+    to prevent accidentally using raw json.loads() without repair.
+
+    Args:
+        text: Raw LLM response (may contain markdown, surrounding text)
+        json_type: Type of JSON to extract ("object", "array", "auto")
+        default: Default value if extraction or parsing fails
+
+    Returns:
+        Parsed JSON data or default value
+
+    Example:
+        >>> extract_and_parse_json('```json\\n{"key": "value"}\\n```', default={})
+        {'key': 'value'}
+    """
+    json_str = extract_json(text, json_type=json_type)
+    if not json_str:
+        logger.warning("No JSON found in LLM response")
+        return default
+    return parse_json_safe(json_str, default=default)
+
+
 def parse_json_safe(
     json_str: str,
     default: T = None,  # type: ignore

@@ -12,12 +12,11 @@ Configuration:
 """
 
 import asyncio
-import json
 import logging
 import time
 
 from app.config import Settings, load_prompt
-from app.utils.json_utils import extract_json
+from app.utils.json_utils import extract_and_parse_json, extract_json
 from app.models.schemas import PartOutline, TextPart, TranscriptOutline
 from app.services.ai_clients import BaseAIClient, OllamaClient
 
@@ -282,15 +281,10 @@ class OutlineExtractor:
         Raises:
             ValueError: If JSON parsing fails
         """
-        # Extract JSON from response using shared utils
-        json_str = extract_json(response, json_type="object")
-
-        try:
-            data = json.loads(json_str)
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse outline JSON: {e}")
-            logger.debug(f"Response was: {response[:500]}...")
-            raise ValueError(f"Invalid JSON in outline response: {e}")
+        # Extract and parse JSON from response using shared utils (with json-repair)
+        data = extract_and_parse_json(response, json_type="object")
+        if data is None:
+            raise ValueError("Failed to extract or parse JSON from outline response")
 
         # Extract and validate fields
         topics = data.get("topics", [])

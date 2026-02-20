@@ -20,7 +20,7 @@ from app.utils.chunk_utils import (
     validate_cyrillic_ratio,
 )
 from app.utils.h2_chunker import chunk_by_h2
-from app.utils.json_utils import extract_json, parse_json_safe
+from app.utils.json_utils import extract_and_parse_json, extract_json, parse_json_safe
 from app.utils.media_utils import (
     TRANSCRIPT_EXTENSIONS,
     estimate_duration_from_size,
@@ -46,6 +46,7 @@ from app.utils.token_utils import (
 
 __all__ = [
     # json_utils
+    "extract_and_parse_json",
     "extract_json",
     "parse_json_safe",
     # token_utils

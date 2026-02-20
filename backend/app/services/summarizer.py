@@ -4,13 +4,12 @@ Video summarizer service.
 Creates structured summaries from cleaned transcripts using Ollama LLM.
 """
 
-import json
 import logging
 import time
 from typing import Any
 
 from app.config import Settings, get_settings, load_prompt
-from app.utils.json_utils import extract_json
+from app.utils.json_utils import extract_and_parse_json, extract_json
 from app.models.schemas import (
     CleanedTranscript,
     TranscriptOutline,
@@ -203,16 +202,10 @@ class VideoSummarizer:
         Raises:
             ValueError: If JSON parsing fails
         """
-        # Extract JSON from response (handles markdown code blocks)
-        json_str = extract_json(response, json_type="object")
-
-        # Parse JSON
-        try:
-            data = json.loads(json_str)
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON: {e}")
-            logger.debug(f"Response was: {response[:500]}...")
-            raise ValueError(f"Invalid JSON in LLM response: {e}")
+        # Extract and parse JSON from response (with json-repair)
+        data = extract_and_parse_json(response, json_type="object")
+        if data is None:
+            raise ValueError("Failed to extract or parse JSON from LLM response")
 
         # Validate it's a dict
         if not isinstance(data, dict):

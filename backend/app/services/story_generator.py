@@ -9,13 +9,12 @@ v0.42+: Added tokens_used, cost, and processing_time_sec metrics.
 v0.53+: Added slides_text parameter for slides integration.
 """
 
-import json
 import logging
 import time
 from typing import Any
 
 from app.config import Settings, load_prompt, get_model_config
-from app.utils.json_utils import extract_json
+from app.utils.json_utils import extract_and_parse_json
 from app.utils import calculate_cost
 from app.models.schemas import (
     CleanedTranscript,
@@ -307,11 +306,4 @@ class StoryGenerator:
         Returns:
             Parsed dict
         """
-        json_str = extract_json(response, json_type="object")
-
-        try:
-            return json.loads(json_str)
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON: {e}")
-            logger.debug(f"Response was: {response[:500]}...")
-            return {}
+        return extract_and_parse_json(response, json_type="object", default={})
