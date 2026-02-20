@@ -60,6 +60,7 @@ tags:
 > **v0.25+:** Chunk — детерминированный (парсинг H2 заголовков), выполняется ПОСЛЕ Longread/Story.
 > **v0.51+:** Slides — опциональный шаг извлечения текста со слайдов (если пользователь прикрепил файлы).
 > **v0.64+:** MD-файлы — готовые транскрипты из MacWhisper, Whisper пропускается, текст загружается напрямую.
+> **v0.67+:** Longread — авто-выбор single-pass (1 LLM вызов) или map-reduce по контексту модели.
 
 ## Этапы
 
@@ -117,3 +118,4 @@ tags:
 - [ADR-006: Cloud Model Integration](../decisions/006-cloud-model-integration.md) — ProcessingStrategy
 - [ADR-007: Remove Fallback, Use Claude](../decisions/007-remove-fallback-use-claude.md) — Claude по умолчанию (v0.29+)
 - [ADR-010: Slides Integration](../decisions/010-slides-integration.md) — извлечение текста со слайдов (v0.51+)
+- [ADR-015: Single-Pass Longread](../decisions/015-longread-single-pass.md) — авто-выбор single-pass/map-reduce (v0.67+)
