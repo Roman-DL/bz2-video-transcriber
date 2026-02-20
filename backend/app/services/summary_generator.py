@@ -101,6 +101,7 @@ class SummaryGenerator:
         self,
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
+        slides_text: str | None = None,
     ) -> Summary:
         """
         Generate summary from cleaned transcript.
@@ -108,6 +109,7 @@ class SummaryGenerator:
         Args:
             cleaned_transcript: Cleaned transcript text
             metadata: Video metadata
+            slides_text: Optional extracted text from slides (v0.68+)
 
         Returns:
             Summary with essence, concepts, tools, quotes, insight, actions,
@@ -115,8 +117,8 @@ class SummaryGenerator:
         """
         start_time = time.time()
 
-        # Prepare transcript text
-        transcript_text = self._prepare_transcript_text(cleaned_transcript)
+        # Prepare transcript text with optional slides
+        transcript_text = self._prepare_text(cleaned_transcript, slides_text)
         input_chars = len(transcript_text)
 
         logger.info(
@@ -133,8 +135,21 @@ class SummaryGenerator:
         input_tokens = usage.input_tokens
         output_tokens = usage.output_tokens
 
-        # Parse response
+        # Parse response with 1 retry on empty result (v0.68+)
         summary_data = self._parse_response(response)
+
+        if not summary_data:
+            logger.warning("Empty summary from LLM, retrying once")
+            response2, usage2 = await self.ai_client.generate(
+                prompt, model=self.settings.summarizer_model
+            )
+            input_tokens += usage2.input_tokens
+            output_tokens += usage2.output_tokens
+            summary_data = self._parse_response(response2)
+            if summary_data:
+                logger.info("Retry succeeded, got valid summary")
+            else:
+                logger.error("Retry also returned empty summary")
 
         elapsed = time.time() - start_time
 
@@ -192,14 +207,19 @@ class SummaryGenerator:
 
         return summary
 
-    def _prepare_transcript_text(self, cleaned_transcript: CleanedTranscript) -> str:
+    def _prepare_text(
+        self,
+        cleaned_transcript: CleanedTranscript,
+        slides_text: str | None = None,
+    ) -> str:
         """
-        Prepare cleaned transcript text for prompt.
+        Prepare cleaned transcript text with optional slides for prompt.
 
         If the transcript is too large, truncate it intelligently.
 
         Args:
             cleaned_transcript: Cleaned transcript
+            slides_text: Optional extracted text from slides (v0.68+)
 
         Returns:
             Text ready for prompt insertion
@@ -213,6 +233,16 @@ class SummaryGenerator:
                 f"truncating to {self.max_input_chars}"
             )
             text = self._truncate_text(text, self.max_input_chars)
+
+        # Append slides context (same pattern as longread_generator)
+        if slides_text:
+            logger.info(f"Added slides context: {len(slides_text)} chars")
+            text = (
+                f"{text}\n\n"
+                "---\n\n"
+                "## Дополнительная информация со слайдов презентации\n\n"
+                f"{slides_text}"
+            )
 
         return text
 

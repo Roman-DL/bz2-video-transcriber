@@ -208,8 +208,11 @@ def load_model_config(model: str, stage: str, settings: Settings | None = None) 
     """
     Load model-specific configuration for a pipeline stage.
 
-    Lookup: exact match first, then rstrip fallback for family names.
-    Falls back to defaults if model not found.
+    Lookup order:
+    1. Exact model match (e.g. "claude-sonnet-4-6")
+    2. Family match fallback (e.g. "qwen2.5" -> "qwen2")
+    3. Context profile (e.g. "large" -> context_profiles.large)
+    4. Defaults
 
     Args:
         model: Full model name (e.g., "claude-sonnet-4-6", "gemma2:9b")
@@ -223,18 +226,29 @@ def load_model_config(model: str, stage: str, settings: Settings | None = None) 
     model_name = model.split(":")[0]
     models = config.get("models", {})
 
-    # Exact match first (e.g. "claude-sonnet-4-6", "gemma2")
+    # Resolve model config (exact or family match)
+    model_cfg = None
     if model_name in models:
-        stage_config = models[model_name].get(stage, {})
+        model_cfg = models[model_name]
+    else:
+        model_family = model_name.rstrip("0123456789.")
+        if model_family != model_name and model_family in models:
+            model_cfg = models[model_family]
+
+    if model_cfg:
+        # Check stage config directly on model
+        stage_config = model_cfg.get(stage, {})
         if stage_config:
             return stage_config
 
-    # Family match fallback (e.g. "qwen2.5" -> "qwen2" via rstrip)
-    model_family = model_name.rstrip("0123456789.")
-    if model_family != model_name and model_family in models:
-        stage_config = models[model_family].get(stage, {})
-        if stage_config:
-            return stage_config
+        # Resolve via context_profile
+        profile_name = model_cfg.get("context_profile")
+        if profile_name:
+            profiles = config.get("context_profiles", {})
+            profile = profiles.get(profile_name, {})
+            stage_config = profile.get(stage, {})
+            if stage_config:
+                return stage_config
 
     # Fallback to defaults
     return config.get("defaults", {}).get(stage, {})

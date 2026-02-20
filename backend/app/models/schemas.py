@@ -1152,6 +1152,7 @@ class StepSummarizeRequest(CamelCaseModel):
     Updated in v0.24: Now takes CleanedTranscript instead of Longread.
     Summary is generated directly from the cleaned transcript, allowing
     it to see all original details.
+    v0.68+: Added slides_text for slides integration.
     """
 
     cleaned_transcript: CleanedTranscript
@@ -1163,6 +1164,10 @@ class StepSummarizeRequest(CamelCaseModel):
     prompt_overrides: "PromptOverrides | None" = Field(
         default=None,
         description="Override prompt files for summary (v0.32+)",
+    )
+    slides_text: str | None = Field(
+        default=None,
+        description="Extracted text from slides (v0.68+)",
     )
 
 

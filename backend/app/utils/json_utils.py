@@ -147,7 +147,11 @@ def parse_json_safe(
     log_errors: bool = True,
 ) -> Any | T:
     """
-    Parse JSON string with error handling.
+    Parse JSON string with error handling and automatic repair.
+
+    On JSONDecodeError, attempts repair via json-repair library before
+    falling back to default. This handles common LLM issues like
+    unescaped quotes in Russian text.
 
     Args:
         json_str: JSON string to parse
@@ -175,6 +179,22 @@ def parse_json_safe(
         if log_errors:
             preview = json_str[:200] + "..." if len(json_str) > 200 else json_str
             logger.warning(f"Failed to parse JSON: {e}. Input: {preview}")
+
+        # Attempt repair via json-repair (v0.68+)
+        try:
+            from json_repair import repair_json
+
+            repaired = repair_json(json_str, return_objects=True)
+            if repaired and repaired != json_str:
+                logger.info(
+                    f"JSON repaired successfully "
+                    f"({len(json_str)} chars input)"
+                )
+                return repaired
+        except Exception as repair_err:
+            if log_errors:
+                logger.warning(f"JSON repair also failed: {repair_err}")
+
         return default
 
 

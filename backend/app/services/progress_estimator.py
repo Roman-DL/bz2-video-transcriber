@@ -161,6 +161,54 @@ class ProgressEstimator:
             message=f"Chunking {input_chars:,} chars",
         )
 
+    def estimate_longread(self, input_chars: int) -> StageEstimate:
+        """
+        Estimate longread generation time based on input text length.
+
+        Formula: base_time + (input_chars / 1000 * factor_per_1k_chars)
+
+        Args:
+            input_chars: Number of characters in cleaned transcript
+
+        Returns:
+            StageEstimate with estimated time
+        """
+        cfg = self.config.get("longread", {})
+        factor = cfg.get("factor_per_1k_chars", 4.4)
+        base = cfg.get("base_time", 10.0)
+
+        estimated = base + (input_chars / 1000 * factor)
+
+        return StageEstimate(
+            stage=ProcessingStatus.LONGREAD,
+            estimated_seconds=estimated,
+            message=f"Generating longread from {input_chars:,} chars",
+        )
+
+    def estimate_slides(self, slides_count: int) -> StageEstimate:
+        """
+        Estimate slides extraction time based on slide count.
+
+        Formula: base_time + (slides_count * factor_per_slide)
+
+        Args:
+            slides_count: Number of slides to process
+
+        Returns:
+            StageEstimate with estimated time
+        """
+        cfg = self.config.get("slides", {})
+        factor = cfg.get("factor_per_slide", 2.3)
+        base = cfg.get("base_time", 3.0)
+
+        estimated = base + (slides_count * factor)
+
+        return StageEstimate(
+            stage=ProcessingStatus.SLIDES,
+            estimated_seconds=estimated,
+            message=f"Extracting text from {slides_count} slides",
+        )
+
     def estimate_summarize(self, input_chars: int) -> StageEstimate:
         """
         Estimate summarization time based on input text length.

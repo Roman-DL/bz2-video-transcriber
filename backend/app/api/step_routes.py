@@ -404,8 +404,7 @@ async def step_slides(request: StepSlidesRequest) -> StreamingResponse:
 
     # Estimate time based on slide count
     slides_count = len(request.slides)
-    # Approximately 3 seconds per slide for Haiku
-    estimated_seconds = slides_count * 3.0
+    estimate = estimator.estimate_slides(slides_count)
 
     async def extract_slides() -> SlidesExtractionResult:
         async with ClaudeClient.from_settings(settings) as client:
@@ -423,7 +422,7 @@ async def step_slides(request: StepSlidesRequest) -> StreamingResponse:
         run_with_sse_progress(
             stage=ProcessingStatus.SLIDES,
             estimator=estimator,
-            estimated_seconds=estimated_seconds,
+            estimated_seconds=estimate.estimated_seconds,
             message=f"Extracting text from {slides_count} slides",
             operation=extract_slides,
         )
@@ -493,14 +492,13 @@ async def step_longread(request: StepLongreadRequest) -> StreamingResponse:
 
     # Calculate input size for time estimation
     input_chars = len(request.cleaned_transcript.text)
-    estimate = estimator.estimate_summarize(input_chars)
-    estimated_seconds = estimate.estimated_seconds * 1.5  # Longread takes longer
+    estimate = estimator.estimate_longread(input_chars)
 
     return create_sse_response(
         run_with_sse_progress(
             stage=ProcessingStatus.LONGREAD,
             estimator=estimator,
-            estimated_seconds=estimated_seconds,
+            estimated_seconds=estimate.estimated_seconds,
             message=f"Generating longread from {input_chars:,} chars",
             operation=lambda: orchestrator.longread(
                 cleaned_transcript=request.cleaned_transcript,
@@ -534,19 +532,19 @@ async def step_summarize(request: StepSummarizeRequest) -> StreamingResponse:
     # Calculate input size for time estimation
     input_chars = len(request.cleaned_transcript.text)
     estimate = estimator.estimate_summarize(input_chars)
-    estimated_seconds = estimate.estimated_seconds * 0.5  # Summary is faster
 
     return create_sse_response(
         run_with_sse_progress(
             stage=ProcessingStatus.SUMMARIZING,
             estimator=estimator,
-            estimated_seconds=estimated_seconds,
+            estimated_seconds=estimate.estimated_seconds,
             message=f"Generating summary from transcript ({input_chars:,} chars)",
             operation=lambda: orchestrator.summarize_from_cleaned(
                 cleaned_transcript=request.cleaned_transcript,
                 metadata=request.metadata,
                 model=request.model,
                 prompt_overrides=request.prompt_overrides,
+                slides_text=request.slides_text,
             ),
         )
     )
@@ -569,16 +567,15 @@ async def step_story(request: StepStoryRequest) -> StreamingResponse:
     orchestrator = get_orchestrator()
     estimator = ProgressEstimator(settings)
 
-    # Calculate input size for time estimation
+    # Calculate input size for time estimation — story ~ longread complexity
     input_chars = len(request.cleaned_transcript.text)
-    estimate = estimator.estimate_summarize(input_chars)
-    estimated_seconds = estimate.estimated_seconds * 1.2  # Story is slightly longer
+    estimate = estimator.estimate_longread(input_chars)
 
     return create_sse_response(
         run_with_sse_progress(
             stage=ProcessingStatus.STORY,
             estimator=estimator,
-            estimated_seconds=estimated_seconds,
+            estimated_seconds=estimate.estimated_seconds,
             message=f"Generating story from {input_chars:,} chars",
             operation=lambda: orchestrator.story(
                 cleaned_transcript=request.cleaned_transcript,

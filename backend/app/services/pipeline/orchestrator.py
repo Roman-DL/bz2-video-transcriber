@@ -407,18 +407,21 @@ class PipelineOrchestrator:
         metadata: VideoMetadata,
         model: str | None = None,
         prompt_overrides: PromptOverrides | None = None,
+        slides_text: str | None = None,
     ) -> Summary:
         """
         Generate summary (конспект) from cleaned transcript.
 
         v0.24+: Summary is now generated directly from cleaned transcript,
         allowing it to see all original details.
+        v0.68+: Added slides_text parameter for slides integration.
 
         Args:
             cleaned_transcript: Cleaned transcript
             metadata: Video metadata
             model: Optional model override for generation
             prompt_overrides: Optional prompt file overrides (v0.32+)
+            slides_text: Optional extracted text from slides (v0.68+)
 
         Returns:
             Summary with essence, concepts, tools, quotes, topic_area, access_level
@@ -427,7 +430,7 @@ class PipelineOrchestrator:
         actual_model = model or settings.summarizer_model
         async with self.processing_strategy.create_client(actual_model) as ai_client:
             generator = SummaryGenerator(ai_client, settings, prompt_overrides)
-            return await generator.generate(cleaned_transcript, metadata)
+            return await generator.generate(cleaned_transcript, metadata, slides_text)
 
     async def story(
         self,
@@ -645,12 +648,12 @@ class PipelineOrchestrator:
         input_chars = len(cleaned_transcript.text)
 
         # Phase 1: Longread generation (includes internal outline extraction)
-        longread_estimate = self.estimator.estimate_summarize(input_chars) * 1.5
+        longread_estimate = self.estimator.estimate_longread(input_chars)
         ticker = None
         if callback:
             ticker = await self.estimator.start_ticker(
                 stage=ProcessingStatus.LONGREAD,
-                estimated_seconds=longread_estimate,
+                estimated_seconds=longread_estimate.estimated_seconds,
                 message="Generating longread",
                 callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
             )
@@ -673,11 +676,11 @@ class PipelineOrchestrator:
             )
 
         # Phase 2: Summary generation from cleaned transcript
-        summary_estimate = self.estimator.estimate_summarize(input_chars) * 0.5
+        summary_estimate = self.estimator.estimate_summarize(input_chars)
         if callback:
             ticker = await self.estimator.start_ticker(
                 stage=ProcessingStatus.SUMMARIZING,
-                estimated_seconds=summary_estimate,
+                estimated_seconds=summary_estimate.estimated_seconds,
                 message="Generating summary from transcript",
                 callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
             )
@@ -737,13 +740,13 @@ class PipelineOrchestrator:
         """
         input_chars = len(cleaned_transcript.text)
 
-        # Phase 1: Story generation
-        story_estimate = self.estimator.estimate_summarize(input_chars) * 1.5
+        # Phase 1: Story generation (uses longread estimate — similar complexity)
+        story_estimate = self.estimator.estimate_longread(input_chars)
         ticker = None
         if callback:
             ticker = await self.estimator.start_ticker(
                 stage=ProcessingStatus.LONGREAD,  # Reuse LONGREAD status for story
-                estimated_seconds=story_estimate,
+                estimated_seconds=story_estimate.estimated_seconds,
                 message="Generating leadership story",
                 callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
             )

@@ -14,9 +14,9 @@
 # v3 (2026-01-11): 55 min file, but with 20-30% margin (overestimated)
 # v4 (2026-01-12): same 55 min file, no margin (accurate estimates)
 
-version: 4
-updated: "2026-01-12"
-notes: "v4: Accurate estimates for 95-100% progress at completion"
+version: 5
+updated: "2026-02-20"
+notes: "v5: Added longread and slides estimates, calibrated for Claude"
 
 # Transcription: depends on video duration
 # Formula: estimated_time = base_time + (video_duration_seconds * factor)
@@ -53,6 +53,23 @@ summarize:
   # v4: (21.9-3)/20.9k = 0.90 → 0.9
   # Includes: outline extraction + LLM generation
   factor_per_1k_chars: 0.9
+  base_time: 3.0
+
+# Longread generation (LLM): depends on input text length
+# Formula: estimated_time = base_time + (input_chars / 1000 * factor)
+longread:
+  # Seconds per 1000 input characters
+  # v5: initial estimate from map-reduce run (306s / 67K chars)
+  # Will be recalibrated after single-pass runs
+  factor_per_1k_chars: 4.4
+  base_time: 10.0
+
+# Slides extraction (Claude Vision): depends on slide count
+# Formula: estimated_time = base_time + (slides_count * factor)
+slides:
+  # Seconds per slide (Haiku Vision API)
+  # v5: initial estimate from 19-slide run (43.4s / 19 slides)
+  factor_per_slide: 2.3
   base_time: 3.0
 
 # Fixed-time stages (not estimated dynamically)

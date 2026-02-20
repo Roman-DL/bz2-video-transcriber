@@ -19,7 +19,7 @@ import logging
 import time
 from typing import Any
 
-from app.config import Settings, load_prompt, get_model_config
+from app.config import Settings, load_prompt, get_model_config, load_model_config
 from app.utils.json_utils import extract_json
 from app.utils import calculate_cost
 from app.models.schemas import (
@@ -34,7 +34,7 @@ from app.models.schemas import (
 )
 from app.services.ai_clients import BaseAIClient
 from app.services.outline_extractor import OutlineExtractor
-from app.services.text_splitter import TextSplitter
+from app.services.text_splitter import TextSplitter, PART_SIZE, OVERLAP_SIZE, MIN_PART_SIZE
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -60,14 +60,14 @@ DEFAULT_MAX_PARALLEL_SECTIONS = 2
 DEFAULT_LARGE_TEXT_THRESHOLD = 10000  # Extract outline for texts > 10K chars
 DEFAULT_CONTEXT_TOKENS = 8192
 
-# Context budget: Russian text ~2.5 tokens/char
-TOKENS_PER_CHAR = 2.5
+# Context budget: Russian text ~2.0 tokens/char (calibrated for Claude tokenizer)
+TOKENS_PER_CHAR = 2.0
 # Reserve for system prompt, instructions, template (~15K tokens)
 PROMPT_OVERHEAD_TOKENS = 15_000
-# Reserve for output (~30K tokens)
-OUTPUT_RESERVE_TOKENS = 30_000
-# Use 85% of context window (safety margin)
-CONTEXT_UTILIZATION = 0.85
+# Reserve for output (~20K tokens, SINGLE_PASS_MAX_TOKENS=16K + margin)
+OUTPUT_RESERVE_TOKENS = 20_000
+# Use 90% of context window (prompt overhead already accounted separately)
+CONTEXT_UTILIZATION = 0.90
 
 # Single-pass needs more output tokens than default 4096
 # Typical longread: 4000-8000 words ≈ 10K-20K tokens in Russian
@@ -114,7 +114,13 @@ class LongreadGenerator:
         self.template = load_prompt("longread", overrides.template or "template", settings)
 
         # Map-reduce components (used only when text doesn't fit in context)
-        self.text_splitter = TextSplitter()
+        # Read text_splitter config from model profile (large: min_part_size=20000)
+        ts_config = load_model_config(settings.longread_model, "text_splitter", settings)
+        self.text_splitter = TextSplitter(
+            part_size=ts_config.get("part_size", PART_SIZE),
+            overlap_size=ts_config.get("overlap_size", OVERLAP_SIZE),
+            min_part_size=ts_config.get("min_part_size", MIN_PART_SIZE),
+        )
         self.outline_extractor = OutlineExtractor(ai_client, settings)
 
         # Token tracking (v0.43+: unified interface)
