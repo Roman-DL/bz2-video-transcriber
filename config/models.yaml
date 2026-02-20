@@ -112,6 +112,7 @@ context_profiles:
       overlap_size: 10000
       min_part_size: 20000
     longread:
+      max_input_chars: 350000
       chunks_per_section: 10
       max_parallel_sections: 4
     summary:

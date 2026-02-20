@@ -208,16 +208,11 @@ def load_model_config(model: str, stage: str, settings: Settings | None = None) 
     """
     Load model-specific configuration for a pipeline stage.
 
-    Extracts model family from model name and returns stage-specific settings.
+    Lookup: exact match first, then rstrip fallback for family names.
     Falls back to defaults if model not found.
 
-    Model family extraction:
-    - "gemma2:9b" -> "gemma2"
-    - "qwen2.5:14b" -> "qwen2"
-    - "qwen3:14b" -> "qwen3"
-
     Args:
-        model: Full model name (e.g., "gemma2:9b")
+        model: Full model name (e.g., "claude-sonnet-4-6", "gemma2:9b")
         stage: Pipeline stage ("cleaner", "chunker", "text_splitter")
         settings: Optional settings instance
 
@@ -225,11 +220,19 @@ def load_model_config(model: str, stage: str, settings: Settings | None = None) 
         Configuration dictionary for the stage
     """
     config = load_models_config(settings)
-    model_family = model.split(":")[0].rstrip("0123456789.")
+    model_name = model.split(":")[0]
+    models = config.get("models", {})
 
-    # Try model-specific config first
-    if model_family in config.get("models", {}):
-        stage_config = config["models"][model_family].get(stage, {})
+    # Exact match first (e.g. "claude-sonnet-4-6", "gemma2")
+    if model_name in models:
+        stage_config = models[model_name].get(stage, {})
+        if stage_config:
+            return stage_config
+
+    # Family match fallback (e.g. "qwen2.5" -> "qwen2" via rstrip)
+    model_family = model_name.rstrip("0123456789.")
+    if model_family != model_name and model_family in models:
+        stage_config = models[model_family].get(stage, {})
         if stage_config:
             return stage_config
 
@@ -241,27 +244,28 @@ def get_model_config(model: str, settings: Settings | None = None) -> dict:
     """
     Get full model configuration for all stages.
 
-    Extracts model family from model name and returns all settings.
+    Lookup: exact match first, then rstrip fallback for family names.
     Falls back to defaults if model not found.
 
-    Model family extraction:
-    - "gemma2:9b" -> "gemma2"
-    - "qwen2.5:14b" -> "qwen2"
-    - "qwen3:14b" -> "qwen3"
-
     Args:
-        model: Full model name (e.g., "gemma2:9b")
+        model: Full model name (e.g., "claude-sonnet-4-6", "gemma2:9b")
         settings: Optional settings instance
 
     Returns:
         Full configuration dictionary for the model
     """
     config = load_models_config(settings)
-    model_family = model.split(":")[0].rstrip("0123456789.")
+    model_name = model.split(":")[0]
+    models = config.get("models", {})
 
-    # Try model-specific config first
-    if model_family in config.get("models", {}):
-        return config["models"][model_family]
+    # Exact match first (e.g. "claude-sonnet-4-6", "claude-haiku-4-5")
+    if model_name in models:
+        return models[model_name]
+
+    # Family match fallback (e.g. "qwen2.5:14b" -> "qwen2" via rstrip)
+    model_family = model_name.rstrip("0123456789.")
+    if model_family != model_name and model_family in models:
+        return models[model_family]
 
     # Fallback to defaults
     return config.get("defaults", {})
