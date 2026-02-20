@@ -196,22 +196,22 @@ longread:
 
 ## Фазы реализации
 
-### Фаза 1: Код + инфраструктура (эта беседа)
+### Фаза 1: Код + инфраструктура ✅
 
 - [x] Обновить план с фазами
-- [ ] Fix `get_model_config()` в `backend/app/config.py`
-- [ ] Рефакторинг `longread_generator.py` (single-pass + map-reduce + авто-выбор)
-- [ ] Обновить `config/models.yaml` (max_input_chars)
-- [ ] Обновить `config/prompts/longread/template.md` (JSON шаблон для single-pass)
-- [ ] Удалить `config/prompts/longread/section.md`, `combine.md`
-- [ ] Проверка синтаксиса
+- [x] Fix `get_model_config()` в `backend/app/config.py`
+- [x] Рефакторинг `longread_generator.py` (single-pass + map-reduce + авто-выбор)
+- [x] Обновить `config/models.yaml` (max_input_chars)
+- [x] Обновить `config/prompts/longread/template.md` (JSON шаблон для single-pass)
+- [x] Удалить `config/prompts/longread/section.md`, `combine.md`
+- [x] Проверка синтаксиса
 
-### Фаза 2: Промпты + документация (следующая беседа)
+### Фаза 2: Промпты + документация ✅
 
-- [ ] Обновить `config/prompts/longread/system.md` и `instructions.md`
-- [ ] Обновить `config/prompts/summary/system.md`, `instructions.md`, `template.md`
-- [ ] Документация: CLAUDE.md, pipeline.md, ADR
-- [ ] Version bump, деплой, тест на реальных данных
+- [x] Обновить `config/prompts/longread/system.md` и `instructions.md`
+- [x] Обновить `config/prompts/summary/system.md`, `instructions.md`, `template.md`
+- [x] Документация: CLAUDE.md, pipeline.md, ADR-015
+- [x] Version bump
 
 ---
 

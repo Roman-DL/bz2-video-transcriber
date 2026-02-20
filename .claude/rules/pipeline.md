@@ -59,6 +59,14 @@ globs: backend/app/services/pipeline/**,backend/app/services/stages/**,backend/a
 - `SpeakerInfo` в `VideoMetadata.speaker_info` — парсится из текста MD
 - `speaker_utils.parse_speakers()` — обнаружение спикеров по паттерну `Фамилия Имя` / `SpeakerN`
 
+## Longread — Auto-selection (v0.67+)
+- `LongreadGenerator` авто-выбирает путь по `context_tokens` модели vs размер текста
+- **Single-pass** (1 LLM вызов) — когда текст помещается в контекст (Claude 200K)
+- **Map-reduce** (split → outline → sections → frame) — когда текст НЕ помещается (Ollama 8-32K)
+- Промпты (`system.md`, `instructions.md`, `template.md`) — общие для обоих путей
+- `_fits_in_context()` — оценка: Russian ~2.5 tokens/char, overhead ~45K tokens
+- `max_input_chars` из `config/models.yaml` — лимит для large-контекста
+
 ## Shared Utils
 - ВСЕГДА импортировать из `app.utils`: `extract_json`, `get_media_duration`, `is_audio_file`, `is_transcript_file`
 - НЕ дублировать утилиты в сервисах — выносить в `backend/app/utils/`

@@ -35,7 +35,7 @@ https://transcriber.home/health  # Health check
 ## Архитектура
 
 ```
-Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longread → Summary → Chunk (H2, ≤600w) + Describe → Save (educational)
+Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longread (auto) → Summary → Chunk (H2, ≤600w) + Describe → Save (educational)
                                             └─→ [Slides] → Story → Chunk (H2, ≤600w) + Describe → Save (leadership)
 ```
 
@@ -43,6 +43,7 @@ Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longr
 > **v0.51+:** Опциональный шаг Slides появляется перед Longread/Story если пользователь прикрепил слайды.
 > **v0.60+:** Chunk разбивает секции >600 слов по параграфам. BZ2-Bot v1.0 формат.
 > **v0.62+:** Description generation перенесена из Save в Chunk. Save — чистое сохранение файлов.
+> **v0.67+:** Longread авто-выбор single-pass (1 LLM вызов) или map-reduce по размеру контекста модели.
 
 ## Ключевые ограничения
 
@@ -214,6 +215,7 @@ docs/pipeline/                    # Документация pipeline (14 фай
 
 | Версия | Ключевые изменения |
 |--------|--------------------|
+| v0.67 | Single-pass лонгрид для моделей с большим контекстом, обновлённые промпты longread/summary |
 | v0.65 | Оптимизация очистки: семантический глоссарий, Haiku default, chunk 40K |
 | v0.64 | Импорт MD-транскриптов из MacWhisper, SpeakerInfo |
 | v0.63 | HTTPS через Traefik, убран прямой порт бэкенда |
