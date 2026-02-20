@@ -28,6 +28,7 @@ import type {
 import { EDUCATIONAL_STEPS, LEADERSHIP_STEPS } from '@/api/types';
 import { useSettings } from '@/contexts/SettingsContext';
 import { isTranscriptFile } from '@/utils/fileUtils';
+import { formatLongreadAsMarkdown } from '@/components/results/LongreadView';
 
 import type { SlideFile } from '@/api/types';
 
@@ -109,6 +110,7 @@ export interface UsePipelineProcessorResult {
   runStep: (step: PipelineStep) => Promise<void>;
   retry: () => void;
   resetDataFromStep: (step: PipelineStep) => void;
+  updateStepData: (updates: Partial<StepData>) => void;
 
   // Helpers
   getStepStatus: (step: PipelineStep) => StepStatus;
@@ -332,6 +334,11 @@ export function usePipelineProcessor({
     return modelOverrides[stage] || models[settingsKey];
   }, [modelOverrides, models]);
 
+  // Update step data from external components (e.g. inline editing)
+  const updateStepData = useCallback((updates: Partial<StepData>) => {
+    setData(prev => ({ ...prev, ...updates }));
+  }, []);
+
   // Reset data from a specific step onwards
   const resetDataFromStep = useCallback((step: PipelineStep) => {
     const stepIndex = pipelineSteps.indexOf(step);
@@ -494,9 +501,7 @@ export function usePipelineProcessor({
               .join('\n\n');
           } else {
             if (!data.longread) return;
-            markdownContent = data.longread.sections
-              .map(s => `## ${s.title}\n\n${s.content}`)
-              .join('\n\n');
+            markdownContent = formatLongreadAsMarkdown(data.longread);
           }
           const chunks = await stepChunk.mutateAsync({
             markdownContent: markdownContent,
@@ -723,6 +728,7 @@ export function usePipelineProcessor({
     runStep,
     retry,
     resetDataFromStep,
+    updateStepData,
 
     // Helpers
     getStepStatus,

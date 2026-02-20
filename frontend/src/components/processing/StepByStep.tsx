@@ -694,6 +694,8 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                         cleanedChars={data.cleanedTranscript?.cleanedLength}
                         showDiff={showLongreadDiff}
                         onToggleDiff={() => setShowLongreadDiff(!showLongreadDiff)}
+                        editable={!isLoading}
+                        onLongreadUpdate={(updated) => processor.updateStepData({ longread: updated })}
                       />
                     </div>
                   </div>
