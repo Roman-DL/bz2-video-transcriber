@@ -88,7 +88,9 @@ class DescriptionGenerator:
             logger.warning("description_skip", extra={"reason": "no_source_content"})
             return DescriptionResult()
 
-        stream_name = self._get_stream_name(metadata.event_type, metadata.stream)
+        stream_name = self._get_stream_name(
+            metadata.event_type, metadata.stream, metadata.event_name
+        )
 
         try:
             system_prompt = load_prompt("export", "system", self.settings)
@@ -194,24 +196,33 @@ class DescriptionGenerator:
 
         return ""
 
-    def _get_stream_name(self, event_type: str, stream: str) -> str:
+    def _get_stream_name(
+        self, event_type: str, stream: str, event_name: str | None = None
+    ) -> str:
         """Get full stream name from events config.
+
+        For offsite events, uses event_name directly (e.g., "ФСТ")
+        instead of generic "Выездное мероприятие" from events.yaml.
 
         Args:
             event_type: Event type code (e.g., "ПШ")
             stream: Stream code (e.g., "SV"), can be empty
+            event_name: Explicit event name for offsite events
 
         Returns:
             Full stream name or just event name if stream is empty
         """
+        if event_name:
+            return event_name
+
         event_types = self.events_config.get("event_types", {})
         event_info = event_types.get(event_type, {})
-        event_name = event_info.get("name", event_type)
+        resolved_name = event_info.get("name", event_type)
 
         if not stream:
-            return event_name
+            return resolved_name
 
         streams = event_info.get("streams", {})
         stream_desc = streams.get(stream, stream)
 
-        return f"{event_name} — {stream_desc}"
+        return f"{resolved_name} — {stream_desc}"
