@@ -27,6 +27,7 @@ import type {
 } from '@/api/types';
 import { EDUCATIONAL_STEPS, LEADERSHIP_STEPS } from '@/api/types';
 import { useSettings } from '@/contexts/SettingsContext';
+import { isTranscriptFile } from '@/utils/fileUtils';
 
 import type { SlideFile } from '@/api/types';
 
@@ -90,6 +91,7 @@ export interface UsePipelineProcessorResult {
   data: StepData;
   contentType: ContentType;
   hasSlides: boolean;
+  isTranscript: boolean;
 
   // Progress
   progressInfo: ProgressInfo;
@@ -132,6 +134,7 @@ export function usePipelineProcessor({
   onStepComplete,
 }: UsePipelineProcessorOptions): UsePipelineProcessorResult {
   const hasSlides = initialSlides.length > 0;
+  const isTranscript = isTranscriptFile(filename);
   const { models } = useSettings();
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -702,6 +705,7 @@ export function usePipelineProcessor({
     data,
     contentType,
     hasSlides,
+    isTranscript,
 
     // Progress
     progressInfo,
@@ -750,12 +754,14 @@ function fileToBase64(file: File): Promise<string> {
 /**
  * Get human-readable description for a pipeline step.
  */
-export function getStepDescription(step: PipelineStep): string {
+export function getStepDescription(step: PipelineStep, isTranscript = false): string {
   switch (step) {
     case 'parse':
       return 'Извлечение метаданных из имени файла';
     case 'transcribe':
-      return 'Извлечение аудио и транскрипция через Whisper';
+      return isTranscript
+        ? 'Загрузка транскрипта из файла'
+        : 'Извлечение аудио и транскрипция через Whisper';
     case 'clean':
       return 'Очистка текста с использованием глоссария и LLM';
     case 'slides':

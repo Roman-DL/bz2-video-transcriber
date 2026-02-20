@@ -172,6 +172,7 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
     data,
     contentType,
     hasSlides,
+    isTranscript,
     progressInfo,
     error,
     promptOverrides,
@@ -304,6 +305,11 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
               {filename}
             </h1>
           </div>
+          {isTranscript && (
+            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 shrink-0">
+              MD-транскрипт
+            </span>
+          )}
           {contentType === 'leadership' && (
             <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 shrink-0">
               Лидерская история
@@ -343,10 +349,12 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                 </span>
               </div>
               <h3 className="text-base font-semibold text-gray-900 mb-1">
-                {STEP_LABELS[currentStep]}
+                {currentStep === 'transcribe' && isTranscript
+                  ? 'Загрузка транскрипта'
+                  : STEP_LABELS[currentStep]}
               </h3>
               <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-                {getStepDescription(currentStep)}
+                {getStepDescription(currentStep, isTranscript)}
               </p>
 
               {/* Progress for long-running steps */}

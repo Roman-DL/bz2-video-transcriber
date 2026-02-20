@@ -25,6 +25,13 @@ export type ContentType = 'educational' | 'leadership';
 // Event category determines archive structure
 export type EventCategory = 'regular' | 'offsite';
 
+// v0.64+: Speaker information from MD transcript
+export interface SpeakerInfo {
+  namedSpeakers: string[];
+  anonymousSpeakers: string[];
+  scenario: string; // single | co_speakers | lineup | qa | co_speakers_qa | lineup_qa
+}
+
 export interface VideoMetadata {
   date: string;
   eventType: string;
@@ -40,6 +47,7 @@ export interface VideoMetadata {
   contentType: ContentType;
   eventCategory: EventCategory;
   eventName: string;
+  speakerInfo?: SpeakerInfo | null; // v0.64+: from MD transcript
 }
 
 export interface TranscriptSegment {
@@ -71,7 +79,7 @@ export interface RawTranscript {
  */
 export interface TranscribeResult {
   rawTranscript: RawTranscript;
-  audioPath: string;
+  audioPath?: string | null;
   displayText: string;
 }
 

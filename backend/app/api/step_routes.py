@@ -38,12 +38,14 @@ from app.models.schemas import (
     Summary,
     TranscribeResult,
     TranscriptChunks,
+    TranscriptSegment,
     VideoMetadata,
 )
 from app.services.ai_clients import ClaudeClient
 from app.services.pipeline import PipelineOrchestrator
 from app.services.slides_extractor import SlidesExtractor
-from app.utils import get_media_duration
+from app.utils import estimate_duration_from_text, get_media_duration, is_transcript_file
+from app.utils.speaker_utils import parse_speakers
 from app.services.progress_estimator import ProgressEstimator
 
 logger = logging.getLogger(__name__)
@@ -233,11 +235,16 @@ async def step_parse(request: StepParseRequest) -> VideoMetadata:
 
     try:
         metadata = orchestrator.parse(video_path)
-        # Add video duration for UI display
-        metadata.duration_seconds = get_media_duration(video_path)
-        if metadata.duration_seconds is None:
-            # Fallback: estimate from file size (~5MB per minute)
-            metadata.duration_seconds = video_path.stat().st_size / 83333
+        # v0.64+: MD transcripts — duration from text, speaker detection
+        if is_transcript_file(video_path):
+            text = video_path.read_text(encoding="utf-8")
+            metadata.duration_seconds = estimate_duration_from_text(text)
+            metadata.speaker_info = parse_speakers(text)
+        else:
+            metadata.duration_seconds = get_media_duration(video_path)
+            if metadata.duration_seconds is None:
+                # Fallback: estimate from file size (~5MB per minute)
+                metadata.duration_seconds = video_path.stat().st_size / 83333
         return metadata
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -276,7 +283,36 @@ async def step_transcribe(request: StepParseRequest) -> StreamingResponse:
     orchestrator = get_orchestrator()
     estimator = ProgressEstimator(settings)
 
-    # Get video duration for time estimation
+    # v0.64+: MD transcript — load text directly, skip Whisper
+    if is_transcript_file(video_path):
+        async def load_md_transcript():
+            text = video_path.read_text(encoding="utf-8")
+            estimated_duration = estimate_duration_from_text(text)
+
+            transcript = RawTranscript(
+                segments=[TranscriptSegment(start=0, end=estimated_duration, text=text)],
+                language="ru",
+                duration_seconds=estimated_duration,
+                whisper_model="macwhisper-large-v2",
+                processing_time_sec=0,
+            )
+            return TranscribeResult(
+                raw_transcript=transcript,
+                audio_path=None,
+                display_text=transcript.full_text,
+            )
+
+        return create_sse_response(
+            run_with_sse_progress(
+                stage=ProcessingStatus.TRANSCRIBING,
+                estimator=estimator,
+                estimated_seconds=1.0,
+                message=f"Loading transcript: {request.video_filename}",
+                operation=load_md_transcript,
+            )
+        )
+
+    # Media file — transcribe via Whisper
     duration = get_media_duration(video_path)
     if duration is None:
         # Fallback: estimate from file size (~5MB per minute)

@@ -51,6 +51,14 @@ globs: backend/app/services/pipeline/**,backend/app/services/stages/**,backend/a
 - Появляется условно между `clean` и `longread/story` при наличии слайдов
 - batch_size: 5 слайдов за вызов Claude Vision API
 
+## MD Transcripts (v0.64+)
+- `.md` файлы — готовые транскрипты из MacWhisper, Whisper пропускается
+- `is_transcript_file()` из `app.utils` — проверка типа файла
+- `whisper_model="macwhisper-large-v2"` — маркер источника в RawTranscript
+- `audio_path=None` для MD файлов — нет медиафайла
+- `SpeakerInfo` в `VideoMetadata.speaker_info` — парсится из текста MD
+- `speaker_utils.parse_speakers()` — обнаружение спикеров по паттерну `Фамилия Имя` / `SpeakerN`
+
 ## Shared Utils
-- ВСЕГДА импортировать из `app.utils`: `extract_json`, `get_media_duration`, `is_audio_file`
+- ВСЕГДА импортировать из `app.utils`: `extract_json`, `get_media_duration`, `is_audio_file`, `is_transcript_file`
 - НЕ дублировать утилиты в сервисах — выносить в `backend/app/utils/`

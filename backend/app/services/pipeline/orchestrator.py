@@ -25,6 +25,7 @@ from app.models.schemas import (
     Story,
     Summary,
     TranscriptChunks,
+    TranscriptSegment,
     VideoMetadata,
     VideoSummary,
 )
@@ -37,7 +38,12 @@ from app.services.parser import FilenameParseError, parse_filename
 from app.services.saver import FileSaver
 from app.services.summarizer import VideoSummarizer
 from app.services.transcriber import WhisperTranscriber
-from app.utils import estimate_duration_from_size, get_media_duration
+from app.utils import (
+    estimate_duration_from_size,
+    estimate_duration_from_text,
+    get_media_duration,
+    is_transcript_file,
+)
 from app.utils.h2_chunker import chunk_by_h2
 
 from .config_resolver import ConfigResolver
@@ -153,15 +159,20 @@ class PipelineOrchestrator:
         except FilenameParseError as e:
             raise PipelineError(ProcessingStatus.PARSING, str(e), e)
 
-        # Get media duration for progress estimation
-        metadata.duration_seconds = get_media_duration(video_path)
-        if metadata.duration_seconds is None:
-            # Fallback: estimate from file size (different rates for audio/video)
-            metadata.duration_seconds = estimate_duration_from_size(video_path)
-            logger.info(
-                f"Using estimated duration: {metadata.duration_seconds:.0f}s "
-                f"(from file size {video_path.stat().st_size / 1024 / 1024:.1f}MB)"
-            )
+        # Get duration for progress estimation
+        # v0.64+: MD transcripts — duration from text word count
+        if is_transcript_file(video_path):
+            text = video_path.read_text(encoding="utf-8")
+            metadata.duration_seconds = estimate_duration_from_text(text)
+        else:
+            metadata.duration_seconds = get_media_duration(video_path)
+            if metadata.duration_seconds is None:
+                # Fallback: estimate from file size (different rates for audio/video)
+                metadata.duration_seconds = estimate_duration_from_size(video_path)
+                logger.info(
+                    f"Using estimated duration: {metadata.duration_seconds:.0f}s "
+                    f"(from file size {video_path.stat().st_size / 1024 / 1024:.1f}MB)"
+                )
 
         await self.progress_manager.update_progress(
             progress_callback,
@@ -170,14 +181,18 @@ class PipelineOrchestrator:
             f"Parsed: {metadata.video_id} ({metadata.duration_seconds:.0f}s)",
         )
 
-        # Stage 2: Transcribe (requires WhisperClient)
-        async with WhisperClient.from_settings(self.settings) as whisper_client:
-            transcriber = WhisperTranscriber(whisper_client, self.settings)
+        # Stage 2: Transcribe
+        # v0.64+: MD files load text directly, media files use Whisper
+        if is_transcript_file(video_path):
+            raw_transcript = self._load_md_transcript(video_path)
+            audio_path = None
+        else:
+            async with WhisperClient.from_settings(self.settings) as whisper_client:
+                transcriber = WhisperTranscriber(whisper_client, self.settings)
 
-            # Stage 2: Transcribe (extracts audio first, then sends to Whisper)
-            raw_transcript, audio_path = await self._do_transcribe(
-                transcriber, video_path, metadata.duration_seconds, progress_callback
-            )
+                raw_transcript, audio_path = await self._do_transcribe(
+                    transcriber, video_path, metadata.duration_seconds, progress_callback
+                )
 
         # Stages 3-6: Require LLM client (OllamaClient for local models)
         async with OllamaClient.from_settings(self.settings) as ai_client:
@@ -271,23 +286,46 @@ class PipelineOrchestrator:
         video_path = Path(video_path)
         return parse_filename(video_path.name, video_path)
 
-    async def transcribe(self, video_path: Path) -> tuple[RawTranscript, Path]:
+    async def transcribe(self, video_path: Path) -> tuple[RawTranscript, Path | None]:
         """
-        Transcribe video via Whisper API.
+        Transcribe video via Whisper API, or load MD transcript.
 
-        Extracts audio from video first, then sends to Whisper.
+        v0.64+: For .md files, loads text directly instead of calling Whisper.
 
         Args:
-            video_path: Path to video file
+            video_path: Path to video/audio/md file
 
         Returns:
-            Tuple of (RawTranscript, audio_path)
+            Tuple of (RawTranscript, audio_path or None for MD)
         """
         video_path = Path(video_path)
+
+        if is_transcript_file(video_path):
+            return self._load_md_transcript(video_path), None
 
         async with WhisperClient.from_settings(self.settings) as whisper_client:
             transcriber = WhisperTranscriber(whisper_client, self.settings)
             return await transcriber.transcribe(video_path)
+
+    def _load_md_transcript(self, md_path: Path) -> RawTranscript:
+        """Load pre-made transcript from MD file.
+
+        Args:
+            md_path: Path to .md transcript file
+
+        Returns:
+            RawTranscript with single segment containing full text
+        """
+        text = md_path.read_text(encoding="utf-8")
+        estimated_duration = estimate_duration_from_text(text)
+
+        return RawTranscript(
+            segments=[TranscriptSegment(start=0, end=estimated_duration, text=text)],
+            language="ru",
+            duration_seconds=estimated_duration,
+            whisper_model="macwhisper-large-v2",
+            processing_time_sec=0,
+        )
 
     async def clean(
         self,

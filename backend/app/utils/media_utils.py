@@ -16,6 +16,19 @@ logger = logging.getLogger(__name__)
 # Supported media extensions
 AUDIO_EXTENSIONS = frozenset({".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg"})
 VIDEO_EXTENSIONS = frozenset({".mp4", ".mkv", ".avi", ".mov", ".webm"})
+TRANSCRIPT_EXTENSIONS = frozenset({".md"})
+
+
+def is_transcript_file(file_path: Path) -> bool:
+    """Check if file is a pre-made transcript (.md) by extension.
+
+    Args:
+        file_path: Path to file
+
+    Returns:
+        True if file has transcript extension (.md)
+    """
+    return file_path.suffix.lower() in TRANSCRIPT_EXTENSIONS
 
 
 def is_audio_file(file_path: Path) -> bool:
@@ -98,3 +111,19 @@ def estimate_duration_from_size(file_path: Path) -> float:
     else:
         # ~5 MB/min for video
         return file_size / 83333
+
+
+def estimate_duration_from_text(text: str, words_per_minute: int = 130) -> float:
+    """Estimate speech duration from text word count.
+
+    Uses average Russian speech rate (~130 words/min).
+
+    Args:
+        text: Transcript text
+        words_per_minute: Speech rate (default 130 for Russian)
+
+    Returns:
+        Estimated duration in seconds
+    """
+    word_count = len(text.split())
+    return word_count / words_per_minute * 60

@@ -97,6 +97,24 @@ class EventCategory(str, Enum):
     OFFSITE = "offsite"
 
 
+class SpeakerInfo(CamelCaseModel):
+    """Speaker information parsed from MD transcript content.
+
+    v0.64+: Created for UI display, reused in v0.65 for prompt adaptation.
+    """
+
+    named_speakers: list[str] = Field(
+        default_factory=list, description="Named speakers: ['Беркин Андрей', 'Дмитрук Светлана']"
+    )
+    anonymous_speakers: list[str] = Field(
+        default_factory=list, description="Anonymous speakers: ['Speaker3', 'Speaker5']"
+    )
+    scenario: str = Field(
+        default="single",
+        description="Speaker scenario: single | co_speakers | lineup | qa | co_speakers_qa | lineup_qa",
+    )
+
+
 class VideoMetadata(CamelCaseModel):
     """Metadata extracted from video filename."""
 
@@ -113,6 +131,7 @@ class VideoMetadata(CamelCaseModel):
     content_type: ContentType = ContentType.EDUCATIONAL
     event_category: EventCategory = EventCategory.REGULAR
     event_name: str | None = None  # For offsite events: "Форум TABTeam (Москва)"
+    speaker_info: SpeakerInfo | None = None  # v0.64+: from MD transcript
 
     @computed_field
     @property
@@ -210,7 +229,7 @@ class TranscribeResult(CamelCaseModel):
     """
 
     raw_transcript: "RawTranscript"
-    audio_path: str
+    audio_path: str | None = None
     display_text: str
 
 

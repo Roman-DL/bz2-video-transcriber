@@ -22,9 +22,12 @@ from app.utils.chunk_utils import (
 from app.utils.h2_chunker import chunk_by_h2
 from app.utils.json_utils import extract_json, parse_json_safe
 from app.utils.media_utils import (
+    TRANSCRIPT_EXTENSIONS,
     estimate_duration_from_size,
+    estimate_duration_from_text,
     get_media_duration,
     is_audio_file,
+    is_transcript_file,
     is_video_file,
 )
 from app.utils.pdf_utils import (
@@ -58,8 +61,11 @@ __all__ = [
     # media_utils
     "get_media_duration",
     "estimate_duration_from_size",
+    "estimate_duration_from_text",
     "is_audio_file",
     "is_video_file",
+    "is_transcript_file",
+    "TRANSCRIPT_EXTENSIONS",
     # pricing_utils
     "calculate_cost",
     "get_model_pricing",

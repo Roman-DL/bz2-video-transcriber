@@ -41,6 +41,8 @@ async def list_inbox_files() -> list[str]:
         ".mp4", ".mkv", ".avi", ".mov", ".webm",
         # Audio formats (for offsite events)
         ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg",
+        # Transcript formats (v0.64+: MD from MacWhisper)
+        ".md",
     }
     files = [
         f.name

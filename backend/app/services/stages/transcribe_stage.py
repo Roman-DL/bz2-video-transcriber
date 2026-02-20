@@ -7,10 +7,11 @@ Extracts audio from video and sends to Whisper API for transcription.
 from pathlib import Path
 
 from app.config import Settings
-from app.models.schemas import ProcessingStatus, RawTranscript
+from app.models.schemas import ProcessingStatus, RawTranscript, TranscriptSegment
 from app.services.ai_clients import WhisperClient
 from app.services.stages.base import BaseStage, StageContext, StageError
 from app.services.transcriber import WhisperTranscriber
+from app.utils import estimate_duration_from_text, is_transcript_file
 
 
 class TranscribeStage(BaseStage):
@@ -44,14 +45,16 @@ class TranscribeStage(BaseStage):
         self.settings = settings
         self.transcriber = WhisperTranscriber(whisper_client, settings)
 
-    async def execute(self, context: StageContext) -> tuple[RawTranscript, Path]:
-        """Transcribe video file.
+    async def execute(self, context: StageContext) -> tuple[RawTranscript, Path | None]:
+        """Transcribe video file or load MD transcript.
+
+        v0.64+: For .md files, loads text directly instead of calling Whisper.
 
         Args:
             context: Context with parse result and video_path metadata
 
         Returns:
-            Tuple of (RawTranscript, audio_path)
+            Tuple of (RawTranscript, audio_path or None for MD)
 
         Raises:
             StageError: If transcription fails
@@ -63,6 +66,19 @@ class TranscribeStage(BaseStage):
             raise StageError(self.name, "video_path not found in context metadata")
 
         video_path = Path(video_path)
+
+        # v0.64+: MD transcript — load text directly
+        if is_transcript_file(video_path):
+            text = video_path.read_text(encoding="utf-8")
+            estimated_duration = estimate_duration_from_text(text)
+            transcript = RawTranscript(
+                segments=[TranscriptSegment(start=0, end=estimated_duration, text=text)],
+                language="ru",
+                duration_seconds=estimated_duration,
+                whisper_model="macwhisper-large-v2",
+                processing_time_sec=0,
+            )
+            return transcript, None
 
         try:
             transcript, audio_path = await self.transcriber.transcribe(video_path)
