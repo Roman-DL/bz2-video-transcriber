@@ -259,10 +259,18 @@ class ClaudeClient(BaseAIClientImpl):
                 output_tokens=response.usage.output_tokens,
             )
 
+            stop_reason = response.stop_reason
             logger.info(
                 f"Claude response: {len(content)} chars, "
-                f"tokens: {usage.input_tokens} in / {usage.output_tokens} out"
+                f"tokens: {usage.input_tokens} in / {usage.output_tokens} out, "
+                f"stop={stop_reason}"
             )
+
+            if stop_reason == "max_tokens":
+                logger.warning(
+                    f"Claude response truncated (max_tokens={num_predict}). "
+                    f"Output may be incomplete."
+                )
 
             return content, usage
 

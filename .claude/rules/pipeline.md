@@ -66,6 +66,8 @@ globs: backend/app/services/pipeline/**,backend/app/services/stages/**,backend/a
 - Промпты (`system.md`, `instructions.md`, `template.md`) — общие для обоих путей
 - `_fits_in_context()` — оценка: Russian ~2.5 tokens/char, overhead ~45K tokens
 - `max_input_chars` из `config/models.yaml` — лимит для large-контекста
+- ВСЕГДА передавать `num_predict` для single-pass (default 4096 недостаточно для полного лонгрида)
+- `SINGLE_PASS_MAX_TOKENS = 16384` — константа для single-pass генерации
 
 ## Shared Utils
 - ВСЕГДА импортировать из `app.utils`: `extract_json`, `get_media_duration`, `is_audio_file`, `is_transcript_file`

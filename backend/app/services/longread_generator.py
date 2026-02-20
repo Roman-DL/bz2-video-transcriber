@@ -69,6 +69,10 @@ OUTPUT_RESERVE_TOKENS = 30_000
 # Use 85% of context window (safety margin)
 CONTEXT_UTILIZATION = 0.85
 
+# Single-pass needs more output tokens than default 4096
+# Typical longread: 4000-8000 words ≈ 10K-20K tokens in Russian
+SINGLE_PASS_MAX_TOKENS = 16384
+
 
 class LongreadGenerator:
     """
@@ -257,7 +261,9 @@ class LongreadGenerator:
         prompt = self._build_single_pass_prompt(full_text, metadata)
 
         response, usage = await self.ai_client.generate(
-            prompt, model=self.settings.longread_model
+            prompt,
+            model=self.settings.longread_model,
+            num_predict=SINGLE_PASS_MAX_TOKENS,
         )
         self._total_input_tokens = usage.input_tokens
         self._total_output_tokens = usage.output_tokens
