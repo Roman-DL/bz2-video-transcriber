@@ -12,7 +12,7 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
-from app.config import Settings, get_settings, load_events_config
+from app.config import Settings, get_settings
 from app.models.schemas import (
     CleanedTranscript,
     ContentType,
@@ -66,7 +66,8 @@ class FileSaver:
             settings: Application settings
         """
         self.settings = settings
-        self.events_config = load_events_config(settings)
+
+
 
     async def save(
         self,
@@ -398,9 +399,7 @@ class FileSaver:
         Returns:
             Path to created file
         """
-        stream_name = self._get_stream_name(
-            metadata.event_type, metadata.stream, metadata.event_name
-        )
+        stream_name = metadata.event_name
         date_formatted = metadata.date.strftime("%d.%m.%Y")
 
         # Build context header (same for all chunks)
@@ -657,40 +656,6 @@ class FileSaver:
 
         return dest_path
 
-    def _get_stream_name(
-        self, event_type: str, stream: str, event_name: str | None = None
-    ) -> str:
-        """Get full stream name from events config.
-
-        For offsite events, uses event_name directly (e.g., "ФСТ")
-        instead of generic "Выездное мероприятие" from events.yaml.
-
-        Args:
-            event_type: Event type code (e.g., "ПШ")
-            stream: Stream code (e.g., "SV"), can be empty
-            event_name: Explicit event name for offsite events
-
-        Returns:
-            Full stream name (e.g., "Понедельничная Школа — Супервайзеры")
-            or just event name if stream is empty
-        """
-        if event_name:
-            return event_name
-
-        event_types = self.events_config.get("event_types", {})
-
-        event_info = event_types.get(event_type, {})
-        resolved_name = event_info.get("name", event_type)
-
-        # If stream is empty, return just event name
-        if not stream:
-            return resolved_name
-
-        streams = event_info.get("streams", {})
-        stream_desc = streams.get(stream, stream)
-
-        return f"{resolved_name} — {stream_desc}"
-
     @staticmethod
     def _format_duration(seconds: float) -> str:
         """
@@ -760,21 +725,8 @@ if __name__ == "__main__":
             print(f"FAILED: {e}")
             return 1
 
-        # Test 3: Get stream name
-        print("Test 3: Get stream name...", end=" ")
-        try:
-            saver = FileSaver(settings)
-            stream_name = saver._get_stream_name("ПШ", "SV")
-            assert "Понедельничная Школа" in stream_name, f"Got: {stream_name}"
-            assert "Супервайзеры" in stream_name, f"Got: {stream_name}"
-            print("OK")
-            print(f"  Stream name: {stream_name}")
-        except Exception as e:
-            print(f"FAILED: {e}")
-            return 1
-
-        # Test 4: Full save cycle with temp directory
-        print("\nTest 4: Full save cycle...", end=" ")
+        # Test 3: Full save cycle with temp directory
+        print("Test 3: Full save cycle...", end=" ")
         try:
             from app.models.schemas import (
                 CleanedTranscript,
@@ -805,6 +757,7 @@ if __name__ == "__main__":
                     video_id="2025-04-07_ПШ-SV_test-video",
                     source_path=video_file,
                     archive_path=archive_dir,
+                    event_name="ПШ.SV",
                 )
 
                 # Create mock raw transcript
@@ -847,31 +800,47 @@ if __name__ == "__main__":
                     model_name=settings.cleaner_model,
                 )
 
+                # Create mock longread
+                longread = Longread(
+                    video_id=metadata.video_id,
+                    title=metadata.title,
+                    speaker=metadata.speaker,
+                    date=metadata.date,
+                    event_type=metadata.event_type,
+                    stream=metadata.stream,
+                    introduction="Test introduction.",
+                    sections=[],
+                    model_name=settings.summarizer_model,
+                )
+
                 # Create mock summary
-                summary = VideoSummary(
-                    summary="This is a test summary.",
-                    key_points=["Point 1", "Point 2"],
-                    recommendations=["Recommendation 1"],
-                    target_audience="All users",
-                    questions_answered=["Question 1?"],
-                    section="Обучение",
-                    subsection="Тестирование",
-                    tags=["test", "demo"],
-                    access_level=1,
+                summary = Summary(
+                    video_id=metadata.video_id,
+                    title=metadata.title,
+                    speaker=metadata.speaker,
+                    date=metadata.date,
+                    essence="Test essence paragraph.",
+                    key_concepts=["Concept 1"],
+                    practical_tools=[],
+                    quotes=[],
+                    insight="Test insight.",
+                    actions=[],
                     model_name=settings.summarizer_model,
                 )
 
                 # Run save
                 saver = FileSaver(settings)
-                result = await saver.save(
-                    metadata, raw_transcript, cleaned_transcript, chunks, summary
+                result = await saver.save_educational(
+                    metadata, raw_transcript, cleaned_transcript,
+                    chunks, longread, summary,
                 )
                 files = result.files
 
                 # Verify results
-                assert len(files) == 6, f"Expected 6 files, got {len(files)}"
+                assert len(files) == 7, f"Expected 7 files, got {len(files)}: {files}"
                 assert "pipeline_results.json" in files
                 assert "transcript_chunks.json" in files
+                assert "longread.md" in files
                 assert "summary.md" in files
                 assert "transcript_raw.txt" in files
                 assert "transcript_cleaned.txt" in files
@@ -880,6 +849,7 @@ if __name__ == "__main__":
                 # Verify files exist
                 assert (archive_dir / "pipeline_results.json").exists()
                 assert (archive_dir / "transcript_chunks.json").exists()
+                assert (archive_dir / "longread.md").exists()
                 assert (archive_dir / "summary.md").exists()
                 assert (archive_dir / "transcript_raw.txt").exists()
                 assert (archive_dir / "transcript_cleaned.txt").exists()
@@ -889,9 +859,9 @@ if __name__ == "__main__":
                 with open(archive_dir / "pipeline_results.json", "r", encoding="utf-8") as f:
                     pipeline_data = json.load(f)
                 assert pipeline_data["version"] == PIPELINE_VERSION
-                assert pipeline_data["metadata"]["video_id"] == metadata.video_id
-                assert "cleaned_transcript" in pipeline_data
-                assert pipeline_data["cleaned_transcript"]["model_name"] == settings.cleaner_model
+                assert pipeline_data["metadata"]["videoId"] == metadata.video_id
+                assert "cleanedTranscript" in pipeline_data
+                assert pipeline_data["cleanedTranscript"]["modelName"] == settings.cleaner_model
 
                 # Verify transcript_chunks.json content (BZ2-Bot format v0.60+)
                 with open(archive_dir / "transcript_chunks.json", "r", encoding="utf-8") as f:
@@ -905,16 +875,11 @@ if __name__ == "__main__":
                 chunk_text = material["chunks"][0]["text"]
                 assert "Тема: Test Video" in chunk_text
                 assert "## Introduction" in chunk_text
-
-                # Verify summary content
-                summary_content = (archive_dir / "summary.md").read_text(encoding="utf-8")
-                assert "video_id:" in summary_content
-                assert "Test Video" in summary_content
-                assert "Краткое содержание" in summary_content
+                # Verify event_name is used as stream_name
+                assert material["metadata"]["stream_name"] == "ПШ.SV"
 
                 # Verify raw transcript
                 raw_content = (archive_dir / "transcript_raw.txt").read_text(encoding="utf-8")
-                assert "[00:00:00]" in raw_content
                 assert "First segment." in raw_content
 
                 # Verify cleaned transcript

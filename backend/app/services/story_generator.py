@@ -113,7 +113,7 @@ class StoryGenerator:
 
         logger.info(
             f"Generating story for: {metadata.speaker} "
-            f"(event: {metadata.event_name or metadata.event_type})"
+            f"(event: {metadata.event_name})"
         )
 
         # Build prompt with optional slides context
@@ -205,7 +205,7 @@ class StoryGenerator:
             "Создай конспект лидерской истории по шаблону 8 блоков.",
             "",
             f"**Имена:** {metadata.speaker}",
-            f"**Событие:** {metadata.event_name or metadata.event_type}",
+            f"**Событие:** {metadata.event_name}",
             f"**Дата:** {metadata.date.isoformat()}",
             "",
             "### Транскрипт",
@@ -273,7 +273,7 @@ class StoryGenerator:
             video_id=metadata.video_id,
             names=data.get("names", metadata.speaker),
             current_status=data.get("current_status", ""),
-            event_name=metadata.event_name or metadata.event_type,
+            event_name=metadata.event_name,
             date=metadata.date,
             main_insight=data.get("main_insight", ""),
             blocks=blocks,

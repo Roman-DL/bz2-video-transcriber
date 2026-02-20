@@ -1,64 +1,77 @@
 # Конфигурация типов мероприятий для парсинга имени файла
 #
-# Поддерживаемые форматы:
-# 1. Regular (ПШ): {дата} {тип}.{поток} {тема} ({спикер}).mp4
-# 2. Offsite: {Фамилия} ({Имя}).mp4 или {Фамилия} — {Название}.mp4
+# Единый формат (v0.69+):
+#   {дата} {тип}[.{поток}]. {тема} ({спикер}).ext
 #
 # category: regular | offsite
 #   - regular: еженедельные школы → archive/{year}/{event_type}/{MM.DD}/{Title}/
 #   - offsite: выездные мероприятия → archive/{year}/Выездные/{event_name}/{Title}/
 
 event_types:
+  # --- Регулярные ---
   ПШ:
     name: "Понедельничная Школа"
+    display_name: "ПШ"
     category: regular
     streams:
       SV: "Супервайзеры"
       НП: "Независимые партнёры"
-      ALL: "Все уровни"
-
+  МК:
+    name: "Мастер-класс"
+    display_name: "МК"
+    category: regular
+    streams:
+      Бизнес: "Мастер-класс по бизнесу"
+      Продукт: "Мастер-класс по продукту"
+  ВВК:
+    name: "Встреча возможностей для клиентов"
+    display_name: "ВВК"
+    category: regular
+    streams: {}
+  ГР:
+    name: "Группа роста"
+    display_name: "ГР"
+    category: regular
+    streams: {}
   ГП:
     name: "Группа поддержки"
+    display_name: "ГП"
     category: regular
-    streams:
-      SV: "Супервайзеры"
-      НП: "Независимые партнёры"
-      NEW: "Новички"
-
-  ФК:
-    name: "Фитнес-клуб"
+    streams: {}
+  Тема:
+    name: "Тема"
+    display_name: "Тема"
     category: regular
-    streams:
-      AM: "Утренний"
-      PM: "Вечерний"
-
-  ВЕБ:
-    name: "Вебинар"
-    category: regular
-    streams:
-      PROD: "Продукты"
-      BIZ: "Бизнес"
-      MOT: "Мотивация"
-
-  ОБУ:
-    name: "Обучение"
-    category: regular
-    streams:
-      BASE: "Базовый курс"
-      ADV: "Продвинутый"
-      SPEC: "Специализированный"
-
-  # Virtual event type for offsite events parsed from folder structure
-  ВЫЕЗД:
-    name: "Выездное мероприятие"
-    category: offsite
     streams: {}
 
-# Формат даты в имени файла
-date_format: "%Y.%m.%d"
-
-# Паттерны имени файла (для документации)
-filename_patterns:
-  regular: "{date} {type}.{stream} {title} ({speaker})"
-  offsite_leadership: "{Фамилия} ({Имя})"
-  offsite_educational: "{Фамилия} — {Название}"
+  # --- Выездные ---
+  ФСТ:
+    name: "Февральский стартовый тренинг"
+    display_name: "ФСТ"
+    category: offsite
+    streams: {}
+  Форум TABTeam:
+    name: "Форум TABTeam"
+    display_name: "Форум TABTeam"
+    category: offsite
+    streams: {}
+  Экстраваганза:
+    name: "Экстраваганза"
+    display_name: "Экстраваганза"
+    category: offsite
+    streams: {}
+  ШБМ:
+    name: "Школа будущих миллионеров"
+    display_name: "ШБМ"
+    category: offsite
+    streams: {}
+  ШБП:
+    name: "Школа будущих президентов"
+    display_name: "ШБП"
+    category: offsite
+    streams: {}
+  Honors:
+    name: "Honors"
+    display_name: "Honors"
+    category: offsite
+    streams: {}

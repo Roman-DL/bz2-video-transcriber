@@ -130,7 +130,7 @@ class VideoMetadata(CamelCaseModel):
     duration_seconds: float | None = None  # Video duration from ffprobe
     content_type: ContentType = ContentType.EDUCATIONAL
     event_category: EventCategory = EventCategory.REGULAR
-    event_name: str | None = None  # For offsite events: "Форум TABTeam (Москва)"
+    event_name: str = ""  # Display name: "ПШ.SV", "Форум TABTeam", etc.
     speaker_info: SpeakerInfo | None = None  # v0.64+: from MD transcript
 
     @computed_field
