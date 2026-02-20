@@ -1,14 +1,15 @@
 """
 Filename parser for video files.
 
-Unified format (v0.69+):
+Unified format (v0.69+, day optional since v0.71):
     {date} {type}[.{stream}]. {title} ({speaker}).ext
+    Date: YYYY.MM.DD or YYYY.MM (day defaults to 1 if omitted)
 
 Examples:
     2025.04.07 ПШ.SV. Группа поддержки (Светлана Дмитрук).mp4
     2025.04.07 ПШ.SV. История (Антоновы Дмитрий и Юлия).mp4
     2025.05.02 ШБМ. Тема (Спикер).mp4
-    2025.05.02 Форум TABTeam. История (Иванов Дмитрий).mp4
+    2026.02 ФСТ. Спонсор, за которым идут (Дмитрук Светлана).mp4
     2025.04.07 МК.Бизнес. Тема (Спикер).mp4
 
 "История" in title position → content_type=LEADERSHIP.
@@ -34,7 +35,7 @@ class FilenameParseError(Exception):
         if message is None:
             message = (
                 f"Filename '{filename}' doesn't match expected pattern. "
-                f"Expected format: '{{date}} {{type}}[.{{stream}}]. {{title}} ({{speaker}}).ext'"
+                f"Expected format: '{{YYYY.MM[.DD]}} {{type}}[.{{stream}}]. {{title}} ({{speaker}}).ext'"
             )
         super().__init__(message)
 
@@ -43,7 +44,7 @@ class FilenameParseError(Exception):
 # Format: {date} {type}[.{stream}]. {title} ({speaker}).ext
 # Groups: (1) date, (2) event group (type[.stream]), (3) title, (4) speaker
 EVENT_PATTERN = re.compile(
-    r'^(\d{4}\.\d{2}\.\d{2})\s+'   # Date: 2025.04.07
+    r'^(\d{4}\.\d{2}(?:\.\d{2})?)\s+'   # Date: 2025.04.07 or 2025.04
     r'(.+?)\.\s+'                    # Event group: ПШ.SV or Форум TABTeam
     r'(.+?)\s+'                      # Title: Группа поддержки or История
     r'\(([^)]+)\)'                   # Speaker/Names: (Светлана Дмитрук)
@@ -226,7 +227,7 @@ def parse_filename(
     raise FilenameParseError(
         filename,
         f"Filename '{filename}' doesn't match expected pattern.\n"
-        f"Expected format: '{{date}} {{type}}[.{{stream}}]. {{title}} ({{speaker}}).ext'"
+        f"Expected format: '{{YYYY.MM[.DD]}} {{type}}[.{{stream}}]. {{title}} ({{speaker}}).ext'"
     )
 
 
@@ -241,7 +242,10 @@ def _parse_event(
 
     # Parse date
     try:
-        video_date = datetime.strptime(date_str, '%Y.%m.%d').date()
+        if len(date_str) == 10:  # YYYY.MM.DD
+            video_date = datetime.strptime(date_str, '%Y.%m.%d').date()
+        else:  # YYYY.MM (day defaults to 1)
+            video_date = datetime.strptime(date_str, '%Y.%m').date()
     except ValueError as e:
         raise FilenameParseError(filename, f"Invalid date format: {e}")
 
@@ -560,6 +564,36 @@ if __name__ == "__main__":
 
         print("OK")
 
+    def test_date_without_day_offsite():
+        """Test 18: Offsite event without day in date."""
+        print("Test 18: Date without day (offsite)...", end=" ")
+
+        filename = "2026.02 ФСТ. Спонсор, за которым идут (Дмитрук Светлана).mp4"
+        metadata = parse_filename(filename)
+
+        assert metadata.date == date(2026, 2, 1), f"Date mismatch: {metadata.date}"
+        assert metadata.event_type == "ФСТ", f"Event type mismatch: {metadata.event_type}"
+        assert metadata.title == "Спонсор, за которым идут", f"Title mismatch: {metadata.title}"
+        assert metadata.speaker == "Дмитрук Светлана", f"Speaker mismatch: {metadata.speaker}"
+        assert metadata.content_type == ContentType.EDUCATIONAL, f"Content type mismatch"
+        assert metadata.event_category == EventCategory.OFFSITE, f"Category mismatch"
+        assert "Выездные" in str(metadata.archive_path), f"Выездные not in path"
+
+        print("OK")
+
+    def test_date_without_day_leadership():
+        """Test 19: Offsite leadership without day in date."""
+        print("Test 19: Date without day (leadership)...", end=" ")
+
+        filename = "2026.02 ШБМ. История (Иванов Дмитрий).mp4"
+        metadata = parse_filename(filename)
+
+        assert metadata.date == date(2026, 2, 1), f"Date mismatch: {metadata.date}"
+        assert metadata.content_type == ContentType.LEADERSHIP, f"Expected leadership"
+        assert metadata.event_category == EventCategory.OFFSITE, f"Expected offsite"
+
+        print("OK")
+
     # Run all tests
     print("\nRunning parser tests...\n")
 
@@ -581,6 +615,8 @@ if __name__ == "__main__":
         test_resolve_event_name,
         test_multi_word_event_leadership,
         test_md_extension,
+        test_date_without_day_offsite,
+        test_date_without_day_leadership,
     ]
 
     failed = 0
