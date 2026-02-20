@@ -300,7 +300,11 @@ class OutlineExtractor:
         # Limit to expected ranges
         topics = topics[:4] if topics else ["Часть " + str(part_index)]
         key_points = key_points[:5] if key_points else ["Содержание части"]
-        summary = summary[:500] if summary else "Часть транскрипта"
+        summary = summary[:500] if summary else ""
+
+        # Ensure summary meets min_length (10 chars) — LLM sometimes generates too short
+        if len(summary) < 10:
+            summary = f"Содержание части {part_index} транскрипта"
 
         return PartOutline(
             part_index=part_index,
@@ -328,6 +332,10 @@ class OutlineExtractor:
         # Add period if missing
         if summary and not summary.endswith("."):
             summary += "."
+
+        # Ensure summary meets min_length (10 chars)
+        if len(summary) < 10:
+            summary = f"Содержание части {part.index} транскрипта"
 
         return PartOutline(
             part_index=part.index,
@@ -455,13 +463,13 @@ if __name__ == "__main__":
                     part_index=1,
                     topics=["Продукт Формула", "Работа с клиентами"],
                     key_points=["Тезис 1"],
-                    summary="Часть 1",
+                    summary="Содержание первой части транскрипта",
                 ),
                 PartOutline(
                     part_index=2,
                     topics=["Продукт Формула 1", "Маркетинг"],  # "Продукт Формула 1" similar
                     key_points=["Тезис 2"],
-                    summary="Часть 2",
+                    summary="Содержание второй части транскрипта",
                 ),
             ]
 
