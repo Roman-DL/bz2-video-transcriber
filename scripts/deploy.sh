@@ -29,9 +29,13 @@ fi
 echo "Deploying bz2-video-transcriber..."
 echo "Target: $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"
 
+# SSH options: disable pubkey to avoid "Too many authentication failures" with many keys in agent
+SSH_OPTS="-o StrictHostKeyChecking=no -o PubkeyAuthentication=no -o PreferredAuthentications=password"
+
 # Sync files
 echo "Syncing files..."
 sshpass -p "$DEPLOY_PASSWORD" rsync -avz --delete \
+    -e "ssh $SSH_OPTS" \
     --exclude 'node_modules' \
     --exclude 'frontend/dist' \
     --exclude '.git' \
@@ -47,13 +51,13 @@ sshpass -p "$DEPLOY_PASSWORD" rsync -avz --delete \
 # Create .env on server with API keys (not deployment secrets)
 if [ -n "$ANTHROPIC_API_KEY" ]; then
     echo "Updating .env on server..."
-    sshpass -p "$DEPLOY_PASSWORD" ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
+    sshpass -p "$DEPLOY_PASSWORD" ssh $SSH_OPTS "${DEPLOY_USER}@${DEPLOY_HOST}" \
         "echo '$DEPLOY_PASSWORD' | sudo -S bash -c 'echo ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY > ${DEPLOY_PATH}/.env'"
 fi
 
 # Rebuild and restart containers (--no-cache to ensure code changes are picked up)
 echo "Rebuilding containers..."
-sshpass -p "$DEPLOY_PASSWORD" ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
+sshpass -p "$DEPLOY_PASSWORD" ssh $SSH_OPTS "${DEPLOY_USER}@${DEPLOY_HOST}" \
     "cd ${DEPLOY_PATH} && echo '$DEPLOY_PASSWORD' | sudo -S docker compose build --no-cache && echo '$DEPLOY_PASSWORD' | sudo -S docker compose up -d"
 
 echo ""
