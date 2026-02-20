@@ -22,9 +22,9 @@ tags:
 |------------|--------------|----------|
 | `OLLAMA_URL` | `http://192.168.1.152:11434` | URL Ollama API |
 | `WHISPER_URL` | `http://192.168.1.152:9000` | URL Whisper API |
-| `SUMMARIZER_MODEL` | `claude-sonnet-4-5` | Модель для суммаризации |
-| `CLEANER_MODEL` | `claude-sonnet-4-5` | Модель для очистки транскрипта |
-| `LONGREAD_MODEL` | `claude-sonnet-4-5` | Модель для генерации лонгрида |
+| `SUMMARIZER_MODEL` | `claude-sonnet-4-6` | Модель для суммаризации |
+| `CLEANER_MODEL` | `claude-sonnet-4-6` | Модель для очистки транскрипта |
+| `LONGREAD_MODEL` | `claude-sonnet-4-6` | Модель для генерации лонгрида |
 | `WHISPER_MODEL` | `large-v3-turbo` | Имя модели Whisper (для отображения в UI) |
 | `WHISPER_LANGUAGE` | `ru` | Язык транскрипции |
 | `WHISPER_INCLUDE_TIMESTAMPS` | `false` | Включать таймкоды `[HH:MM:SS]` в транскрипт |
@@ -45,9 +45,9 @@ tags:
 **Формат:** `sk-ant-api03-...`
 
 **Использование:** Модели с префиксом `claude` автоматически используют Claude API:
-- `claude-sonnet-4-5` — Sonnet 4.5 (рекомендуется, $3/$15)
+- `claude-sonnet-4-6` — Sonnet 4.6 (рекомендуется, $3/$15)
 - `claude-haiku-4-5` — Haiku 4.5 (быстрая, $1/$5)
-- `claude-opus-4-5` — Opus 4.5 (мощная, $5/$25)
+- `claude-opus-4-6` — Opus 4.6 (мощная, $5/$25)
 
 **Стоимость:** Цены за 1M токенов (вход/выход)
 
@@ -92,8 +92,8 @@ tags:
 
 ```yaml
 claude_models:
-  - id: "claude-sonnet-4-5"
-    name: "Claude Sonnet 4.5"
+  - id: "claude-sonnet-4-6"
+    name: "Claude Sonnet 4.6"
     description: "Быстрая и умная ($3/$15 за 1M токенов)"
     pricing:
       input: 3.00   # $ за 1M входных токенов
@@ -104,19 +104,19 @@ claude_models:
     pricing:
       input: 1.00
       output: 5.00
-  - id: "claude-opus-4-5"
-    name: "Claude Opus 4.5"
-    description: "Максимальный интеллект ($15/$75 за 1M токенов)"
+  - id: "claude-opus-4-6"
+    name: "Claude Opus 4.6"
+    description: "Максимальный интеллект ($5/$25 за 1M токенов)"
     pricing:
-      input: 15.00
-      output: 75.00
+      input: 5.00
+      output: 25.00
 ```
 
 **Расчёт стоимости:**
 ```python
 from app.utils import pricing_utils
 
-cost = pricing_utils.calculate_cost("claude-sonnet-4-5", input_tokens=1000, output_tokens=500)
+cost = pricing_utils.calculate_cost("claude-sonnet-4-6", input_tokens=1000, output_tokens=500)
 # → 0.0105 USD (= 1000/1M * $3 + 500/1M * $15)
 ```
 
@@ -150,11 +150,11 @@ slides:
     - id: "claude-haiku-4-5"
       name: "Claude Haiku 4.5"
       description: "Быстрый и дешёвый. Для текста и простых таблиц."
-    - id: "claude-sonnet-4-5"
-      name: "Claude Sonnet 4.5"
+    - id: "claude-sonnet-4-6"
+      name: "Claude Sonnet 4.6"
       description: "Баланс. Для сложных схем и графиков."
-    - id: "claude-opus-4-5"
-      name: "Claude Opus 4.5"
+    - id: "claude-opus-4-6"
+      name: "Claude Opus 4.6"
       description: "Максимум качества. Для диаграмм и мелкого текста."
 ```
 
@@ -267,7 +267,7 @@ models:
 
 Для использования Claude:
 1. Установить `ANTHROPIC_API_KEY` в docker-compose.yml
-2. Выбрать модель в настройках (например `claude-sonnet-4-5`)
+2. Выбрать модель в настройках (например `claude-sonnet-4-6`)
 
 **Переопределение параметров:** Модель может override параметры профиля:
 

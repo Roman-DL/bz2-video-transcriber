@@ -46,7 +46,7 @@ tags:
 | Параметр | Значение |
 |----------|----------|
 | API | Anthropic Claude API |
-| Модели | claude-sonnet-4-5, claude-haiku-4-5 |
+| Модели | claude-sonnet-4-6, claude-haiku-4-5 |
 | Назначение | Очистка, лонгрид, саммаризация, слайды |
 
 **Требуется:** `ANTHROPIC_API_KEY` и прокси (для российского IP).
@@ -154,9 +154,9 @@ services:
       - WHISPER_URL=http://192.168.1.152:9000
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       # Модели (v0.29+: Claude по умолчанию)
-      - CLEANER_MODEL=claude-sonnet-4-5
-      - LONGREAD_MODEL=claude-sonnet-4-5
-      - SUMMARY_MODEL=claude-sonnet-4-5
+      - CLEANER_MODEL=claude-sonnet-4-6
+      - LONGREAD_MODEL=claude-sonnet-4-6
+      - SUMMARY_MODEL=claude-sonnet-4-6
       - SLIDES_MODEL=claude-haiku-4-5
       # Пути
       - DATA_ROOT=/data
@@ -261,9 +261,9 @@ Traefik выступает reverse proxy с TLS termination (mkcert сертиф
 | `ANTHROPIC_API_KEY` | — | **Обязательно.** API ключ для Claude (v0.29+) |
 | `OLLAMA_URL` | `http://192.168.1.152:11434` | URL Ollama API (для локальных моделей) |
 | `WHISPER_URL` | `http://192.168.1.152:9000` | URL Whisper API |
-| `CLEANER_MODEL` | `claude-sonnet-4-5` | Модель для очистки транскрипта |
-| `LONGREAD_MODEL` | `claude-sonnet-4-5` | Модель для генерации лонгрида |
-| `SUMMARY_MODEL` | `claude-sonnet-4-5` | Модель для суммаризации |
+| `CLEANER_MODEL` | `claude-sonnet-4-6` | Модель для очистки транскрипта |
+| `LONGREAD_MODEL` | `claude-sonnet-4-6` | Модель для генерации лонгрида |
+| `SUMMARY_MODEL` | `claude-sonnet-4-6` | Модель для суммаризации |
 | `SLIDES_MODEL` | `claude-haiku-4-5` | Модель для извлечения текста со слайдов (v0.51+) |
 | `LLM_TIMEOUT` | `300` | Таймаут запросов к LLM (сек) |
 | `WHISPER_LANGUAGE` | `ru` | Язык транскрипции |

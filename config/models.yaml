@@ -6,8 +6,8 @@
 # Using aliases for auto-updates to latest versions
 # Pricing: $ per 1M tokens (input/output)
 claude_models:
-  - id: "claude-sonnet-4-5"
-    name: "Claude Sonnet 4.5"
+  - id: "claude-sonnet-4-6"
+    name: "Claude Sonnet 4.6"
     description: "Быстрая и умная ($3/$15 за 1M токенов)"
     pricing:
       input: 3.00
@@ -18,12 +18,12 @@ claude_models:
     pricing:
       input: 1.00
       output: 5.00
-  - id: "claude-opus-4-5"
-    name: "Claude Opus 4.5"
-    description: "Максимальный интеллект ($15/$75 за 1M токенов)"
+  - id: "claude-opus-4-6"
+    name: "Claude Opus 4.6"
+    description: "Максимальный интеллект ($5/$25 за 1M токенов)"
     pricing:
-      input: 15.00
-      output: 75.00
+      input: 5.00
+      output: 25.00
 
 # Available Whisper models for transcription
 # Only models listed here will be shown in the UI
@@ -44,11 +44,11 @@ slides:
     - id: "claude-haiku-4-5"
       name: "Claude Haiku 4.5"
       description: "Быстрый и дешёвый. Для текста и простых таблиц."
-    - id: "claude-sonnet-4-5"
-      name: "Claude Sonnet 4.5"
+    - id: "claude-sonnet-4-6"
+      name: "Claude Sonnet 4.6"
       description: "Баланс. Для сложных схем и графиков."
-    - id: "claude-opus-4-5"
-      name: "Claude Opus 4.5"
+    - id: "claude-opus-4-6"
+      name: "Claude Opus 4.6"
       description: "Максимальное качество. Для критически важных данных."
 
 
@@ -174,8 +174,8 @@ models:
     summary:
       max_input_chars: 40000
 
-  # Claude Sonnet 4.5 - recommended for most tasks
-  claude-sonnet-4-5:
+  # Claude Sonnet 4.6 - recommended for most tasks
+  claude-sonnet-4-6:
     provider: claude
     context_profile: large
     context_tokens: 200000
@@ -186,8 +186,8 @@ models:
     context_profile: large
     context_tokens: 200000
 
-  # Claude Opus 4.5 - maximum intelligence
-  claude-opus-4-5:
+  # Claude Opus 4.6 - maximum intelligence
+  claude-opus-4-6:
     provider: claude
     context_profile: large
     context_tokens: 200000

@@ -339,7 +339,7 @@ print(f"Saved: {files}")
 {
   "rawTranscript": {...},
   "metadata": {...},
-  "model": "claude-sonnet-4-5",
+  "model": "claude-sonnet-4-6",
   "promptOverrides": {"system": "system_v2"}
 }
 ```
@@ -396,7 +396,7 @@ print(f"Saved: {files}")
 {
   "cleanedTranscript": {...},
   "metadata": {...},
-  "model": "claude-sonnet-4-5",
+  "model": "claude-sonnet-4-6",
   "promptOverrides": {},
   "slidesText": "..."
 }
@@ -424,7 +424,7 @@ print(f"Saved: {files}")
 {
   "cleanedTranscript": {...},
   "metadata": {...},
-  "model": "claude-sonnet-4-5",
+  "model": "claude-sonnet-4-6",
   "promptOverrides": {}
 }
 ```
@@ -450,7 +450,7 @@ print(f"Saved: {files}")
 {
   "cleanedTranscript": {...},
   "metadata": {...},
-  "model": "claude-sonnet-4-5",
+  "model": "claude-sonnet-4-6",
   "promptOverrides": {},
   "slidesText": "..."
 }
@@ -525,7 +525,7 @@ print(f"Saved: {files}")
     {"id": "Systran/faster-whisper-large-v3", "name": "large-v3"}
   ],
   "claudeModels": [
-    {"id": "claude-sonnet-4-5", "name": "Claude Sonnet 4.5", "pricing": {"input": 3.0, "output": 15.0}}
+    {"id": "claude-sonnet-4-6", "name": "Claude Sonnet 4.6", "pricing": {"input": 3.0, "output": 15.0}}
   ],
   "providers": {
     "local": {"available": true, "name": "Ollama"},
@@ -540,9 +540,9 @@ print(f"Saved: {files}")
 ```json
 {
   "transcribe": "Systran/faster-whisper-large-v3",
-  "clean": "claude-sonnet-4-5",
-  "longread": "claude-sonnet-4-5",
-  "summarize": "claude-sonnet-4-5"
+  "clean": "claude-sonnet-4-6",
+  "longread": "claude-sonnet-4-6",
+  "summarize": "claude-sonnet-4-6"
 }
 ```
 
@@ -595,7 +595,7 @@ print(f"Saved: {files}")
       "currentVersion": 2,
       "versions": [
         {"version": 1, "model": "gemma2:9b", "createdAt": "2025-01-09T10:00:00"},
-        {"version": 2, "model": "claude-sonnet-4-5", "createdAt": "2025-01-09T11:00:00"}
+        {"version": 2, "model": "claude-sonnet-4-6", "createdAt": "2025-01-09T11:00:00"}
       ]
     }
   }
@@ -620,7 +620,7 @@ print(f"Saved: {files}")
 {
   "videoId": "2025-01-09_ПШ-SV_title",
   "stage": "cleaning",
-  "model": "claude-sonnet-4-5"
+  "model": "claude-sonnet-4-6"
 }
 ```
 
@@ -630,7 +630,7 @@ print(f"Saved: {files}")
   "videoId": "2025-01-09_ПШ-SV_title",
   "stage": "cleaning",
   "newVersion": 3,
-  "modelName": "claude-sonnet-4-5"
+  "modelName": "claude-sonnet-4-6"
 }
 ```
 

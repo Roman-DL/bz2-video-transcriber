@@ -357,7 +357,7 @@ async with OllamaClient.from_settings(settings) as ollama:
 async with ClaudeClient.from_settings(settings) as claude:
     response = await claude.generate(
         prompt="Проанализируй этот документ...",
-        model="claude-sonnet-4-5"
+        model="claude-sonnet-4-6"
     )
 ```
 
@@ -431,8 +431,8 @@ Claude модели показываются только если `ANTHROPIC_AP
   ],
   "claudeModels": [
     {
-      "id": "claude-sonnet-4-5",
-      "name": "Claude Sonnet 4.5",
+      "id": "claude-sonnet-4-6",
+      "name": "Claude Sonnet 4.6",
       "description": "Быстрая и умная ($3/$15 за 1M токенов)"
     },
     {
@@ -441,8 +441,8 @@ Claude модели показываются только если `ANTHROPIC_AP
       "description": "Самая быстрая ($1/$5 за 1M токенов)"
     },
     {
-      "id": "claude-opus-4-5",
-      "name": "Claude Opus 4.5",
+      "id": "claude-opus-4-6",
+      "name": "Claude Opus 4.6",
       "description": "Максимальный интеллект ($5/$25 за 1M токенов)"
     }
   ],
@@ -469,9 +469,9 @@ Claude модели показываются только если `ANTHROPIC_AP
 ```json
 {
   "transcribe": "deepdml/faster-whisper-large-v3-turbo-ct2",
-  "clean": "claude-sonnet-4-5",
-  "longread": "claude-sonnet-4-5",
-  "summarize": "claude-sonnet-4-5"
+  "clean": "claude-sonnet-4-6",
+  "longread": "claude-sonnet-4-6",
+  "summarize": "claude-sonnet-4-6"
 }
 ```
 
@@ -804,7 +804,7 @@ API для пошаговой обработки с возможностью ove
   - `filename` — имя файла
   - `content_type` — MIME тип: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`
   - `data` — base64 encoded содержимое файла
-- `model` (optional) — модель для обработки (claude-haiku-4-5, claude-sonnet-4-5, claude-opus-4-5)
+- `model` (optional) — модель для обработки (claude-haiku-4-5, claude-sonnet-4-6, claude-opus-4-6)
 - `prompt_overrides` (optional) — override промптов
 
 **Response (SSE):**
@@ -865,7 +865,7 @@ curl -X POST "http://100.64.0.1:8801/api/step/slides" \
     "speaker": "...",
     "content_type": "educational"
   },
-  "model": "claude-sonnet-4-5",
+  "model": "claude-sonnet-4-6",
   "prompt_overrides": {
     "system": "system_v2",
     "user": "user"
@@ -884,7 +884,7 @@ curl -X POST "http://100.64.0.1:8801/api/step/slides" \
   "text": "Очищенный транскрипт...",
   "original_length": 4412,
   "cleaned_length": 4187,
-  "model_name": "claude-sonnet-4-5",
+  "model_name": "claude-sonnet-4-6",
   "tokens_used": {"input": 1850, "output": 1720, "total": 3570},
   "cost": 0.0314,
   "processing_time_sec": 6.2,
@@ -902,7 +902,7 @@ curl -X POST "http://100.64.0.1:8801/api/step/slides" \
 {
   "cleaned_transcript": {...},
   "metadata": {...},
-  "model": "claude-sonnet-4-5",
+  "model": "claude-sonnet-4-6",
   "slides_text": "# Слайд 1\n\nТекст со слайдов...",
   "prompt_overrides": {
     "system": "system",
@@ -927,7 +927,7 @@ curl -X POST "http://100.64.0.1:8801/api/step/slides" \
   "video_id": "...",
   "title": "...",
   "sections": [...],
-  "model_name": "claude-sonnet-4-5",
+  "model_name": "claude-sonnet-4-6",
   "tokens_used": {"input": 3200, "output": 2800, "total": 6000},
   "cost": 0.0516,
   "processing_time_sec": 12.4,
@@ -945,7 +945,7 @@ curl -X POST "http://100.64.0.1:8801/api/step/slides" \
 {
   "cleaned_transcript": {...},
   "metadata": {...},
-  "model": "claude-sonnet-4-5",
+  "model": "claude-sonnet-4-6",
   "prompt_overrides": {
     "system": "system",
     "instructions": "instructions",
@@ -966,7 +966,7 @@ curl -X POST "http://100.64.0.1:8801/api/step/slides" \
   "video_id": "...",
   "essence": "...",
   "key_concepts": [...],
-  "model_name": "claude-sonnet-4-5",
+  "model_name": "claude-sonnet-4-6",
   "tokens_used": {"input": 2100, "output": 890, "total": 2990},
   "cost": 0.0196,
   "processing_time_sec": 5.8,
@@ -984,7 +984,7 @@ curl -X POST "http://100.64.0.1:8801/api/step/slides" \
 {
   "cleaned_transcript": {...},
   "metadata": {...},
-  "model": "claude-sonnet-4-5",
+  "model": "claude-sonnet-4-6",
   "slides_text": "# Слайд 1\n\nТекст со слайдов...",
   "prompt_overrides": {...}
 }
@@ -1003,7 +1003,7 @@ curl -X POST "http://100.64.0.1:8801/api/step/slides" \
   "video_id": "...",
   "names": "...",
   "blocks": [...],
-  "model_name": "claude-sonnet-4-5",
+  "model_name": "claude-sonnet-4-6",
   "tokens_used": {"input": 4500, "output": 3200, "total": 7700},
   "cost": 0.0615,
   "processing_time_sec": 18.2,

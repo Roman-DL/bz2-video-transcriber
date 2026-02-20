@@ -257,7 +257,7 @@ story.processing_time_sec  # 62.5
     "cleaned_transcript": {...},
     "metadata": {...},
     "slides_text": "...",           # опционально (v0.53+)
-    "model": "claude-sonnet-4-5",   # опционально
+    "model": "claude-sonnet-4-6",   # опционально
     "prompt_overrides": {           # опционально (v0.32+)
         "system": "system",
         "instructions": "instructions",

@@ -15,16 +15,16 @@ globs: backend/app/services/ai_clients/**,backend/app/services/cleaner.py,*_gene
 ## ProcessingStrategy
 - Автоматический выбор провайдера по имени модели:
   ```python
-  async with strategy.create_client("claude-sonnet-4-5") as client: ...
+  async with strategy.create_client("claude-sonnet-4-6") as client: ...
   ```
 - НИКОГДА не добавлять fallback между провайдерами (ADR-007)
 - `get_client_with_fallback()` удалён — ошибки пробрасываются вызывающему коду
 
 ## Default Models (v0.29+)
-- Очистка: `claude-sonnet-4-5`
+- Очистка: `claude-sonnet-4-6`
 - Слайды: `claude-haiku-4-5` (быстро и дёшево)
-- Лонгрид: `claude-sonnet-4-5`
-- Конспект: `claude-sonnet-4-5`
+- Лонгрид: `claude-sonnet-4-6`
+- Конспект: `claude-sonnet-4-6`
 - Чанкирование: детерминистический (H2 парсинг), без LLM
 - По умолчанию ВСЕ LLM операции — Claude. Требуется `ANTHROPIC_API_KEY`
 

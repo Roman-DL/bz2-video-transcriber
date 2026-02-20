@@ -26,7 +26,7 @@ from app.services.ai_clients.base import (
 logger = logging.getLogger(__name__)
 
 # Default Claude model (using alias for auto-updates)
-DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-5"
+DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6"
 
 
 class ClaudeClient(BaseAIClientImpl):

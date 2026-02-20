@@ -7,10 +7,10 @@ Pricing data is loaded from config/models.yaml.
 Example:
     from app.utils.pricing_utils import calculate_cost, get_model_pricing
 
-    pricing = get_model_pricing("claude-sonnet-4-5")
+    pricing = get_model_pricing("claude-sonnet-4-6")
     # {'input': 3.00, 'output': 15.00}
 
-    cost = calculate_cost("claude-sonnet-4-5", input_tokens=1000, output_tokens=500)
+    cost = calculate_cost("claude-sonnet-4-6", input_tokens=1000, output_tokens=500)
     # 0.0105 (= 1000 * 3/1M + 500 * 15/1M)
 """
 
@@ -37,14 +37,14 @@ def get_model_pricing(model_name: str) -> ModelPricing | None:
     Get pricing for a model from config.
 
     Args:
-        model_name: Model identifier (e.g., "claude-sonnet-4-5")
+        model_name: Model identifier (e.g., "claude-sonnet-4-6")
 
     Returns:
         Pricing dict with 'input' and 'output' per 1M tokens,
         or None if model has no pricing (free/local models)
 
     Example:
-        >>> get_model_pricing("claude-sonnet-4-5")
+        >>> get_model_pricing("claude-sonnet-4-6")
         {'input': 3.0, 'output': 15.0}
 
         >>> get_model_pricing("gemma2:9b")
@@ -75,7 +75,7 @@ def calculate_cost(
         Cost in USD (0.0 for free/local models)
 
     Example:
-        >>> calculate_cost("claude-sonnet-4-5", 1000, 500)
+        >>> calculate_cost("claude-sonnet-4-6", 1000, 500)
         0.0105
     """
     pricing = get_model_pricing(model_name)
@@ -151,7 +151,7 @@ if __name__ == "__main__":
     # Test 1: Get Claude Sonnet pricing
     print("Test 1: Get Claude Sonnet pricing...", end=" ")
     clear_pricing_cache()
-    pricing = get_model_pricing("claude-sonnet-4-5")
+    pricing = get_model_pricing("claude-sonnet-4-6")
     if pricing and pricing["input"] == 3.0 and pricing["output"] == 15.0:
         print("OK")
         print(f"  Pricing: ${pricing['input']}/${pricing['output']} per 1M tokens")
@@ -170,7 +170,7 @@ if __name__ == "__main__":
 
     # Test 3: Calculate cost for Claude Sonnet
     print("Test 3: Calculate cost...", end=" ")
-    cost = calculate_cost("claude-sonnet-4-5", input_tokens=1000, output_tokens=500)
+    cost = calculate_cost("claude-sonnet-4-6", input_tokens=1000, output_tokens=500)
     expected = (1000 / 1_000_000) * 3.0 + (500 / 1_000_000) * 15.0  # 0.0105
     if abs(cost - expected) < 0.0001:
         print("OK")
@@ -199,8 +199,8 @@ if __name__ == "__main__":
 
     # Test 6: Get Opus pricing
     print("Test 6: Get Opus pricing...", end=" ")
-    pricing = get_model_pricing("claude-opus-4-5")
-    if pricing and pricing["input"] == 15.0 and pricing["output"] == 75.0:
+    pricing = get_model_pricing("claude-opus-4-6")
+    if pricing and pricing["input"] == 5.0 and pricing["output"] == 25.0:
         print("OK")
     else:
         print(f"FAILED: got {pricing}")

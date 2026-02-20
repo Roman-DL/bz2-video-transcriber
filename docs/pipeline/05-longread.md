@@ -245,7 +245,7 @@ defaults:
     large_text_threshold: 10000
 
 models:
-  claude-sonnet-4-5:
+  claude-sonnet-4-6:
     longread:
       parts_per_section: 3
       max_parallel_sections: 2
@@ -278,7 +278,7 @@ system.md + instructions.md + template.md → Frame generation
     "cleaned_transcript": {...},
     "metadata": {...},
     "slides_text": "...",           # опционально (v0.50+)
-    "model": "claude-sonnet-4-5",   # опционально
+    "model": "claude-sonnet-4-6",   # опционально
     "prompt_overrides": {           # опционально (v0.32+)
         "system": "system",
         "instructions": "instructions",

@@ -1300,7 +1300,7 @@ class ModelPricing(CamelCaseModel):
 class ClaudeModelConfig(CamelCaseModel):
     """Claude model configuration from models.yaml."""
 
-    id: str = Field(..., description="Model identifier (e.g., 'claude-sonnet-4-5')")
+    id: str = Field(..., description="Model identifier (e.g., 'claude-sonnet-4-6')")
     name: str = Field(..., description="Display name")
     description: str | None = Field(default=None, description="Model description")
     pricing: ModelPricing | None = Field(default=None, description="Pricing per 1M tokens")

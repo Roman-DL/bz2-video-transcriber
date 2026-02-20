@@ -414,9 +414,9 @@ slides:
   available:
     - id: "claude-haiku-4-5"
       description: "Быстрый и дешёвый"
-    - id: "claude-sonnet-4-5"
+    - id: "claude-sonnet-4-6"
       description: "Баланс качества и скорости"
-    - id: "claude-opus-4-5"
+    - id: "claude-opus-4-6"
       description: "Максимальное качество"
 ```
 

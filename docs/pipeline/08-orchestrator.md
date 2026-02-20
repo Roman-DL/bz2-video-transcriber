@@ -137,7 +137,7 @@ raw, audio_path = await orchestrator.transcribe(video_path)
 cleaned = await orchestrator.clean(raw, metadata)
 
 # Тестируем разные модели для longread
-longread_claude = await orchestrator.longread(cleaned, metadata, model="claude-sonnet-4-5")
+longread_claude = await orchestrator.longread(cleaned, metadata, model="claude-sonnet-4-6")
 longread_haiku = await orchestrator.longread(cleaned, metadata, model="claude-haiku-4-5")
 
 # Генерируем summary из cleaned transcript (v0.24+)
@@ -230,7 +230,7 @@ from app.services.pipeline import ProcessingStrategy
 strategy = ProcessingStrategy(settings)
 
 # Автоматический выбор: "claude-*" → cloud, остальное → local
-async with strategy.create_client("claude-sonnet-4-5") as client:
+async with strategy.create_client("claude-sonnet-4-6") as client:
     response, usage = await client.generate("...")
 ```
 

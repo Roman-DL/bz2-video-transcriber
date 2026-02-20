@@ -692,7 +692,7 @@ access_level: leader
     "text": "Очищенный текст транскрипции...",
     "originalLength": 15000,
     "cleanedLength": 12500,
-    "modelName": "claude-sonnet-4-5"
+    "modelName": "claude-sonnet-4-6"
   },
 
   "chunks": {
@@ -718,7 +718,7 @@ access_level: leader
     "tags": ["группа поддержки", "командная работа"],
     "accessLevel": 1,
     "totalWordCount": 3500,
-    "modelName": "claude-sonnet-4-5"
+    "modelName": "claude-sonnet-4-6"
   },
 
   "summary": {
@@ -733,7 +733,7 @@ access_level: leader
     "subsection": "Работа с командой",
     "tags": ["группа поддержки", "командная работа"],
     "accessLevel": 1,
-    "modelName": "claude-sonnet-4-5"
+    "modelName": "claude-sonnet-4-6"
   }
 }
 ```
@@ -813,7 +813,7 @@ access_level: leader
     "text": "...",
     "originalLength": 4412,
     "cleanedLength": 4187,
-    "modelName": "claude-sonnet-4-5",
+    "modelName": "claude-sonnet-4-6",
     "tokensUsed": {"input": 1850, "output": 1720},
     "cost": 0.0314,
     "processingTimeSec": 6.2,
@@ -839,7 +839,7 @@ access_level: leader
     "videoId": "...",
     "title": "...",
     "sections": [...],
-    "modelName": "claude-sonnet-4-5",
+    "modelName": "claude-sonnet-4-6",
     "tokensUsed": {"input": 3200, "output": 2800},
     "cost": 0.0516,
     "processingTimeSec": 12.4,
@@ -862,7 +862,7 @@ access_level: leader
   "summary": {
     "videoId": "...",
     "essence": "...",
-    "modelName": "claude-sonnet-4-5",
+    "modelName": "claude-sonnet-4-6",
     "tokensUsed": {"input": 2100, "output": 890},
     "cost": 0.0196,
     "processingTimeSec": 5.8,
@@ -888,7 +888,7 @@ access_level: leader
     "videoId": "...",
     "names": "...",
     "blocks": [...],
-    "modelName": "claude-sonnet-4-5",
+    "modelName": "claude-sonnet-4-6",
     "tokensUsed": {"input": 4500, "output": 3200},
     "cost": 0.0615,
     "processingTimeSec": 18.2,
