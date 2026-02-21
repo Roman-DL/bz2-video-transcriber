@@ -1,19 +1,19 @@
-# Terminology Glossary v4.0
+# Terminology Glossary v4.1
 # Семантический формат: description + whisper_errors
-# Дата: 2026-02-20
+# Дата: 2026-02-21
 
-version: "4.0"
-date: "2026-02-20"
+version: "4.1"
+date: "2026-02-21"
 
 # --- Статусы и квалификации ---
 statuses:
-  - canonical: "Квалифицированный продюссер"
-    description: "Qualified Producer — базовый квалификационный уровень, 500+ VP в месяц. Сокращения: КП (англ. QP)"
-    whisper_errors: ["КП", "кью пи", "кьюпи", "квалпродюссер"]
+  - canonical: "Квалифицированный продюссер (QP)"
+    description: "Qualified Producer — базовый квалификационный уровень, 500+ VP в месяц. Сокращения: КП, QP"
+    whisper_errors: ["КП", "кью пи", "кьюпи", "кьюпишки", "клюпишки", "квалпродюссер"]
 
   - canonical: "Супервайзер (SV)"
     description: "Supervisor — первый квалификационный уровень, 2500 VP + группа. Сокращения: СВ, SV"
-    whisper_errors: ["скпервайзер", "супер визор", "супервайзер"]
+    whisper_errors: ["скпервайзер", "супер визор", "супервайзер", "супроводов", "супроводы"]
     context: "стал Супервайзером за 3 месяца"
 
   - canonical: "Активный Супервайзер (ASV)"
@@ -28,9 +28,13 @@ statuses:
     description: "World Team — квалификация 10,000+ Organization VP. Сокращения: ВТ, WT"
     whisper_errors: ["ворлдтим", "ворд тим", "ворлд-тим"]
 
+  - canonical: "Активный Ворлд-тим (AWT)"
+    description: "Active World Team — ежемесячная квалификация WT: 3,500 TV + 500 Очков Вознаграждения за услуги. Сокращения: Активный ВТ, Active WT, АВТ"
+    whisper_errors: ["активный ворлдтим", "активный ворд тим", "актив ворлд-тим", "активный ворлд тим", "АВТ"]
+
   - canonical: "ГЕТ (GET)"
     description: "GET Team — квалификационный статус: 10,000 Group VP + 3 линии по 2500+ VP"
-    whisper_errors: ["генты", "гет-тим", "гет"]
+    whisper_errors: ["генты", "гет-тим", "гет", "ГЭТ", "ГЭТы"]
     context: "я уже 5 лет ГЕТ"
 
   - canonical: "ГЕТ 2500"
@@ -48,7 +52,7 @@ statuses:
 
   - canonical: "Чарманс Клаб"
     description: "Chairman's Club — престижный статус: 5 линий с President Team в каждой. Сокращение: CC"
-    whisper_errors: ["чэрманс клаб"]
+    whisper_errors: ["чэрманс клаб", "Чарльз Клавом", "чарльз клаб"]
 
   - canonical: "Фаундер Серкл"
     description: "Founder's Circle — высший элитный статус: 10 линий с President Team. Сокращение: FC"
@@ -143,6 +147,11 @@ systems:
   - canonical: "BizWorks"
     description: "Система управления бизнесом консультанта Herbalife"
     whisper_errors: ["безборка", "бизборд", "бизвокс"]
+
+  - canonical: "Дом-магазин"
+    description: "Рабочая таблица консультанта для отслеживания ведения клиентов и их покупок"
+    whisper_errors: ["дом магазин", "домов магазинов", "дома магазина"]
+    context: "прививаем культуру заполнения Дом-магазина"
 
 # --- Мероприятия и события ---
 events:
