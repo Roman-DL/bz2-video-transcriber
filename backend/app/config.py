@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # AI Services
     ollama_url: str = "http://192.168.1.152:11434"
     whisper_url: str = "http://192.168.1.152:9000"
-    summarizer_model: str = "claude-sonnet-4-6"  # Model for summarization (конспект)
+    summarizer_model: str = "claude-opus-4-6"  # Model for summarization (конспект, v0.76+ ADR-019)
     longread_model: str = "claude-opus-4-6"  # Model for longread generation (v0.75+, ADR-018)
     cleaner_model: str = "claude-haiku-4-5"  # Model for transcript cleaning (v0.65: Haiku default)
     describe_model: str = "claude-haiku-4-5"  # Model for BZ2 description generation

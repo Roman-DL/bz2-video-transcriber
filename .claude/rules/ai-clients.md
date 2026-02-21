@@ -24,7 +24,7 @@ globs: backend/app/services/ai_clients/**,backend/app/services/cleaner.py,*_gene
 - Очистка: `claude-haiku-4-5` (v0.65+, механическая задача, см. ADR-014)
 - Слайды: `claude-haiku-4-5` (быстро и дёшево)
 - Лонгрид: `claude-opus-4-6` (v0.75+, ADR-018)
-- Конспект: `claude-sonnet-4-6`
+- Конспект: `claude-opus-4-6` (v0.76+, ADR-019)
 - Чанкирование: детерминистический (H2 парсинг), без LLM
 - По умолчанию ВСЕ LLM операции — Claude. Требуется `ANTHROPIC_API_KEY`
 
