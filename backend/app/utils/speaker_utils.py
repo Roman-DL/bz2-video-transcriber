@@ -8,6 +8,7 @@ Speaker labels appear on separate lines in formats:
 
 v0.64+: Created for UI display in SpeakerInfo.
 v0.65+: Reused for prompt adaptation and chunk headers.
+v0.79+: build_speaker_context() for LLM prompts, abbreviate_name() for chunk headers.
 """
 
 import re
@@ -48,6 +49,78 @@ def parse_speakers(text: str) -> SpeakerInfo:
         anonymous_speakers=sorted(anonymous),
         scenario=_determine_scenario(len(named), len(anonymous) > 0),
     )
+
+
+def abbreviate_name(full_name: str) -> str:
+    """Abbreviate 'Фамилия Имя' to 'Фамилия И.'
+
+    Args:
+        full_name: Full name like 'Беркин Андрей'
+
+    Returns:
+        Abbreviated name like 'Беркин А.' or original if not two words
+    """
+    parts = full_name.strip().split()
+    if len(parts) == 2:
+        return f"{parts[0]} {parts[1][0]}."
+    return full_name
+
+
+def build_speaker_context(
+    speaker_info: SpeakerInfo | None,
+    host_name: str | None = None,
+) -> list[str]:
+    """Build speaker context block for LLM prompts.
+
+    Returns list of strings for unpacking into prompt_parts via
+    ``*build_speaker_context(...)``. Empty list for single-speaker
+    scenarios (prompt unchanged).
+
+    Args:
+        speaker_info: SpeakerInfo from VideoMetadata (None for legacy)
+        host_name: Host/moderator name from metadata.speaker (for lineup)
+
+    Returns:
+        List of prompt lines, empty for single/None scenarios
+    """
+    if speaker_info is None or speaker_info.scenario == "single":
+        return []
+
+    scenario = speaker_info.scenario
+    base_scenario = scenario.replace("_qa", "")
+    has_qa = scenario.endswith("_qa") or scenario == "qa"
+
+    # Pure Q&A with no named co-speakers
+    if scenario == "qa":
+        anon_list = ", ".join(speaker_info.anonymous_speakers)
+        return [
+            "",
+            "## Мультиспикерный контент",
+            f"Тип: вопросы из зала",
+            f"Есть Q&A: да ({anon_list})",
+        ]
+
+    lines = [
+        "",
+        "## Мультиспикерный контент",
+    ]
+
+    named = speaker_info.named_speakers
+
+    if base_scenario == "co_speakers":
+        lines.append(f"Тип: со-спикеры")
+        lines.append(f"Спикеры: {', '.join(named)}")
+    elif base_scenario == "lineup":
+        lines.append(f"Тип: линейка выступлений")
+        lines.append(f"Участники: {', '.join(named)}")
+        if host_name:
+            lines.append(f"Ведущий: {host_name}")
+
+    if has_qa:
+        anon_list = ", ".join(speaker_info.anonymous_speakers)
+        lines.append(f"Есть Q&A: да ({anon_list})")
+
+    return lines
 
 
 def _determine_scenario(named_count: int, has_anonymous: bool) -> str:
@@ -115,4 +188,100 @@ if __name__ == "__main__":
             print(f"  {status}: scenario={info.scenario}")
         passed += ok
 
-    print(f"\n{passed}/{len(tests)} tests passed")
+    print(f"\n{passed}/{len(tests)} parse_speakers tests passed")
+
+    # Tests for abbreviate_name
+    print("\n--- abbreviate_name tests ---")
+    abbrev_tests = [
+        ("Беркин Андрей", "Беркин А."),
+        ("Дмитрук Светлана", "Дмитрук С."),
+        ("SingleName", "SingleName"),
+        ("Иванов Иван Иванович", "Иванов Иван Иванович"),
+        ("  Беркин Андрей  ", "Беркин А."),
+    ]
+    abbrev_passed = 0
+    for full, expected in abbrev_tests:
+        result = abbreviate_name(full)
+        ok = result == expected
+        status = "OK" if ok else "FAIL"
+        if not ok:
+            print(f"  {status}: abbreviate_name({full!r}) = {result!r}, expected {expected!r}")
+        else:
+            print(f"  {status}: {full!r} → {result!r}")
+        abbrev_passed += ok
+    print(f"\n{abbrev_passed}/{len(abbrev_tests)} abbreviate_name tests passed")
+
+    # Tests for build_speaker_context
+    print("\n--- build_speaker_context tests ---")
+    ctx_tests = [
+        # (speaker_info, host_name, expected_empty, expected_type_substring)
+        (None, None, True, None),
+        (SpeakerInfo(scenario="single"), None, True, None),
+        (
+            SpeakerInfo(
+                named_speakers=["Беркин Андрей", "Дмитрук Светлана"],
+                scenario="co_speakers",
+            ),
+            None, False, "со-спикеры",
+        ),
+        (
+            SpeakerInfo(
+                named_speakers=["Беркин Андрей", "Дмитрук Светлана"],
+                anonymous_speakers=["Speaker3"],
+                scenario="co_speakers_qa",
+            ),
+            None, False, "со-спикеры",
+        ),
+        (
+            SpeakerInfo(
+                named_speakers=["Иванов Иван", "Петров Пётр", "Сидоров Сидор"],
+                scenario="lineup",
+            ),
+            "Ведущий Имя", False, "линейка",
+        ),
+        (
+            SpeakerInfo(
+                named_speakers=["Иванов Иван", "Петров Пётр", "Сидоров Сидор"],
+                anonymous_speakers=["Speaker5"],
+                scenario="lineup_qa",
+            ),
+            "Ведущий Имя", False, "линейка",
+        ),
+        (
+            SpeakerInfo(
+                anonymous_speakers=["Speaker1", "Speaker2"],
+                scenario="qa",
+            ),
+            None, False, "вопросы из зала",
+        ),
+    ]
+    ctx_passed = 0
+    for info, host, expect_empty, expect_sub in ctx_tests:
+        result = build_speaker_context(info, host)
+        scenario_name = info.scenario if info else "None"
+        if expect_empty:
+            ok = result == []
+            status = "OK" if ok else "FAIL"
+            if not ok:
+                print(f"  {status}: scenario={scenario_name}, expected [], got {result}")
+            else:
+                print(f"  {status}: scenario={scenario_name} → []")
+        else:
+            joined = "\n".join(result)
+            ok = expect_sub in joined
+            # Check Q&A line for _qa scenarios
+            if info and info.scenario.endswith("_qa"):
+                ok = ok and "Есть Q&A: да" in joined
+            status = "OK" if ok else "FAIL"
+            if not ok:
+                print(f"  {status}: scenario={scenario_name}, expected '{expect_sub}' in output")
+                print(f"    got: {result}")
+            else:
+                print(f"  {status}: scenario={scenario_name} → contains '{expect_sub}'")
+        ctx_passed += ok
+    print(f"\n{ctx_passed}/{len(ctx_tests)} build_speaker_context tests passed")
+
+    total = passed + abbrev_passed + ctx_passed
+    total_tests = len(tests) + len(abbrev_tests) + len(ctx_tests)
+    print(f"\n{'='*40}")
+    print(f"Total: {total}/{total_tests} tests passed")

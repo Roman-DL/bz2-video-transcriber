@@ -34,6 +34,7 @@ from app.models.schemas import (
 from app.services.ai_clients import BaseAIClient
 from app.services.outline_extractor import OutlineExtractor
 from app.services.text_splitter import TextSplitter, PART_SIZE, OVERLAP_SIZE, MIN_PART_SIZE
+from app.utils.speaker_utils import build_speaker_context
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -311,6 +312,7 @@ class LongreadGenerator:
             f"**Тема:** {metadata.title}",
             f"**Дата:** {date_formatted}",
             f"**Событие:** {metadata.event_type}",
+            *build_speaker_context(metadata.speaker_info, metadata.speaker),
             "",
             "### Транскрипт",
             "",
@@ -531,6 +533,7 @@ class LongreadGenerator:
             "",
             f"**Спикер:** {metadata.speaker}",
             f"**Тема:** {metadata.title}",
+            *build_speaker_context(metadata.speaker_info, metadata.speaker),
             "",
             "### Контекст (outline)",
             "",
@@ -621,6 +624,7 @@ class LongreadGenerator:
             f"**Тема:** {metadata.title}",
             f"**Дата:** {date_formatted}",
             f"**Событие:** {metadata.event_type}",
+            *build_speaker_context(metadata.speaker_info, metadata.speaker),
             "",
             "### Разделы лонгрида",
             "",

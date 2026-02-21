@@ -7,12 +7,14 @@ v0.62+: Pure file save, no LLM. Descriptions are in TranscriptChunks.
 
 import json
 import logging
+import re
 import shutil
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
 from app.config import Settings, get_settings
+from app.utils.speaker_utils import abbreviate_name
 from app.models.schemas import (
     CleanedTranscript,
     ContentType,
@@ -402,16 +404,34 @@ class FileSaver:
         stream_name = metadata.event_name
         date_formatted = metadata.date.strftime("%d.%m.%Y")
 
-        # Build context header (same for all chunks)
+        # Determine speaker scenario for header adaptation
+        speaker_info = metadata.speaker_info
+        scenario = speaker_info.scenario if speaker_info else "single"
+        is_lineup = scenario in ("lineup", "lineup_qa")
+        is_co_speakers = scenario in ("co_speakers", "co_speakers_qa")
+
+        # Build base context header (same for all chunks unless lineup)
         header_parts = [f"Тема: {material_title}"]
         meta_parts = []
-        if metadata.speaker:
+        if is_co_speakers:
+            abbreviated = ", ".join(
+                abbreviate_name(n) for n in speaker_info.named_speakers
+            )
+            meta_parts.append(abbreviated)
+        elif metadata.speaker:
             meta_parts.append(metadata.speaker)
         if stream_name:
             meta_parts.append(stream_name)
         meta_parts.append(date_formatted)
-        header_parts.append(f"Спикер: {' | '.join(meta_parts)}")
-        context_header = "\n".join(header_parts)
+
+        if is_co_speakers:
+            header_parts.append(f"Спикеры: {' | '.join(meta_parts)}")
+        else:
+            header_parts.append(f"Спикер: {' | '.join(meta_parts)}")
+        base_context_header = "\n".join(header_parts)
+
+        # Regex for extracting participant name from H2: "## Тема (Фамилия Имя)"
+        lineup_name_re = re.compile(r"\(([^)]+)\)$")
 
         # Count topic occurrences to detect split chunks
         topic_counts: Counter[str] = Counter(c.topic for c in chunks.chunks)
@@ -431,6 +451,30 @@ class FileSaver:
             else:
                 h2_title = topic
 
+            # Lineup: per-chunk header with participant name
+            if is_lineup:
+                match = lineup_name_re.search(topic)
+                if match:
+                    participant = match.group(1)
+                    host_abbr = abbreviate_name(metadata.speaker) if metadata.speaker else ""
+                    lineup_meta = []
+                    lineup_meta.append(participant)
+                    host_part = f"Линейка, ведущий: {host_abbr}" if host_abbr else "Линейка"
+                    lineup_meta.append(host_part)
+                    if stream_name:
+                        lineup_meta.append(stream_name)
+                    lineup_meta.append(date_formatted)
+                    lineup_header_parts = [f"Тема: {material_title}"]
+                    lineup_header_parts.append(
+                        f"Участник: {' | '.join(lineup_meta)}"
+                    )
+                    context_header = "\n".join(lineup_header_parts)
+                else:
+                    # No match (intro/Q&A section) — use base header
+                    context_header = base_context_header
+            else:
+                context_header = base_context_header
+
             chunk_text = f"{context_header}\n\n## {h2_title}\n\n{chunk.text}"
 
             bz2_chunks.append({
@@ -443,6 +487,14 @@ class FileSaver:
                 },
             })
 
+        # Speaker field in materials metadata
+        if is_co_speakers:
+            materials_speaker = ", ".join(
+                abbreviate_name(n) for n in speaker_info.named_speakers
+            )
+        else:
+            materials_speaker = metadata.speaker
+
         data = {
             "version": "1.0",
             "materials": [{
@@ -450,7 +502,7 @@ class FileSaver:
                 "short_description": chunks.short_description,
                 "metadata": {
                     "video_id": metadata.video_id,
-                    "speaker": metadata.speaker,
+                    "speaker": materials_speaker,
                     "event_type": metadata.event_type,
                     "stream": metadata.stream,
                     "stream_name": stream_name,

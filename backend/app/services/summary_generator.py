@@ -23,6 +23,7 @@ from app.models.schemas import (
     VideoMetadata,
 )
 from app.services.ai_clients import BaseAIClient
+from app.utils.speaker_utils import build_speaker_context
 
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
@@ -311,6 +312,7 @@ class SummaryGenerator:
             f"**Тема:** {metadata.title}",
             f"**Дата:** {date_formatted}",
             f"**Событие:** {metadata.event_type}",
+            *build_speaker_context(metadata.speaker_info, metadata.speaker),
             "",
             "### Транскрипт",
             "",
