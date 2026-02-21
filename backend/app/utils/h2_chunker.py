@@ -78,20 +78,14 @@ def chunk_by_h2(markdown: str, video_id: str) -> TranscriptChunks:
         if not section:
             continue
 
-        # First section before any ## is preamble (usually empty or title)
-        # Skip if it doesn't have meaningful content
-        if i == 0 and not H2_PATTERN.search(f"## {section}"):
-            # This is content before the first H2
-            if len(section) < 100:  # Skip short preambles
-                continue
-            # If substantial preamble, treat as introduction
-            topic = "Введение"
-            content = section
-        else:
-            # Parse title and content from section
-            lines = section.split("\n", 1)
-            topic = _clean_topic(lines[0].strip())
-            content = lines[1].strip() if len(lines) > 1 else ""
+        # Preamble: text before first H2 — skip (stays in longread for readers)
+        if i == 0:
+            continue
+
+        # Parse title and content from H2 section
+        lines = section.split("\n", 1)
+        topic = _clean_topic(lines[0].strip())
+        content = lines[1].strip() if len(lines) > 1 else ""
 
         if not content:
             logger.debug(f"Skipping empty section: {topic}")
@@ -429,8 +423,8 @@ More real content.
     else:
         errors += 1
 
-    # Test 10: Preamble handling
-    print("Test 10: Preamble handling...", end=" ")
+    # Test 10: Preamble skipped (short)
+    print("Test 10: Preamble skipped (short)...", end=" ")
     markdown = """# Title
 Short preamble.
 
@@ -441,7 +435,6 @@ Content of first section.
 Content of second section.
 """
     chunks = chunk_by_h2(markdown, "preamble-1")
-    # Short preamble should be skipped
     if chunks.total_chunks == 2 and chunks.chunks[0].topic == "First Section":
         print("OK")
     else:
@@ -537,6 +530,112 @@ Content of second section.
             errors += 1
     else:
         print(f"FAILED: expected 4 chunks, got {chunks.total_chunks}")
+        errors += 1
+
+    # Test 16: Preamble skipped — YAML frontmatter + H1 + intro (longread format)
+    print("Test 16: Preamble — longread format (frontmatter + H1)...", end=" ")
+    markdown = """---
+type: "лонгрид"
+video_id: "test-123"
+---
+
+# Название лекции
+
+## Вступление
+Текст вступления здесь.
+
+## Основная часть
+Текст основной части.
+"""
+    chunks = chunk_by_h2(markdown, "lr-1")
+    if chunks.total_chunks == 2 and chunks.chunks[0].topic == "Вступление":
+        print("OK")
+    else:
+        print(f"FAILED: expected 2 chunks starting with 'Вступление', "
+              f"got {chunks.total_chunks}: {[c.topic for c in chunks.chunks]}")
+        errors += 1
+
+    # Test 17: Preamble skipped — story format (frontmatter + callout)
+    print("Test 17: Preamble — story format (frontmatter + callout)...", end=" ")
+    markdown = """---
+type: "leadership-story"
+names: "Иванов А."
+---
+
+# История Успеха: Иванов А.
+
+> [!abstract] Главный инсайт
+> Текст инсайта...
+
+---
+
+## 1️⃣ Кто они
+Описание персонажей.
+
+## 2️⃣ Проблема
+Описание проблемы.
+"""
+    chunks = chunk_by_h2(markdown, "story-preamble-1")
+    if chunks.total_chunks == 2 and chunks.chunks[0].topic == "Кто они":
+        print("OK")
+    else:
+        print(f"FAILED: expected 2 chunks starting with 'Кто они', "
+              f"got {chunks.total_chunks}: {[c.topic for c in chunks.chunks]}")
+        errors += 1
+
+    # Test 18: Preamble skipped — long LLM intro before first H2
+    print("Test 18: Preamble — long LLM intro (>100 chars)...", end=" ")
+    long_intro = (
+        "Меня зовут Светлана Дмитрук, я President's Team 15K 1D, "
+        "в бизнесе Herbalife 13 лет. Сегодня поговорим о том, "
+        "что делает спонсора тем, за кем хотят идти люди."
+    )
+    markdown = f"""{long_intro}
+
+## Рекрутировать можно только туда, во что ты сам веришь
+Содержание первой секции.
+
+## Вторая тема
+Содержание второй секции.
+"""
+    chunks = chunk_by_h2(markdown, "llm-intro-1")
+    if (chunks.total_chunks == 2
+            and chunks.chunks[0].topic == "Рекрутировать можно только туда, во что ты сам веришь"):
+        print("OK")
+    else:
+        print(f"FAILED: expected 2 chunks, "
+              f"got {chunks.total_chunks}: {[c.topic for c in chunks.chunks]}")
+        errors += 1
+
+    # Test 19: No preamble — markdown starts with ##
+    print("Test 19: No preamble (starts with ##)...", end=" ")
+    markdown = """## Первая секция
+Содержание первой.
+
+## Вторая секция
+Содержание второй.
+"""
+    chunks = chunk_by_h2(markdown, "no-preamble-1")
+    if chunks.total_chunks == 2 and chunks.chunks[0].topic == "Первая секция":
+        print("OK")
+    else:
+        print(f"FAILED: expected 2 chunks, "
+              f"got {chunks.total_chunks}: {[c.topic for c in chunks.chunks]}")
+        errors += 1
+
+    # Test 20: Only preamble, no H2 — fallback
+    print("Test 20: Only preamble, no H2 (fallback)...", end=" ")
+    markdown = """# Заголовок
+
+Это текст без H2 заголовков. Просто вступление и ничего больше.
+Ещё один абзац текста.
+"""
+    chunks = chunk_by_h2(markdown, "only-preamble-1")
+    if chunks.total_chunks == 1 and chunks.chunks[0].topic == "Полный текст":
+        print("OK")
+    else:
+        print(f"FAILED: expected fallback chunk, "
+              f"got {chunks.total_chunks}: {[c.topic for c in chunks.chunks]}")
         errors += 1
 
     # Summary

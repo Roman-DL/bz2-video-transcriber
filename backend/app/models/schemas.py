@@ -739,8 +739,6 @@ class Longread(CamelCaseModel):
         lines.append("")
 
         if self.introduction:
-            lines.append("## Вступление")
-            lines.append("")
             lines.append(self.introduction)
             lines.append("")
 
@@ -751,7 +749,7 @@ class Longread(CamelCaseModel):
             lines.append("")
 
         if self.conclusion:
-            lines.append("## Заключение")
+            lines.append("---")
             lines.append("")
             lines.append(self.conclusion)
             lines.append("")
