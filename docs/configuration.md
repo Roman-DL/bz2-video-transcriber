@@ -22,15 +22,15 @@ tags:
 |------------|--------------|----------|
 | `OLLAMA_URL` | `http://192.168.1.152:11434` | URL Ollama API |
 | `WHISPER_URL` | `http://192.168.1.152:9000` | URL Whisper API |
-| `SUMMARIZER_MODEL` | `claude-sonnet-4-6` | Модель для суммаризации |
-| `CLEANER_MODEL` | `claude-sonnet-4-6` | Модель для очистки транскрипта |
-| `LONGREAD_MODEL` | `claude-sonnet-4-6` | Модель для генерации лонгрида |
+| `SUMMARIZER_MODEL` | `claude-opus-4-6` | Модель для конспекта (v0.76+, ADR-019) |
+| `CLEANER_MODEL` | `claude-haiku-4-5` | Модель для очистки транскрипта (v0.65+, ADR-014) |
+| `LONGREAD_MODEL` | `claude-opus-4-6` | Модель для генерации лонгрида (v0.75+, ADR-018) |
 | `WHISPER_MODEL` | `large-v3-turbo` | Имя модели Whisper (для отображения в UI) |
 | `WHISPER_LANGUAGE` | `ru` | Язык транскрипции |
 | `WHISPER_INCLUDE_TIMESTAMPS` | `false` | Включать таймкоды `[HH:MM:SS]` в транскрипт |
 | `LLM_TIMEOUT` | `300` | Таймаут LLM запросов (секунды) |
 
-> **v0.29+:** По умолчанию все LLM операции используют Claude Sonnet. Требуется `ANTHROPIC_API_KEY`.
+> **v0.76+:** Default модели: Opus (лонгрид, конспект), Haiku (очистка, описание). Требуется `ANTHROPIC_API_KEY`.
 
 > **Примечание:** `LONGREAD_MODEL`, `WHISPER_MODEL` и `WHISPER_INCLUDE_TIMESTAMPS` имеют defaults в Settings и не требуют явного указания в docker-compose.yml.
 
