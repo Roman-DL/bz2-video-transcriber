@@ -1,7 +1,7 @@
 ---
 doc_type: how-to
 status: active
-updated: 2026-02-19
+updated: 2026-02-22
 audience: [developer, ops]
 tags:
   - deployment
@@ -355,32 +355,14 @@ curl https://transcriber.home/health/services
 
 ### Скрипт deploy.sh
 
-```bash
-#!/bin/bash
-# scripts/deploy.sh — rsync + docker compose
+Скрипт выполняет: rsync исходников → создание .env → pre-pull базовых образов (при необходимости) → docker compose build → docker compose up → health check.
 
-set -e
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-source "$PROJECT_DIR/.env.local"
-
-echo "Deploying bz2-video-transcriber..."
-
-# Синхронизация файлов
-sshpass -p "$DEPLOY_PASSWORD" rsync -avz --delete \
-  --exclude 'node_modules' --exclude '.git' --exclude '.env.local' \
-  --exclude '__pycache__' --exclude '.venv' --exclude '*.pyc' \
-  "$PROJECT_DIR/" "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
-
-# Пересборка и перезапуск
-sshpass -p "$DEPLOY_PASSWORD" ssh "${DEPLOY_USER}@${DEPLOY_HOST}" \
-  "cd ${DEPLOY_PATH} && echo '$DEPLOY_PASSWORD' | sudo -S docker compose up -d --build"
-
-echo "Deployed:"
-echo "  App: https://transcriber.home"
-echo "  Health: https://transcriber.home/health"
-```
+**Ключевые особенности (v0.78+, ADR-021):**
+- Docker layer cache — `--no-cache` убран, build использует кэш слоёв
+- Pre-pull базовых образов с retry (3 попытки, 10s пауза)
+- Health check после деплоя (5 попыток, 5s пауза)
+- Вывод build-лога (последние 30 строк) при ошибке
+- Helper-функции `remote()` / `remote_sudo()` для SSH
 
 ### Credentials (.env.local)
 
@@ -389,15 +371,30 @@ DEPLOY_HOST=192.168.1.152
 DEPLOY_USER=truenas_admin
 DEPLOY_PASSWORD=<пароль>
 DEPLOY_PATH=/mnt/apps-pool/dev/projects/bz2-video-transcribe
+ANTHROPIC_API_KEY=<ключ>
 ```
 
 ### Использование
 
 ```bash
-./scripts/deploy.sh
+# Стандартный деплой (использует Docker layer cache)
+/bin/bash scripts/deploy.sh
+
+# Принудительное обновление базовых образов
+/bin/bash scripts/deploy.sh --pull
 ```
 
 Или попросить Claude: "Задеплой на сервер"
+
+### Troubleshooting
+
+| Проблема | Решение |
+|----------|---------|
+| TLS handshake timeout при pull | Повторить через несколько минут, проверить прокси на сервере |
+| Build failed | Скрипт покажет последние 30 строк лога. Часто — проблема сети при `pip install` / `npm ci` |
+| Health check failed | Приложение может ещё стартовать. Проверить вручную: `curl -k https://transcriber.home/health` |
+| Старые базовые образы | Запустить с `--pull` для обновления `python:3.12-slim`, `node:20-alpine`, `nginx:alpine` |
+| "Too many auth failures" | SSH_OPTS в скрипте отключает pubkey auth, проблема не должна возникать |
 
 ---
 

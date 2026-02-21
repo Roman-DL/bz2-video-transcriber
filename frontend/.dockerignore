@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.git
+.gitignore
+*.md
+docs/
+.vscode/
+.idea/
+.env
+.env.local
+.eslintrc*
+.prettierrc*
+tsconfig.tsbuildinfo

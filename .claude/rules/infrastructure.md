@@ -19,6 +19,9 @@ globs: backend/app/utils/**,backend/app/config.py,config/**,docker-compose.yml,s
 ## Деплой
 - docker-compose НЕ работает локально — пути `/mnt/main/work/bz2/video` только на сервере
 - ВСЕГДА деплой через `/bin/bash scripts/deploy.sh` (zsh обрабатывает `$SSH_OPTS` иначе — SSH-команды падают)
+- Обновить базовые образы: `/bin/bash scripts/deploy.sh --pull`
+- **НИКОГДА не использовать `--no-cache`** — Docker layer cache корректно инвалидируется через rsync (ADR-021)
+- Скрипт включает: pre-pull с retry (3 попытки), health check после деплоя, вывод build-лога при ошибке
 - Пути: хост `/mnt/main/work/bz2/video/archive/`, контейнер `/data/archive/`
 - HTTPS через Traefik (v0.63+): `https://transcriber.home` — основной способ доступа
 - Бэкенд (`bz2-transcriber`) — `expose: 80`, НЕ `ports` — доступен только через nginx
