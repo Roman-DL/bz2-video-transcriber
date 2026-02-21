@@ -426,7 +426,7 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                 const Icon = STEP_ICONS[step];
                 const isExpanded = expandedSettings === step;
                 const isCurrent = status === 'completed' && getTabForStep(step) === activeTab && !isLoading;
-                const hasSettings = isLLMStep(step) && isCurrent;
+                const hasSettings = isLLMStep(step) && status === 'completed';
 
                 return (
                   <div key={step} className="relative">
@@ -494,17 +494,6 @@ export function StepByStep({ filename, onComplete, onCancel, initialSlides = [] 
                           </button>
                         )}
                       </div>
-                      {isCurrent && (
-                        <button
-                          className="p-1 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded transition-colors"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            rerunStep(step);
-                          }}
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                        </button>
-                      )}
                     </div>
 
                     {/* Expanded Settings Panel */}

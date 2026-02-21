@@ -28,6 +28,7 @@ ADR (Architecture Decision Record) — документ, фиксирующий 
 | [013](013-api-camelcase-serialization.md) | accepted | API camelCase serialization (v0.59+) |
 | [014](014-haiku-default-cleaning.md) | accepted | Haiku default для очистки (v0.65+) |
 | [015](015-longread-single-pass.md) | accepted | Single-pass генерация лонгрида (v0.67+) |
+| [017](017-step-rerun-with-overrides.md) | accepted | Перезапуск шагов с настройками |
 
 ## Статусы
 

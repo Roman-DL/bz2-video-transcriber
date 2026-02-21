@@ -364,6 +364,7 @@ export function usePipelineProcessor({
       return next;
     });
     setError(null);
+    setCurrentStep(step);
   }, [pipelineSteps]);
 
   // ─────────────────────────────────────────────────────────────────────────
