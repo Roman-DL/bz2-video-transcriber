@@ -11,40 +11,40 @@ statuses:
     description: "Qualified Producer — базовый квалификационный уровень, 500+ VP в месяц. Сокращения: КП (англ. QP)"
     whisper_errors: ["КП", "кью пи", "кьюпи", "квалпродюссер"]
 
-  - canonical: "Супервайзер"
-    description: "Supervisor — первый квалификационный уровень, 2500 VP + группа. Сокращения: СВ (англ. SV)"
-    whisper_errors: ["скпервайзер", "супер визор"]
+  - canonical: "Супервайзер (SV)"
+    description: "Supervisor — первый квалификационный уровень, 2500 VP + группа. Сокращения: СВ, SV"
+    whisper_errors: ["скпервайзер", "супер визор", "супервайзер"]
     context: "стал Супервайзером за 3 месяца"
 
-  - canonical: "Активный Супервайзер"
-    description: "Active Supervisor — супервайзер с объёмом 500+ VP в текущем месяце. Сокращения: АСВ (англ. ASV)"
+  - canonical: "Активный Супервайзер (ASV)"
+    description: "Active Supervisor — супервайзер с объёмом 500+ VP в текущем месяце. Сокращения: АСВ, ASV"
     context: "из 47 супервайзеров только 22 активных"
 
   - canonical: "Спящий супервайзер"
     description: "Sleeping Supervisor — супервайзер с объёмом 0–500 VP, неактивный"
     context: "из 47 супервайзеров 25 спящих"
 
-  - canonical: "Ворлд-тим"
-    description: "World Team — квалификация 10,000+ Organization VP. Сокращения: ВТ (англ. WT)"
-    whisper_errors: ["ворлдтим", "ворд тим"]
+  - canonical: "Ворлд-тим (WT)"
+    description: "World Team — квалификация 10,000+ Organization VP. Сокращения: ВТ, WT"
+    whisper_errors: ["ворлдтим", "ворд тим", "ворлд-тим"]
 
-  - canonical: "ГЕТ"
+  - canonical: "ГЕТ (GET)"
     description: "GET Team — квалификационный статус: 10,000 Group VP + 3 линии по 2500+ VP"
-    whisper_errors: ["генты", "гет-тим"]
+    whisper_errors: ["генты", "гет-тим", "гет"]
     context: "я уже 5 лет ГЕТ"
 
   - canonical: "ГЕТ 2500"
     description: "GET 2500 (GET Plus) — следующий уровень после ГЕТ. Сокращение: ГЕТ+"
     whisper_errors: ["генты плюс"]
 
-  - canonical: "Миллионер"
-    description: "Millionaire Team — высокий квалификационный уровень. Сокращения: МТ (англ. MT)"
+  - canonical: "Миллионер (MT)"
+    description: "Millionaire Team — высокий квалификационный уровень. Сокращения: МТ, MT"
 
   - canonical: "Миллионер 7500"
     description: "Millionaire Team 7500 (MT Plus) — уровень после Миллионер. Сокращения: МТ+, МТ 7500"
 
-  - canonical: "Президент"
-    description: "President's Team — топовый квалификационный уровень. Сокращения: ПТ (англ. PT)"
+  - canonical: "Президент (PT)"
+    description: "President's Team — топовый квалификационный уровень. Сокращения: ПТ, PT"
 
   - canonical: "Чарманс Клаб"
     description: "Chairman's Club — престижный статус: 5 линий с President Team в каждой. Сокращение: CC"
@@ -71,21 +71,23 @@ volumes:
     whisper_errors: ["ППВ"]
     context: "PPV 500 для квалификации QP"
 
-  - canonical: "Групповой объем"
-    description: "Group Volume — объём группы под консультантом. Сокращения: ГВ (англ. GV)"
+  - canonical: "Групповой объем (GV)"
+    description: "Group Volume — объём группы под консультантом. Сокращения: ГВ, GV"
+    whisper_errors: ["групповой объем", "группового объема"]
 
-  - canonical: "Организационный объем"
-    description: "Organization Volume — суммарный объём всей организации. Сокращения: ОВ (англ. OV)"
-    whisper_errors: ["оргобъем"]
+  - canonical: "Организационный объем (OV)"
+    description: "Organization Volume — суммарный объём всей организации. Сокращения: ОВ, OV"
+    whisper_errors: ["оргобъем", "организационный объем", "организационного объема"]
 
 # --- Роли и участники ---
 roles:
-  - canonical: "Привилегированный клиент"
-    description: "Preferred Member — покупатель со скидкой ~25%, без бизнес-активности"
-    whisper_errors: ["преферед мембер", "префер"]
+  - canonical: "Привилегированный клиент (ПК)"
+    description: "Preferred Member — покупатель со скидкой ~25%, без бизнес-активности. Сокращение: ПК"
+    whisper_errors: ["преферед мембер", "префер", "привилегированный клиент"]
 
-  - canonical: "Независимый партнер"
+  - canonical: "Независимый партнер (НП)"
     description: "Independent Member — начальный бизнес-уровень с правом строить структуру. Сокращение: НП"
+    whisper_errors: ["независимый партнер", "независимого партнера", "независимым партнером"]
     context: "регистрация как независимый партнер"
 
   - canonical: "Партнер"
@@ -130,8 +132,13 @@ events:
   - canonical: "Школа Супервайзеров"
     description: "Обучающая школа для супервайзеров. Сокращение: школа СВ"
 
-  - canonical: "ШБМ"
-    description: "Школа будущих миллионеров (School of Future Millionaires). Сокращение: SFM"
+  - canonical: "Школа будущих миллионеров (ШБМ)"
+    description: "School of Future Millionaires — обучающая программа для будущих миллионеров. Сокращение: ШБМ, SFM"
+    whisper_errors: ["школа будущих миллионеров", "школу будущих миллионеров"]
+
+  - canonical: "Школа будущих президентов (ШБП)"
+    description: "School of Future Presidents — обучающая программа для будущих президентов. Сокращение: ШБП"
+    whisper_errors: ["школа будущих президентов", "школу будущих президентов"]
 
   - canonical: "Экстраваганза"
     description: "Extravaganza — крупное корпоративное мероприятие Herbalife"
@@ -144,15 +151,20 @@ events:
     description: "Система регулярных онлайн-мероприятий"
     context: "10-дневный марафон"
 
-  - canonical: "ВВК"
-    description: "Встреча Возможностей для Клиентов (англ. COP — Client Opportunity). Ранее называлась ВДВ"
-    whisper_errors: ["ВДВ"]
+  - canonical: "Встреча Возможностей для Клиентов (ВВК)"
+    description: "Client Opportunity (COP) — мероприятие для привлечения клиентов. Ранее называлась ВДВ. Сокращение: ВВК"
+    whisper_errors: ["ВДВ", "встреч возможностей", "встречи возможностей", "встречу возможностей"]
 
   - canonical: "Фестиваль"
     description: "Мероприятие для признания клиентов с лучшими результатами"
 
-  - canonical: "Группа поддержки"
-    description: "Support Group — регулярные встречи команды консультантов. Сокращение: ГП"
+  - canonical: "Группа поддержки (ГП)"
+    description: "Support Group — цикл тем для клиентов. Объясняют концепцию БЖУ и правила питания, знакомят с продуктами компании. Сокращение: ГП"
+    whisper_errors: ["группа поддержки", "группу поддержки", "группы поддержки"]
+
+  - canonical: "Группа роста (ГР)"
+    description: "Growth Group — цикл тем для начинающих консультантов. Объясняют как искать клиентов и проводить встречи. Сокращение: ГР"
+    whisper_errors: ["группа роста", "группу роста", "группы роста"]
 
 # --- Клиентский сервис ---
 services:
@@ -161,12 +173,13 @@ services:
     whisper_errors: ["нутришн клуб"]
     context: "открыть клуб"
 
-  - canonical: "ЭО"
-    description: "Экспресс-оценка (Express Assessment) — первая встреча с клиентом"
-    whisper_errors: ["экспрессоценка"]
+  - canonical: "Экспресс-оценка (ЭО)"
+    description: "Express Assessment — первая встреча с клиентом. Сокращение: ЭО"
+    whisper_errors: ["экспрессоценка", "экспресс-оценка", "экспресс-оценку", "экспресс-оценок", "экспресс-оценке", "экспресс-оценки", "экспресс оценка", "экспресс центр"]
 
-  - canonical: "ПО"
-    description: "Полная оценка (Full Assessment) — встреча для составления полной программы"
+  - canonical: "Полная оценка (ПО)"
+    description: "Full Assessment — встреча для составления полной программы. Сокращение: ПО"
+    whisper_errors: ["полная оценка", "полной оценки", "полной оценкой", "полных оценок", "полную оценку"]
 
 # --- Программы ---
 programs:
@@ -194,16 +207,16 @@ products:
     description: "Formula 3 — персонализированный протеиновый порошок для дополнительного белка. Сокращения: Ф3, F3"
     whisper_errors: ["Формула3"]
 
-  - canonical: "ПДМ"
-    description: "Protein Drink Mix — протеиновый напиток (15г белка + 22 микронутриента). Сокращение: PDM"
-    whisper_errors: ["протеин дринк микс"]
+  - canonical: "Protein Drink Mix (ПДМ)"
+    description: "Протеиновый напиток (15г белка + 22 микронутриента). Сокращение: ПДМ, PDM"
+    whisper_errors: ["протеин дринк микс", "пдм"]
 
   - canonical: "Протеиновый кофе Латте Макиато"
     description: "Protein Coffee Latte Macchiato — кофейный напиток с 15г белка и 80мг кофеина"
 
-  - canonical: "Овсяно-яблочный напиток"
+  - canonical: "Овсяно-яблочный напиток (ОЯН)"
     description: "Oat Apple Drink — питательный напиток на основе овсяных хлопьев и яблока. Сокращение: ОЯН"
-    whisper_errors: ["ОЯН", "оян"]
+    whisper_errors: ["ОЯН", "оян", "овсяно-яблочный напиток"]
 
   - canonical: "CR7 Drive"
     description: "Спортивный напиток для гидратации, линейка Криштиану Роналду. Сокращение: CR7"
@@ -228,8 +241,9 @@ products:
     description: "Aloe Concentrate — напиток с экстрактом алоэ вера для пищеварения"
     whisper_errors: ["алое", "херб алоэ"]
 
-  - canonical: "Комплекс пищевых волокон"
-    description: "Fiber Complex — комплекс растворимых и нерастворимых пищевых волокон"
+  - canonical: "Комплекс пищевых волокон (КПВ)"
+    description: "Fiber Complex — комплекс растворимых и нерастворимых пищевых волокон. Сокращение: КПВ"
+    whisper_errors: ["комплекс пищевых волокон", "кпв"]
 
   - canonical: "Протеиновые батончики"
     description: "Protein Bars — батончики с высоким содержанием белка"
@@ -271,9 +285,9 @@ products:
     description: "Phyto Complete — комплекс фитонутриентов из растительных источников"
     whisper_errors: ["фитокомплит"]
 
-  - canonical: "Шизандра Эдванс"
-    description: "Schizandra Advance — комплекс с лимонником китайским для стрессоустойчивости"
-    whisper_errors: ["шизандра адванс"]
+  - canonical: "Шизандра"
+    description: "Schizandra Advance — комплекс с лимонником китайским для стрессоустойчивости. Полное название: Шизандра Эдванс"
+    whisper_errors: ["шизандра адванс", "шизандра эдванс"]
 
   - canonical: "Экстра-Каль"
     description: "Xtra-Cal — комплекс кальция и витамина D"
@@ -285,9 +299,9 @@ products:
   - canonical: "Микробиотик Макс"
     description: "Microbiotic Max — комплекс пробиотиков для здоровья кишечника"
 
-  - canonical: "Иммуно Бустер"
+  - canonical: "Иммьюн Бустер"
     description: "Immune Booster — комплекс для поддержки иммунной системы"
-    whisper_errors: ["иммунобустер"]
+    whisper_errors: ["иммунобустер", "иммуно бустер", "имьюн бустер"]
 
   - canonical: "Коллаген"
     description: "Collagen — комплекс для поддержки кожи, волос и ногтей"

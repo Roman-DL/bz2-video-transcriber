@@ -1,6 +1,8 @@
-import { useRef, useState, useCallback } from 'react';
-import { ArrowLeft, ArrowUpDown, Columns } from 'lucide-react';
+import { useRef, useState, useCallback, useMemo } from 'react';
+import { ArrowLeft, ArrowUpDown, Columns, Highlighter, Copy, Check } from 'lucide-react';
 import { formatNumber } from '@/utils/formatUtils';
+import { computeWordDiff, generateDiffReport } from '@/utils/diffUtils';
+import type { DiffToken, ReportMeta } from '@/utils/diffUtils';
 
 interface InlineDiffViewProps {
   leftText: string;
@@ -8,15 +10,42 @@ interface InlineDiffViewProps {
   leftTitle: string;
   rightTitle: string;
   onClose: () => void;
+  reportMeta?: ReportMeta;
 }
 
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(w => w.length > 0).length;
 }
 
+function renderTokens(tokens: DiffToken[], highlight: boolean) {
+  if (!highlight) {
+    return tokens.map(t => t.text).join('');
+  }
+
+  return tokens.map((token, i) => {
+    if (token.type === 'equal') {
+      return <span key={i}>{token.text}</span>;
+    }
+    if (token.type === 'removed') {
+      return (
+        <span key={i} className="bg-red-100 text-red-800 line-through">
+          {token.text}
+        </span>
+      );
+    }
+    // added
+    return (
+      <span key={i} className="bg-emerald-100 text-emerald-800">
+        {token.text}
+      </span>
+    );
+  });
+}
+
 /**
  * Inline diff view component with synchronized scrolling.
  * Shows two text panels side by side for comparison.
+ * When reportMeta is provided, enables word-level diff highlighting and report button.
  */
 export function InlineDiffView({
   leftText,
@@ -24,11 +53,21 @@ export function InlineDiffView({
   leftTitle,
   rightTitle,
   onClose,
+  reportMeta,
 }: InlineDiffViewProps) {
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const [syncScroll, setSyncScroll] = useState(true);
+  const [highlightEnabled, setHighlightEnabled] = useState(true);
+  const [copied, setCopied] = useState(false);
   const isScrolling = useRef(false);
+
+  const diffEnabled = !!reportMeta;
+
+  const diffResult = useMemo(() => {
+    if (!diffEnabled) return null;
+    return computeWordDiff(leftText, rightText);
+  }, [diffEnabled, leftText, rightText]);
 
   const handleScroll = useCallback((source: 'left' | 'right') => {
     if (!syncScroll || isScrolling.current) return;
@@ -49,6 +88,13 @@ export function InlineDiffView({
     }
   }, [syncScroll]);
 
+  const handleCopyReport = useCallback(async () => {
+    const report = generateDiffReport(leftText, rightText, reportMeta);
+    await navigator.clipboard.writeText(report);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [leftText, rightText, reportMeta]);
+
   const charDiff = rightText.length - leftText.length;
   const charDiffPercent = leftText.length > 0
     ? Math.round((charDiff / leftText.length) * 100)
@@ -56,6 +102,8 @@ export function InlineDiffView({
 
   const leftWords = countWords(leftText);
   const rightWords = countWords(rightText);
+
+  const showHighlight = diffEnabled && highlightEnabled && diffResult;
 
   return (
     <div className="flex flex-col h-full bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -76,6 +124,36 @@ export function InlineDiffView({
         </div>
 
         <div className="flex items-center gap-4">
+          {diffEnabled && (
+            <>
+              <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={highlightEnabled}
+                  onChange={(e) => setHighlightEnabled(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <Highlighter className="w-3.5 h-3.5" />
+                Подсветка
+              </label>
+              <button
+                onClick={handleCopyReport}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    Скопировано
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    Отчёт
+                  </>
+                )}
+              </button>
+            </>
+          )}
           <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
             <input
               type="checkbox"
@@ -115,7 +193,7 @@ export function InlineDiffView({
             className="flex-1 p-3 overflow-y-auto min-h-0"
           >
             <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-              {leftText}
+              {showHighlight ? renderTokens(diffResult.leftTokens, true) : leftText}
             </p>
           </div>
         </div>
@@ -134,7 +212,7 @@ export function InlineDiffView({
             className="flex-1 p-3 overflow-y-auto min-h-0"
           >
             <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-              {rightText}
+              {showHighlight ? renderTokens(diffResult.rightTokens, true) : rightText}
             </p>
           </div>
         </div>

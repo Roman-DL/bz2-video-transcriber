@@ -16,3 +16,7 @@ export {
 
 // Format utilities (v0.44+)
 export { formatTime, formatCost, formatNumber, formatTokens } from './formatUtils';
+
+// Diff utilities (v0.73+)
+export { computeWordDiff, generateDiffReport } from './diffUtils';
+export type { DiffToken, WordDiffResult, ReportMeta } from './diffUtils';

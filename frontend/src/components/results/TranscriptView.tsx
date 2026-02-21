@@ -79,6 +79,7 @@ export function CleanedTranscriptView({
         leftTitle="Транскрипт"
         rightTitle="Очистка"
         onClose={onToggleDiff}
+        reportMeta={{ modelName: transcript.modelName }}
       />
     );
   }
