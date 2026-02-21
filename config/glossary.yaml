@@ -66,18 +66,43 @@ volumes:
     whisper_errors: ["ВП", "вольюм поинт", "волюм поинт"]
     context: "2500 VP в месяц"
 
-  - canonical: "Личный объем (PPV)"
-    description: "Personal Production Volume — объём личных закупок консультанта. Сокращения: ППВ (англ. PPV)"
-    whisper_errors: ["ППВ"]
-    context: "PPV 500 для квалификации QP"
+  - canonical: "Лично выкупленный объём (PPV)"
+    description: "Personally Purchased Volume — объём, выкупленный лично на свой ID в Herbalife. Сокращения: ППВ, PPV"
+    whisper_errors: ["ППВ", "пи пи ви"]
+    context: "PPV 500 для квалификации"
 
-  - canonical: "Групповой объем (GV)"
-    description: "Group Volume — объём группы под консультантом. Сокращения: ГВ, GV"
+  - canonical: "Личный объём (PV)"
+    description: "Personal Volume — совокупный персональный объём: PPV + объём ПК + объём не-SV даунлайна. Сокращения: ПВ, PV"
+    whisper_errors: ["персональный объем", "персональный волюм", "персональный объём", "личного объема", "личный объём"]
+    context: "Личный объём 2500 VP"
+
+  - canonical: "Объём нижестоящей организации (DLV)"
+    description: "Downline Volume — объём, выкупленный Привилегированными Клиентами и не-Супервайзерами даунлайна. Сокращения: ДЛВ, DLV"
+    whisper_errors: ["даунлайн волюм", "ди эл ви"]
+
+  - canonical: "Групповой объём (GV)"
+    description: "Group Volume — объём заказов Квалифицирующихся Супервайзеров. Сокращения: ГВ, GV"
     whisper_errors: ["групповой объем", "группового объема"]
 
-  - canonical: "Организационный объем (OV)"
-    description: "Organization Volume — суммарный объём всей организации. Сокращения: ОВ, OV"
+  - canonical: "Общий объём (TV)"
+    description: "Total Volume — Личный Объём + Групповой Объём. Сокращения: ТВ, TV"
+    whisper_errors: ["тотал волюм", "общего объема", "общий объем"]
+
+  - canonical: "Организационный объём (OV)"
+    description: "Organizational Volume — совокупный объём организации, база для вознаграждений. Сокращения: ОВ, OV"
     whisper_errors: ["оргобъем", "организационный объем", "организационного объема"]
+
+  - canonical: "Несвободный объём"
+    description: "Encumbered Volume — объём, используемый даунлайном для квалификации на Супервайзера"
+    whisper_errors: ["несвободного объема", "несвободный объем"]
+
+  - canonical: "Свободный объём"
+    description: "Unencumbered Volume — объём, не используемый даунлайном для квалификации"
+    whisper_errors: ["свободного объема", "свободный объем"]
+
+  - canonical: "Соответствующий объём"
+    description: "Matching Volume — объём, который должен быть у Супервайзера-спонсора для подтверждения квалификации нижестоящих"
+    whisper_errors: ["мэтчинг волюм", "соответствующего объема"]
 
 # --- Роли и участники ---
 roles:
