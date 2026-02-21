@@ -1,5 +1,9 @@
 ---
-globs: backend/app/services/pipeline/**,backend/app/services/stages/**,backend/app/services/audio_extractor.py,backend/app/services/progress_estimator.py
+paths:
+  - "backend/app/services/pipeline/**"
+  - "backend/app/services/stages/**"
+  - "backend/app/services/audio_extractor.py"
+  - "backend/app/services/progress_estimator.py"
 ---
 
 # Rules: Pipeline & Stages

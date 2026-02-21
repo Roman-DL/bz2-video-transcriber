@@ -1,5 +1,8 @@
 ---
-globs: backend/app/api/**,backend/app/models/schemas.py,frontend/src/api/**
+paths:
+  - "backend/app/api/**"
+  - "backend/app/models/schemas.py"
+  - "frontend/src/api/**"
 ---
 
 # Rules: API & Models

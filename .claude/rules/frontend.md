@@ -1,5 +1,9 @@
 ---
-globs: frontend/src/components/**,frontend/src/utils/**,frontend/src/hooks/**,frontend/src/contexts/**
+paths:
+  - "frontend/src/components/**"
+  - "frontend/src/utils/**"
+  - "frontend/src/hooks/**"
+  - "frontend/src/contexts/**"
 ---
 
 # Rules: Frontend

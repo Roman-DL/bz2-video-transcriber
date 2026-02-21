@@ -1,5 +1,10 @@
 ---
-globs: backend/app/services/parser.py,backend/app/services/saver.py,*longread*,*story*,config/events.yaml
+paths:
+  - "backend/app/services/parser.py"
+  - "backend/app/services/saver.py"
+  - "**/*longread*"
+  - "**/*story*"
+  - "config/events.yaml"
 ---
 
 # Rules: Content Types & Archive
