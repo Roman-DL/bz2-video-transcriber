@@ -66,7 +66,7 @@ context_profiles:
     context_tokens: 8192
     cleaner:
       chunk_size: 3000
-      chunk_overlap: 200
+      chunk_overlap: 0
       small_text_threshold: 3500
     text_splitter:
       part_size: 6000
@@ -84,7 +84,7 @@ context_profiles:
     context_tokens: 32768
     cleaner:
       chunk_size: 8000
-      chunk_overlap: 500
+      chunk_overlap: 0
       small_text_threshold: 9000
     text_splitter:
       part_size: 15000
@@ -101,11 +101,11 @@ context_profiles:
   large:
     context_tokens: 200000
     cleaner:
-      # Russian: ~2.3 tok/char. Target 70% of 200K = 140K tokens.
-      # Overhead after glossary v4.0: ~49K tokens (system + glossary + people).
-      # Max chunk: (140K - 49K) / 2.3 ≈ 40K chars.
+      # Russian: ~2.3 tok/char. Overhead: ~49K tokens (system + glossary + people).
+      # Output ≈ input (terminology-only), so need ~2x chunk tokens for I/O.
+      # Max chunk: (200K - 49K) / 2 / 2.3 ≈ 33K chars, rounded up to 40K.
       chunk_size: 40000
-      chunk_overlap: 3000
+      chunk_overlap: 0
       small_text_threshold: 40000
     text_splitter:
       part_size: 80000
@@ -165,7 +165,7 @@ models:
     # Override specific params for larger context
     cleaner:
       chunk_size: 10000
-      chunk_overlap: 600
+      chunk_overlap: 0
       small_text_threshold: 11000
     text_splitter:
       part_size: 20000
@@ -218,7 +218,7 @@ defaults:
   context_profile: small
   cleaner:
     chunk_size: 3000
-    chunk_overlap: 200
+    chunk_overlap: 0
     small_text_threshold: 3500
   text_splitter:
     part_size: 6000

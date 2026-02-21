@@ -20,7 +20,6 @@ perf_logger = logging.getLogger("app.perf")
 
 # Default chunking configuration (overridden by models.yaml)
 DEFAULT_CHUNK_SIZE = 3000
-DEFAULT_CHUNK_OVERLAP = 200
 DEFAULT_SMALL_TEXT_THRESHOLD = 3500
 
 
@@ -28,11 +27,11 @@ class TranscriptCleaner:
     """
     Transcript cleaning service using LLM with glossary context.
 
-    Single-step cleaning process:
-    - LLM receives glossary.yaml as context and performs:
-      - Terminology correction (recognizes variations by sound/meaning)
-      - Filler words removal
-      - Speech error fixes
+    Single-task cleaning: terminology correction only (v0.72+).
+    LLM receives glossary.yaml as context and fixes terminology
+    (recognizes variations by sound/meaning, corrects Whisper errors).
+
+    Output ≈ input length (only replaced terms differ).
 
     Example:
         async with OllamaClient.from_settings(settings) as client:
@@ -67,7 +66,6 @@ class TranscriptCleaner:
         # Load model-specific chunking configuration
         config = load_model_config(settings.cleaner_model, "cleaner", settings)
         self.chunk_size = config.get("chunk_size", DEFAULT_CHUNK_SIZE)
-        self.chunk_overlap = config.get("chunk_overlap", DEFAULT_CHUNK_OVERLAP)
         self.small_text_threshold = config.get("small_text_threshold", DEFAULT_SMALL_TEXT_THRESHOLD)
 
     async def clean(
@@ -78,9 +76,9 @@ class TranscriptCleaner:
         """
         Clean raw transcript using LLM with glossary context.
 
-        For large texts (>10KB), uses chunked processing to avoid LLM
-        summarizing instead of cleaning. LLM receives glossary.yaml as
-        context and performs terminology correction and filler removal.
+        For large texts (>40K chars), uses chunked processing.
+        LLM receives glossary.yaml as context and performs
+        terminology correction only (v0.72+).
 
         Args:
             raw_transcript: Raw transcript from Whisper
@@ -134,8 +132,8 @@ class TranscriptCleaner:
                 {"role": "user", "content": user_content},
             ]
 
-            # Estimate output tokens: ~2 chars per token, expect 80-95% of input
-            num_predict = max(int(len(chunk) * 0.5), 4096)
+            # Output ≈ input (only terminology replacements), need ~110% margin
+            num_predict = max(int(len(chunk) * 1.1 * 2.3), 4096)
 
             # v0.43+: Unified interface - all clients return (response, usage)
             chunk_result, usage = await self.ai_client.chat(
@@ -167,16 +165,23 @@ class TranscriptCleaner:
                 f"cyrillic={cyrillic_ratio:.0%}"
             )
 
-            # Log details for suspicious chunks
-            if chunk_reduction > 30:
+            # Log details for suspicious chunks (terminology-only: expect minimal change)
+            if chunk_reduction > 10:
                 logger.warning(
                     f"Chunk {i + 1} high reduction! "
                     f"Input start: {chunk[:100]}... | "
                     f"Output start: {chunk_result[:100]}..."
                 )
 
+            # Warn if text grew (model may have added content)
+            if output_len > input_len * 1.05:
+                logger.warning(
+                    f"Chunk {i + 1} grew by {(output_len / input_len - 1) * 100:.1f}% — "
+                    f"model may have added content"
+                )
+
             # Validation: fallback to original if LLM summarized instead of cleaning
-            if chunk_reduction > 40 or cyrillic_ratio < 0.5:
+            if chunk_reduction > 25 or cyrillic_ratio < 0.5:
                 logger.error(
                     f"Chunk {i + 1} FAILED validation: "
                     f"reduction={chunk_reduction}%, cyrillic={cyrillic_ratio:.0%}. "
@@ -201,7 +206,7 @@ class TranscriptCleaner:
                 f"overall reduction={overall_reduction}%"
             )
 
-        # Step 4: Merge chunks (remove duplicates from overlap)
+        # Merge chunks (simple concatenation, no overlap)
         if len(cleaned_chunks) > 1:
             pre_merge_total = sum(len(c) for c in cleaned_chunks)
             cleaned_text = self._merge_chunks(cleaned_chunks)
@@ -213,7 +218,7 @@ class TranscriptCleaner:
             )
             logger.info(
                 f"Merge: {pre_merge_total} -> {post_merge_len} chars "
-                f"({merge_reduction}% removed as overlap)"
+                f"({merge_reduction}% difference)"
             )
         else:
             cleaned_text = cleaned_chunks[0] if cleaned_chunks else ""
@@ -224,22 +229,29 @@ class TranscriptCleaner:
         cleaned_text = cleaned_text.strip()
         cleaned_length = len(cleaned_text)
 
-        # Validate reduction (realistic: 5-25%, max acceptable: 30% with task 3)
+        # Validate change (terminology-only: expect ±2-3% max)
         reduction_percent = (
             100 - (cleaned_length * 100 // original_length)
             if original_length > 0
             else 0
         )
 
-        if reduction_percent > 40:
+        if reduction_percent > 25:
             logger.error(
                 f"Suspicious reduction: {reduction_percent}% - "
                 f"likely summarization instead of cleaning"
             )
-        elif reduction_percent > 25:
+        elif reduction_percent > 15:
             logger.warning(
                 f"High reduction: {reduction_percent}% - "
-                f"possible content loss (expected 5-20%)"
+                f"possible content loss (expected ±3%)"
+            )
+
+        # Warn if text grew significantly
+        if cleaned_length > original_length * 1.05:
+            growth = (cleaned_length / original_length - 1) * 100
+            logger.warning(
+                f"Text grew by {growth:.1f}% - model may have added content"
             )
 
         logger.info(
@@ -283,9 +295,10 @@ class TranscriptCleaner:
 
     def _split_into_chunks(self, text: str) -> list[str]:
         """
-        Split text into overlapping chunks for processing.
+        Split text into chunks for processing.
 
         Splits on sentence boundaries to avoid breaking mid-sentence.
+        No overlap needed — terminology replacement is a local operation.
         Only chunks if text exceeds small_text_threshold.
 
         Args:
@@ -309,18 +322,8 @@ class TranscriptCleaner:
             # If adding this sentence exceeds chunk size, save current chunk
             if current_length + sentence_length > self.chunk_size and current_chunk:
                 chunks.append(" ".join(current_chunk))
-
-                # Start new chunk with overlap (last N chars worth of sentences)
-                overlap_length = 0
-                overlap_sentences: list[str] = []
-                for s in reversed(current_chunk):
-                    if overlap_length + len(s) > self.chunk_overlap:
-                        break
-                    overlap_sentences.insert(0, s)
-                    overlap_length += len(s)
-
-                current_chunk = overlap_sentences
-                current_length = overlap_length
+                current_chunk = []
+                current_length = 0
 
             current_chunk.append(sentence)
             current_length += sentence_length
@@ -349,52 +352,17 @@ class TranscriptCleaner:
 
     def _merge_chunks(self, chunks: list[str]) -> str:
         """
-        Merge cleaned chunks, removing duplicate content from overlaps.
+        Merge cleaned chunks by simple concatenation.
 
-        Uses sentence matching to find where chunks overlap.
+        No overlap removal needed — chunks don't overlap (v0.72+).
 
         Args:
             chunks: List of cleaned text chunks
 
         Returns:
-            Merged text without duplicates
+            Merged text
         """
-        if not chunks:
-            return ""
-
-        if len(chunks) == 1:
-            return chunks[0]
-
-        result = chunks[0]
-
-        for i in range(1, len(chunks)):
-            current = chunks[i]
-
-            # Find overlap by looking for common sentences
-            overlap_found = False
-
-            # Search in last ~800 chars of result
-            search_window = min(len(result), 800)
-            result_end = result[-search_window:]
-
-            # Look for common sentence at start of current chunk
-            sentences_in_current = self._split_into_sentences(current)
-
-            for j, sentence in enumerate(sentences_in_current[:5]):  # Check first 5
-                # Find if this sentence exists in result_end
-                if sentence in result_end:
-                    # Found overlap - append from next sentence
-                    remaining = " ".join(sentences_in_current[j + 1 :])
-                    if remaining:
-                        result = result + " " + remaining
-                    overlap_found = True
-                    break
-
-            if not overlap_found:
-                # No overlap found - just append with space
-                result = result + " " + current
-
-        return result.strip()
+        return " ".join(c for c in chunks if c).strip()
 
 
 if __name__ == "__main__":
