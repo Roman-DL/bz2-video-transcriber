@@ -31,19 +31,21 @@ export function ChunksView({ chunks, description, shortDescription }: ChunksView
 
   return (
     <div className="h-full flex flex-col">
-      {/* Краткое описание */}
-      {shortDescription && (
-        <div className="mb-2 shrink-0">
-          <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Краткое описание</span>
-          <p className="text-sm font-medium text-gray-900 mt-0.5">{shortDescription}</p>
-        </div>
-      )}
-
-      {/* Описание */}
-      {description && (
-        <div className="mb-3 shrink-0">
-          <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Описание</span>
-          <p className="text-xs text-gray-600 leading-relaxed mt-0.5">{description}</p>
+      {/* Описания */}
+      {(shortDescription || description) && (
+        <div className="mb-3 shrink-0 space-y-2">
+          {shortDescription && (
+            <div className="bg-blue-50 border border-blue-100 rounded-lg px-3.5 py-2.5">
+              <span className="text-[10px] font-semibold text-blue-400 uppercase tracking-wide">Краткое описание</span>
+              <p className="text-sm font-medium text-gray-900 mt-0.5">{shortDescription}</p>
+            </div>
+          )}
+          {description && (
+            <div className="bg-gray-50 border border-gray-150 rounded-lg px-3.5 py-2.5">
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Описание</span>
+              <p className="text-xs text-gray-600 leading-relaxed mt-0.5">{description}</p>
+            </div>
+          )}
         </div>
       )}
 
