@@ -26,6 +26,17 @@ globs: backend/app/services/parser.py,backend/app/services/saver.py,*longread*,*
 - `ContentType` и `EventCategory` — Enum из `app.models.schemas`
 - `event_name` — display name из `resolve_event_name()`: `"ПШ.SV"`, `"Форум TABTeam"` и т.д.
 
+## Multi-Speaker Scenarios (v0.79+, ADR-022)
+- Сценарий определяется программно по `SpeakerInfo.scenario` (из `parse_speakers()`)
+- `single` / `None` → стандартный pipeline без изменений
+- `co_speakers` → единый текст, атрибуция идей, оба спикера в шапке чанка
+- `lineup` → H2-разделы по участникам `## Тема (Фамилия Имя)`, per-chunk шапки
+- `qa` → раздел «Вопросы и ответы», SpeakerN убирается промптом
+- Комбинации: `co_speakers_qa`, `lineup_qa`
+- **Lineup → educational** (longread + summary). Story видит только co_speakers
+- Промпты: условные секции «Мультиспикерный контент» в конце `instructions.md`
+- Контекст сценария — в user prompt через `build_speaker_context()`, НЕ хардкод в промпте
+
 ## Slides Integration
 - Слайды опциональны — появляются если пользователь прикрепил файлы
 - Поддерживаемые форматы: image/jpeg, image/png, application/pdf

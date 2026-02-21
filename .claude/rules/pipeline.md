@@ -70,6 +70,21 @@ globs: backend/app/services/pipeline/**,backend/app/services/stages/**,backend/a
 - ВСЕГДА передавать `num_predict` для single-pass (default 4096 недостаточно для полного лонгрида)
 - `SINGLE_PASS_MAX_TOKENS = 16384` — константа для single-pass генерации
 
+## Speaker Context (v0.79+)
+- `build_speaker_context(speaker_info, host_name)` → `list[str]` для unpacking в prompt_parts
+- Возвращает `[]` для `single` / `None` → zero-impact на односпикерный pipeline
+- Вставляется через `*build_speaker_context(...)` во ВСЕ prompt builder методы генератора
+- Longread: 3 точки вставки (single-pass, section, frame) — покрывает оба пути
+- Summary, Story: по 1 точке в `_build_prompt()`
+- **Story видит только co_speakers** — lineup обрабатывается через longread (ADR-022)
+
+## Saver — Multi-Speaker Headers (v0.79+)
+- `abbreviate_name("Фамилия Имя")` → `"Фамилия И."`
+- Со-спикеры: `Спикеры:` вместо `Спикер:` + abbreviated names
+- Линейка: per-chunk `Участник: {имя} | Линейка, ведущий: {вед.}`
+- Regex `\(([^)]+)\)$` для извлечения имени из H2 — **ТОЛЬКО при `is_lineup=True`** (ADR-022)
+- `metadata.speaker` в JSON: co_speakers → abbreviated через запятую, lineup → ведущий
+
 ## Shared Utils
 - ВСЕГДА импортировать из `app.utils`: `extract_json`, `get_media_duration`, `is_audio_file`, `is_transcript_file`
 - НЕ дублировать утилиты в сервисах — выносить в `backend/app/utils/`
