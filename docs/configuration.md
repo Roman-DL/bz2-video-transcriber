@@ -25,14 +25,16 @@ tags:
 | `SUMMARIZER_MODEL` | `claude-opus-4-6` | Модель для конспекта (v0.76+, ADR-019) |
 | `CLEANER_MODEL` | `claude-haiku-4-5` | Модель для очистки транскрипта (v0.65+, ADR-014) |
 | `LONGREAD_MODEL` | `claude-opus-4-6` | Модель для генерации лонгрида (v0.75+, ADR-018) |
+| `DESCRIBE_MODEL` | `claude-haiku-4-5` | Модель для генерации описаний чанков (v0.62+) |
+| `SLIDES_MODEL` | `claude-haiku-4-5` | Модель для извлечения текста со слайдов (v0.77+) |
 | `WHISPER_MODEL` | `large-v3-turbo` | Имя модели Whisper (для отображения в UI) |
 | `WHISPER_LANGUAGE` | `ru` | Язык транскрипции |
 | `WHISPER_INCLUDE_TIMESTAMPS` | `false` | Включать таймкоды `[HH:MM:SS]` в транскрипт |
 | `LLM_TIMEOUT` | `300` | Таймаут LLM запросов (секунды) |
 
-> **v0.76+:** Default модели: Opus (лонгрид, конспект), Haiku (очистка, описание). Требуется `ANTHROPIC_API_KEY`.
+> **v0.77+:** Единый источник default моделей — `backend/app/config.py` (Settings). docker-compose.yml НЕ содержит model env vars — Pydantic Settings использует Python defaults. Переопределение через env — при необходимости (ADR-020).
 
-> **Примечание:** `LONGREAD_MODEL`, `WHISPER_MODEL` и `WHISPER_INCLUDE_TIMESTAMPS` имеют defaults в Settings и не требуют явного указания в docker-compose.yml.
+> **Default модели:** Opus (лонгрид, конспект), Haiku (очистка, описание, слайды). Требуется `ANTHROPIC_API_KEY`.
 
 ### AI сервисы — облачные (Claude API)
 
@@ -499,7 +501,7 @@ curl -X POST http://100.64.0.1:8801/api/step/clean \
 
 | Задача | Что менять |
 |--------|------------|
-| Сменить модель суммаризации | `docker-compose.yml` → `SUMMARIZER_MODEL` |
+| Сменить модель суммаризации | `backend/app/config.py` → `Settings.summarizer_model` (или env `SUMMARIZER_MODEL`) |
 | Настроить формат транскрипта | `docker-compose.yml` → `WHISPER_INCLUDE_TIMESTAMPS` |
 | Включить Claude API | `docker-compose.yml` → `ANTHROPIC_API_KEY` |
 | Изменить параметры chunking | `config/models.yaml` |

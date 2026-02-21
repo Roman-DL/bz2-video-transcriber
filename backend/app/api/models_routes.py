@@ -123,6 +123,7 @@ async def get_default_models() -> DefaultModelsResponse:
         longread=settings.longread_model,
         summarize=settings.summarizer_model,
         describe=settings.describe_model,
+        slides=settings.slides_model,
     )
 
 

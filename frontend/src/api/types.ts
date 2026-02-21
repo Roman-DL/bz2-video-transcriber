@@ -447,6 +447,7 @@ export interface DefaultModelsResponse {
   longread: string;
   summarize: string;
   describe: string;
+  slides: string;
 }
 
 export interface StageConfig {
@@ -479,6 +480,7 @@ export interface ModelSettings {
   longread?: string;
   summarize?: string;
   describe?: string;
+  slides?: string;
 }
 
 // Prompt variants types (v0.33+)

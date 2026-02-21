@@ -20,9 +20,14 @@ globs: backend/app/services/ai_clients/**,backend/app/services/cleaner.py,*_gene
 - НИКОГДА не добавлять fallback между провайдерами (ADR-007)
 - `get_client_with_fallback()` удалён — ошибки пробрасываются вызывающему коду
 
-## Default Models (v0.29+)
+## Default Models (v0.29+, единый источник v0.77+ ADR-020)
+- **Единый источник defaults:** `backend/app/config.py` → `Settings`
+- **docker-compose.yml НЕ содержит model env vars** — Pydantic Settings использует Python defaults
+- Переопределение модели: env var (например `SUMMARIZER_MODEL=...`) или UI override
+- НИКОГДА не хардкодить default модели в сервисах — только через `settings.{stage}_model`
 - Очистка: `claude-haiku-4-5` (v0.65+, механическая задача, см. ADR-014)
 - Слайды: `claude-haiku-4-5` (быстро и дёшево)
+- Описание: `claude-haiku-4-5` (генерация описаний чанков)
 - Лонгрид: `claude-opus-4-6` (v0.75+, ADR-018)
 - Конспект: `claude-opus-4-6` (v0.76+, ADR-019)
 - Чанкирование: детерминистический (H2 парсинг), без LLM

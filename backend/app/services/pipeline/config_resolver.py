@@ -11,7 +11,7 @@ from app.config import Settings
 
 logger = logging.getLogger(__name__)
 
-StageType = Literal["cleaner", "summarizer", "longread"]
+StageType = Literal["cleaner", "summarizer", "longread", "slides", "describe"]
 
 
 class ConfigResolver:
@@ -74,6 +74,8 @@ class ConfigResolver:
             "summarizer_model": self.settings.summarizer_model,
             "cleaner_model": self.settings.cleaner_model,
             "longread_model": self.settings.longread_model,
+            "describe_model": self.settings.describe_model,
+            "slides_model": self.settings.slides_model,
             "whisper_model": self.settings.whisper_model,
             "whisper_language": self.settings.whisper_language,
             "whisper_include_timestamps": self.settings.whisper_include_timestamps,
@@ -107,6 +109,8 @@ class ConfigResolver:
             "cleaner": "cleaner_model",
             "summarizer": "summarizer_model",
             "longread": "longread_model",
+            "slides": "slides_model",
+            "describe": "describe_model",
         }
         return field_map.get(stage, f"{stage}_model")
 
@@ -124,6 +128,8 @@ class ConfigResolver:
             "cleaner": self.settings.cleaner_model,
             "summarizer": self.settings.summarizer_model,
             "longread": self.settings.longread_model,
+            "slides": self.settings.slides_model,
+            "describe": self.settings.describe_model,
         }
         return model_map.get(stage, "")
 

@@ -38,6 +38,7 @@ whisper_models:
 # Slides extraction configuration (v0.50+)
 # Vision models for extracting text from presentation slides
 slides:
+  # NOTE: actual default in backend/app/config.py (Settings.slides_model)
   default: "claude-haiku-4-5"
   batch_size: 5
   available:

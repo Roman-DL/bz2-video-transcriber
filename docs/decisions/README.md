@@ -31,6 +31,7 @@ ADR (Architecture Decision Record) — документ, фиксирующий 
 | [017](017-step-rerun-with-overrides.md) | accepted | Перезапуск шагов с настройками |
 | [018](018-opus-default-longread.md) | accepted | Opus default для лонгрида (v0.75+) |
 | [019](019-opus-default-summary.md) | accepted | Opus default для конспекта (v0.76+) |
+| [020](020-single-source-model-defaults.md) | accepted | Единый источник default моделей (v0.77+) |
 
 ## Статусы
 

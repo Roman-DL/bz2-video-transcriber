@@ -27,9 +27,6 @@ from app.utils import calculate_cost, pdf_to_images
 logger = logging.getLogger(__name__)
 perf_logger = logging.getLogger("app.perf")
 
-# Default model for slides extraction (fast and cheap)
-DEFAULT_SLIDES_MODEL = "claude-haiku-4-5"
-
 # Batch size for processing slides
 # Limits context size per API call
 DEFAULT_BATCH_SIZE = 5
@@ -91,13 +88,13 @@ class SlidesExtractor:
 
         Args:
             slides: List of slides to process
-            model: LLM model override (default: claude-haiku-4-5)
+            model: LLM model override (default: settings.slides_model)
 
         Returns:
             SlidesExtractionResult with extracted text and metrics
         """
         start_time = time.time()
-        model = model or DEFAULT_SLIDES_MODEL
+        model = model or self.settings.slides_model
 
         # Reset token counters
         self._total_input_tokens = 0

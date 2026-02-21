@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     longread_model: str = "claude-opus-4-6"  # Model for longread generation (v0.75+, ADR-018)
     cleaner_model: str = "claude-haiku-4-5"  # Model for transcript cleaning (v0.65: Haiku default)
     describe_model: str = "claude-haiku-4-5"  # Model for BZ2 description generation
+    slides_model: str = "claude-haiku-4-5"  # Model for slides extraction (v0.77+)
     whisper_model: str = "large-v3-turbo"  # Display name for Whisper model
     whisper_language: str = "ru"
     whisper_include_timestamps: bool = False  # Include [HH:MM:SS] in transcript_raw.txt
