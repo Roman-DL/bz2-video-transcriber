@@ -132,8 +132,9 @@ class TranscriptCleaner:
                 {"role": "user", "content": user_content},
             ]
 
-            # Output ≈ input (only terminology replacements), need ~110% margin
-            num_predict = max(int(len(chunk) * 1.1 * 2.3), 4096)
+            # Output ≈ input (terminology-only). Russian: ~0.5 tokens/char.
+            # Old formula (0.5x) worked for 80-95% output; 0.6x gives margin for ~100%.
+            num_predict = max(int(len(chunk) * 0.6), 4096)
 
             # v0.43+: Unified interface - all clients return (response, usage)
             chunk_result, usage = await self.ai_client.chat(
