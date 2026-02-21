@@ -29,6 +29,7 @@ ADR (Architecture Decision Record) — документ, фиксирующий 
 | [014](014-haiku-default-cleaning.md) | accepted | Haiku default для очистки (v0.65+) |
 | [015](015-longread-single-pass.md) | accepted | Single-pass генерация лонгрида (v0.67+) |
 | [017](017-step-rerun-with-overrides.md) | accepted | Перезапуск шагов с настройками |
+| [018](018-opus-default-longread.md) | accepted | Opus default для лонгрида (v0.75+) |
 
 ## Статусы
 
