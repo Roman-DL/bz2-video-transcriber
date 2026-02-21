@@ -18,7 +18,7 @@ globs: backend/app/utils/**,backend/app/config.py,config/**,docker-compose.yml,s
 
 ## Деплой
 - docker-compose НЕ работает локально — пути `/mnt/main/work/bz2/video` только на сервере
-- ВСЕГДА деплой через `./scripts/deploy.sh`
+- ВСЕГДА деплой через `/bin/bash scripts/deploy.sh` (zsh обрабатывает `$SSH_OPTS` иначе — SSH-команды падают)
 - Пути: хост `/mnt/main/work/bz2/video/archive/`, контейнер `/data/archive/`
 - HTTPS через Traefik (v0.63+): `https://transcriber.home` — основной способ доступа
 - Бэкенд (`bz2-transcriber`) — `expose: 80`, НЕ `ports` — доступен только через nginx

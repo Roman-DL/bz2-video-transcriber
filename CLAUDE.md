@@ -25,7 +25,7 @@ curl http://100.64.0.1:11434/api/version  # Ollama
 curl http://100.64.0.1:9000/health        # Whisper
 
 # Деплой на сервер (локальный docker-compose не работает!)
-./scripts/deploy.sh
+/bin/bash scripts/deploy.sh
 
 # Web UI (HTTPS через Traefik)
 https://transcriber.home     # Основной доступ
@@ -53,7 +53,7 @@ Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longr
 Формулировки: "НИКОГДА не...", "ВСЕГДА проверяй..."
 -->
 
-1. **docker-compose НЕ работает локально** — пути к данным (`/mnt/main/work/bz2/video`) существуют только на сервере. Единственный способ деплоя: `./scripts/deploy.sh`
+1. **docker-compose НЕ работает локально** — пути к данным (`/mnt/main/work/bz2/video`) существуют только на сервере. Единственный способ деплоя: `/bin/bash scripts/deploy.sh`
 2. **Claude — default для всех LLM операций** (v0.29+, ADR-007) — требуется `ANTHROPIC_API_KEY`. Локальные модели через Ollama — для тестирования
 3. **НИКОГДА не добавлять fallback между провайдерами** — при ошибках пробрасывать `PipelineError` вызывающему коду
 4. **API endpoints — ВСЕГДА Pydantic модели** (`CamelCaseModel`), не `dict` — Python `snake_case` → JSON `camelCase`
