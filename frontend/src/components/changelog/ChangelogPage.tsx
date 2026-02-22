@@ -32,7 +32,7 @@ export function ChangelogModal({ isOpen, onClose }: ChangelogModalProps) {
   const { data, isLoading, isError, refetch } = useChangelog();
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Журнал изменений" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Журнал изменений" size="xl">
       <div className="max-h-[70vh] overflow-y-auto space-y-4">
         {isLoading && (
           <div className="flex justify-center py-8">
