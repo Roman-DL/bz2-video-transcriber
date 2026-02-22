@@ -14,7 +14,7 @@ export function Header() {
         <div>
           <h1 className="text-lg font-semibold text-gray-900">БЗ Транскрибатор</h1>
           <span className="text-xs text-gray-400">
-            v{__APP_VERSION__} • {__BUILD_TIME__}
+            v{__APP_VERSION__} • build {__BUILD_NUMBER__}
           </span>
         </div>
       </div>

@@ -9,6 +9,10 @@ RUN apt-get update && apt-get install -y curl ffmpeg && rm -rf /var/lib/apt/list
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy version and changelog
+COPY VERSION .
+COPY CHANGELOG.md .
+
 # Copy application
 COPY app/ ./app/
 

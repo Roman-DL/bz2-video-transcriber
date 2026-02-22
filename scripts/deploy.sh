@@ -15,6 +15,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+VERSION=$(cat "$PROJECT_DIR/VERSION" 2>/dev/null || echo "0.0.0")
 
 BASE_IMAGES=("python:3.12-slim" "node:20-alpine" "nginx:alpine")
 HEALTH_URL="https://transcriber.home/health"
@@ -64,7 +65,7 @@ remote_sudo() {
 
 # --- Step 1: Sync files ---
 
-echo "==> Deploying bz2-video-transcriber..."
+echo "==> Deploying bz2-video-transcriber v${VERSION}..."
 echo "    Target: $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"
 
 echo ""
@@ -81,6 +82,7 @@ sshpass -p "$DEPLOY_PASSWORD" rsync -avz --delete \
     --exclude '.vscode' \
     --exclude '.idea' \
     --exclude '*.pyc' \
+    --exclude '.build_number' \
     "$PROJECT_DIR/" "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
 
 # --- Step 2: Create .env on server ---
@@ -90,6 +92,15 @@ if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
     echo "==> Updating .env on server..."
     remote_sudo "echo ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY > ${DEPLOY_PATH}/.env"
 fi
+
+# --- Step 2.5: Increment build number ---
+
+echo ""
+echo "==> Incrementing build number..."
+BUILD_NUM=$(remote "cat ${DEPLOY_PATH}/.build_number 2>/dev/null || echo 0")
+BUILD_NUM=$((BUILD_NUM + 1))
+remote "echo $BUILD_NUM > ${DEPLOY_PATH}/.build_number"
+echo "    Version: v${VERSION} (build ${BUILD_NUM})"
 
 # --- Step 3: Pull base images (with retry) ---
 
@@ -133,7 +144,7 @@ fi
 echo ""
 echo "==> Building containers..."
 BUILD_LOG=$(mktemp)
-if remote_sudo "cd ${DEPLOY_PATH} && docker compose build 2>&1" > "$BUILD_LOG" 2>&1; then
+if remote_sudo "cd ${DEPLOY_PATH} && BUILD_NUMBER=$BUILD_NUM docker compose build 2>&1" > "$BUILD_LOG" 2>&1; then
     echo "    Build successful"
 else
     echo "    ERROR: Build failed! Last 30 lines:"
@@ -149,7 +160,7 @@ rm -f "$BUILD_LOG"
 
 echo ""
 echo "==> Starting containers..."
-remote_sudo "cd ${DEPLOY_PATH} && docker compose up -d"
+remote_sudo "cd ${DEPLOY_PATH} && BUILD_NUMBER=$BUILD_NUM docker compose up -d"
 
 # --- Step 6: Health check ---
 
@@ -177,6 +188,6 @@ fi
 # --- Done ---
 
 echo ""
-echo "==> Deploy complete!"
+echo "==> Deploy complete! v${VERSION} (build ${BUILD_NUM})"
 echo "    App:    https://transcriber.home"
 echo "    Health: https://transcriber.home/health"

@@ -1380,3 +1380,11 @@ class CacheVersionResponse(CamelCaseModel):
     status: str = Field(default="ok", description="Operation status")
     stage: str = Field(..., description="Stage name")
     version: int = Field(..., ge=1, description="Activated version number")
+
+
+class HealthResponse(CamelCaseModel):
+    """Health check endpoint response with version info."""
+
+    status: str = Field(default="ok", description="Service status")
+    version: str = Field(..., description="Application version from VERSION file")
+    build: int = Field(default=0, ge=0, description="Build number from deploy")

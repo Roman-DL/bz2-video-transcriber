@@ -50,6 +50,9 @@ temp/
 *.log
 *.tmp
 
+# Build
+.build_number
+
 # Secrets
 credentials.json
 *.pem

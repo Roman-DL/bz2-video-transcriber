@@ -13,7 +13,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import cache_routes, models_routes, prompts_routes, routes, step_routes
 from app.config import get_settings
 from app.logging_config import setup_logging
+from app.models.schemas import HealthResponse
 from app.services.ai_clients import OllamaClient, WhisperClient
+from app.version import __build__, __version__
 
 # Configure logging before anything else
 settings = get_settings()
@@ -50,7 +52,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Video Transcriber API",
     description="API for video transcription and summarization pipeline",
-    version="0.1.0",
+    version=__version__,
     lifespan=lifespan,
 )
 
@@ -72,14 +74,9 @@ app.include_router(prompts_routes.router)
 
 
 @app.get("/health")
-async def health_check() -> dict:
-    """
-    Health check endpoint.
-
-    Returns:
-        Basic health status
-    """
-    return {"status": "ok"}
+async def health_check() -> HealthResponse:
+    """Health check endpoint with version and build info."""
+    return HealthResponse(version=__version__, build=__build__)
 
 
 @app.get("/health/services")

@@ -1,5 +1,8 @@
 FROM node:20-alpine AS builder
 
+ARG BUILD_NUMBER=0
+ENV BUILD_NUMBER=${BUILD_NUMBER}
+
 WORKDIR /app
 
 # Install dependencies
