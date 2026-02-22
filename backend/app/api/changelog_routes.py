@@ -18,8 +18,8 @@ _TYPE_MAP: dict[str, str] = {
     "perf": "perf",
 }
 
-# Regex: ## 0.80.0 (2026-02-22)
-_VERSION_RE = re.compile(r"^## (\d+\.\d+\.\d+) \((\d{4}-\d{2}-\d{2})\)")
+# Regex: ## 0.80.0 (2026-02-22) or ## v0.80.0 (2026-02-22)
+_VERSION_RE = re.compile(r"^## v?(\d+\.\d+\.\d+) \((\d{4}-\d{2}-\d{2})\)")
 # Regex: ### Feat, ### Fix, etc.
 _SECTION_RE = re.compile(r"^### (\w+)")
 # Regex: - description text
