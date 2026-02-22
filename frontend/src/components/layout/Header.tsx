@@ -1,9 +1,11 @@
 import { Video, Settings } from 'lucide-react';
 import { ServiceStatus } from '@/components/services/ServiceStatus';
 import { useSettings } from '@/contexts/SettingsContext';
+import { useNavigation } from '@/contexts/NavigationContext';
 
 export function Header() {
   const { openSettings } = useSettings();
+  const { navigateTo } = useNavigation();
 
   return (
     <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
@@ -13,9 +15,12 @@ export function Header() {
         </div>
         <div>
           <h1 className="text-lg font-semibold text-gray-900">БЗ Транскрибатор</h1>
-          <span className="text-xs text-gray-400">
+          <button
+            onClick={() => navigateTo('changelog')}
+            className="text-xs text-gray-400 hover:text-blue-500 hover:underline transition-colors"
+          >
             v{__APP_VERSION__} • build {__BUILD_NUMBER__}
-          </span>
+          </button>
         </div>
       </div>
 

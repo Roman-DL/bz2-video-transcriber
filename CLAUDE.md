@@ -219,6 +219,7 @@ Build number инкрементируется при каждом деплое (
 
 | Версия | Ключевые изменения |
 |--------|--------------------|
+| v0.81 | Changelog API (`GET /api/changelog`) + UI страница /changelog, NavigationContext, кликабельная версия в Header |
 | v0.80 | Инфраструктура версионирования: VERSION файл, Commitizen, build number, HealthResponse |
 | v0.79 | Мультиспикерный контент: speaker context в промптах, адаптивные шапки чанков (ADR-022) |
 | v0.78 | Надёжный деплой: убран --no-cache, pre-pull с retry, health check, --pull флаг (ADR-021) |

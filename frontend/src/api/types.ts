@@ -578,3 +578,22 @@ export interface SavedFiles {
   transcript?: string;
   pipelineResults?: string;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Changelog Types (v0.81+)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface ChangelogEntry {
+  type: 'feat' | 'fix' | 'refactor' | 'docs' | 'perf';
+  description: string;
+}
+
+export interface ChangelogVersion {
+  version: string;
+  date: string;
+  changes: ChangelogEntry[];
+}
+
+export interface ChangelogResponse {
+  versions: ChangelogVersion[];
+}

@@ -14,7 +14,7 @@ paths:
 
 ## API интеграция
 - Типы из `frontend/src/api/types.ts` — единственный источник правды для TypeScript типов
-- API хуки в `frontend/src/api/hooks/` — использовать готовые (`useInbox`, `useServices`, `usePrompts`, `useModels`, `useArchive`, `useSteps`)
+- API хуки в `frontend/src/api/hooks/` — использовать готовые (`useInbox`, `useServices`, `usePrompts`, `useModels`, `useArchive`, `useSteps`, `useChangelog`)
 - НЕ делать fetch/axios напрямую из компонентов — только через `frontend/src/api/client.ts`
 
 ## Стилизация

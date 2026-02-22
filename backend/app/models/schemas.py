@@ -1388,3 +1388,24 @@ class HealthResponse(CamelCaseModel):
     status: str = Field(default="ok", description="Service status")
     version: str = Field(..., description="Application version from VERSION file")
     build: int = Field(default=0, ge=0, description="Build number from deploy")
+
+
+class ChangelogEntry(CamelCaseModel):
+    """Single change entry within a version."""
+
+    type: Literal["feat", "fix", "refactor", "docs", "perf"]
+    description: str
+
+
+class ChangelogVersion(CamelCaseModel):
+    """A version with its changes from CHANGELOG.md."""
+
+    version: str = Field(..., description="SemVer version, e.g. 0.80.0")
+    date: str = Field(..., description="Release date, e.g. 2026-02-22")
+    changes: list[ChangelogEntry]
+
+
+class ChangelogResponse(CamelCaseModel):
+    """Response for GET /api/changelog."""
+
+    versions: list[ChangelogVersion]

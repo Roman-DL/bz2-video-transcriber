@@ -1,7 +1,7 @@
 ---
 doc_type: reference
 status: active
-updated: 2026-01-24
+updated: 2026-02-22
 audience: [developer, ai-agent]
 tags:
   - api
@@ -493,6 +493,31 @@ Claude модели показываются только если `ANTHROPIC_AP
   }
 }
 ```
+
+---
+
+## Changelog API (v0.81+)
+
+### GET /api/changelog
+
+Парсит CHANGELOG.md и возвращает структурированный JSON.
+
+**Response:**
+```json
+{
+  "versions": [
+    {
+      "version": "0.80.0",
+      "date": "2026-02-22",
+      "changes": [
+        {"type": "feat", "description": "Инфраструктура версионирования"}
+      ]
+    }
+  ]
+}
+```
+
+Типы изменений: `feat`, `fix`, `refactor`, `docs`, `perf`. Если CHANGELOG.md не найден — возвращает `{"versions": []}`.
 
 ---
 

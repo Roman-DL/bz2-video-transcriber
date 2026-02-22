@@ -6,7 +6,9 @@ import { ArchiveCatalog } from '@/components/archive/ArchiveCatalog';
 import { ProcessingModal } from '@/components/processing/ProcessingModal';
 import { ArchiveResultsModal } from '@/components/archive/ArchiveResultsModal';
 import { SettingsProvider, type ProcessingMode } from '@/contexts/SettingsContext';
+import { NavigationProvider, useNavigation } from '@/contexts/NavigationContext';
 import { SettingsModal } from '@/components/settings/SettingsModal';
+import { ChangelogPage } from '@/components/changelog/ChangelogPage';
 import type { SlideFile, VideoMetadata, ArchiveItemWithPath } from '@/api/types';
 
 const queryClient = new QueryClient({
@@ -111,14 +113,21 @@ function Dashboard() {
   );
 }
 
+function PageRouter() {
+  const { page } = useNavigation();
+  return page === 'changelog' ? <ChangelogPage /> : <Dashboard />;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SettingsProvider>
-        <Layout>
-          <Dashboard />
-        </Layout>
-        <SettingsModal />
+        <NavigationProvider>
+          <Layout>
+            <PageRouter />
+          </Layout>
+          <SettingsModal />
+        </NavigationProvider>
       </SettingsProvider>
     </QueryClientProvider>
   );
