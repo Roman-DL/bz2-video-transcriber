@@ -1,6 +1,8 @@
 services:
   bz2-transcriber:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: bz2-transcriber
     restart: unless-stopped
     expose:

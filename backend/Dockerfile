@@ -6,15 +6,15 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y curl ffmpeg && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy version and changelog
+# Copy version and changelog from project root
 COPY VERSION .
 COPY CHANGELOG.md .
 
 # Copy application
-COPY app/ ./app/
+COPY backend/app/ ./app/
 
 # Create non-root user with uid/gid matching host (roman:family = 3000:3000)
 RUN groupadd -g 3000 appgroup && \
