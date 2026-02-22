@@ -8,7 +8,7 @@
 - **Язык кода:** Английский (имена переменных, функций, комментарии в коде)
 - **Язык документации:** Русский
 - **Git commits:** Русский, формат "{тип}: описание" (docs, feat, fix, refactor)
-- **Версионирование:** После коммита новых фич — ОБЯЗАТЕЛЬНО предложи обновить версию в `frontend/package.json`
+- **Версионирование:** `cz bump` для релиза (обновляет VERSION, package.json, CHANGELOG.md, git tag). Предлагай при завершении значимых фич.
 
 ## Документирование кода
 
@@ -217,31 +217,7 @@ Build number инкрементируется при каждом деплое (
 
 ## Текущий статус
 
-| Версия | Ключевые изменения |
-|--------|--------------------|
-| v0.81 | Changelog API (`GET /api/changelog`) + UI страница /changelog, NavigationContext, кликабельная версия в Header |
-| v0.80 | Инфраструктура версионирования: VERSION файл, Commitizen, build number, HealthResponse |
-| v0.79 | Мультиспикерный контент: speaker context в промптах, адаптивные шапки чанков (ADR-022) |
-| v0.78 | Надёжный деплой: убран --no-cache, pre-pull с retry, health check, --pull флаг (ADR-021) |
-| v0.77 | Единый источник default моделей в config.py, убраны дубли из docker-compose (ADR-020) |
-| v0.76 | Opus default для конспекта, качественные критерии промптов вместо числовых лимитов |
-| v0.75 | Opus default для лонгрида, ограничения дробления |
-| v0.74 | Пропуск преамбулы в H2 chunker, унификация to_markdown() с фронтендом |
-| v0.73 | Word-level diff подсветка глоссарных замен в InlineDiffView, кнопка "Отчёт" |
-| v0.72 | Очистка: только глоссарная подстановка, убран overlap, устранено дублирование |
-| v0.71 | Опциональный день в дате парсера (YYYY.MM[.DD]) |
-| v0.70 | Inline-редактирование лонгрида в пошаговом режиме |
-| v0.69 | Единый формат файлов, консолидация event_name в parser, удалены offsite regex |
-| v0.68 | Калибровка longread, slides в summary, json-repair, оценки прогресса v6 |
-| v0.67 | Single-pass лонгрид для моделей с большим контекстом, обновлённые промпты longread/summary |
-| v0.65 | Оптимизация очистки: семантический глоссарий, Haiku default, chunk 40K |
-| v0.64 | Импорт MD-транскриптов из MacWhisper, SpeakerInfo |
-| v0.63 | HTTPS через Traefik, убран прямой порт бэкенда |
-| v0.62 | Description generation moved from Save to Chunk stage |
-| v0.60 | BZ2-Bot chunk format, describe_model, split >600w |
-| v0.59 | API camelCase serialization, Statistics tab |
-| v0.51 | Slides extraction (Claude Vision API) |
-| v0.29 | Claude default, fallback удалён |
+**Версия:** v0.81 • [Полная история изменений](CHANGELOG.md) (v0.1–v0.81)
 
 ---
 
