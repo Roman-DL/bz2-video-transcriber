@@ -1,7 +1,5 @@
-import { ArrowLeft } from 'lucide-react';
 import { useChangelog } from '@/api/hooks/useChangelog';
-import { useNavigation } from '@/contexts/NavigationContext';
-import { Card } from '@/components/common/Card';
+import { Modal } from '@/components/common/Modal';
 import { Spinner } from '@/components/common/Spinner';
 import { Button } from '@/components/common/Button';
 import type { ChangelogEntry } from '@/api/types';
@@ -25,69 +23,60 @@ const BADGE_CONFIG: Record<ChangelogEntry['type'], { label: string; className: s
   perf: { label: 'Производительность', className: 'bg-gray-100 text-gray-600' },
 };
 
-export function ChangelogPage() {
-  const { goBack } = useNavigation();
+interface ChangelogModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function ChangelogModal({ isOpen, onClose }: ChangelogModalProps) {
   const { data, isLoading, isError, refetch } = useChangelog();
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={goBack}
-          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          title="Назад"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h2 className="text-xl font-semibold text-gray-900">Журнал изменений</h2>
+    <Modal isOpen={isOpen} onClose={onClose} title="Журнал изменений" size="lg">
+      <div className="max-h-[70vh] overflow-y-auto space-y-4">
+        {isLoading && (
+          <div className="flex justify-center py-8">
+            <Spinner size="lg" />
+          </div>
+        )}
+
+        {isError && (
+          <div className="text-center py-8 space-y-3">
+            <p className="text-gray-500">Не удалось загрузить историю изменений</p>
+            <Button variant="secondary" size="sm" onClick={() => refetch()}>
+              Повторить
+            </Button>
+          </div>
+        )}
+
+        {data && data.versions.length === 0 && (
+          <p className="text-center py-8 text-gray-400">
+            История изменений пока недоступна
+          </p>
+        )}
+
+        {data && data.versions.length > 0 && data.versions.map((ver) => (
+          <div key={ver.version} className="border border-gray-100 rounded-lg p-4">
+            <div className="flex items-baseline justify-between mb-3">
+              <span className="text-base font-semibold text-gray-900">v{ver.version}</span>
+              <span className="text-sm text-gray-400">{formatDate(ver.date)}</span>
+            </div>
+            <ul className="space-y-2">
+              {ver.changes.map((entry, i) => {
+                const badge = BADGE_CONFIG[entry.type];
+                return (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded shrink-0 ${badge.className}`}>
+                      {badge.label}
+                    </span>
+                    <span className="text-sm text-gray-700">{entry.description}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
       </div>
-
-      {isLoading && (
-        <div className="flex justify-center py-12">
-          <Spinner size="lg" />
-        </div>
-      )}
-
-      {isError && (
-        <div className="text-center py-12 space-y-3">
-          <p className="text-gray-500">Не удалось загрузить историю изменений</p>
-          <Button variant="secondary" size="sm" onClick={() => refetch()}>
-            Повторить
-          </Button>
-        </div>
-      )}
-
-      {data && data.versions.length === 0 && (
-        <p className="text-center py-12 text-gray-400">
-          История изменений пока недоступна
-        </p>
-      )}
-
-      {data && data.versions.length > 0 && (
-        <div className="space-y-4">
-          {data.versions.map((ver) => (
-            <Card key={ver.version} className="p-5">
-              <div className="flex items-baseline justify-between mb-3">
-                <span className="text-base font-semibold text-gray-900">v{ver.version}</span>
-                <span className="text-sm text-gray-400">{formatDate(ver.date)}</span>
-              </div>
-              <ul className="space-y-2">
-                {ver.changes.map((entry, i) => {
-                  const badge = BADGE_CONFIG[entry.type];
-                  return (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded shrink-0 ${badge.className}`}>
-                        {badge.label}
-                      </span>
-                      <span className="text-sm text-gray-700">{entry.description}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
+    </Modal>
   );
 }
