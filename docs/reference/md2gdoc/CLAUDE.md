@@ -75,47 +75,23 @@ Admin Panel (React) → Backend (FastAPI) → Rules Engine (SQLite)
 | Тестирование | [docs/testing.md](docs/testing.md) |
 | Требования | [docs/requirements/](docs/requirements/) |
 | ADR (решения) | [docs/decisions/](docs/decisions/) |
+| Процесс разработки | [docs/WORKFLOW.md](docs/WORKFLOW.md) |
+| Чеклисты изменений | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) |
+| Гайдлайны документации | [docs/DOCUMENTATION_GUIDELINES.md](docs/DOCUMENTATION_GUIDELINES.md) |
+| Справочник команд | [docs/COMMANDS-REFERENCE.md](docs/COMMANDS-REFERENCE.md) |
 
 ---
 
 ## Workflow
 
-### При планировании (Plan Mode)
+> Полный процесс: [docs/WORKFLOW.md](docs/WORKFLOW.md) | Команды: [docs/COMMANDS-REFERENCE.md](docs/COMMANDS-REFERENCE.md)
 
-**Перед созданием плана изучи архитектуру:**
-- `docs/ARCHITECTURE.md` — как устроена система, какие компоненты есть
-- `docs/architecture/` — детали затрагиваемых подсистем
-- `docs/decisions/` — почему приняты текущие решения, какие ограничения
-- `docs/requirements/` — активные требования на разработку
-- `.claude/rules/` — правила модулей, которые будут затронуты
+- **Крупная фича:** `/preflight` → план → реализация → `/finalize`
+- **UI экран:** `/frontend-design` → Pencil макет → итерации → код
+- **Быстрая доработка:** реализация → секция "После реализации" ниже
+- **Баг:** простой → исправить; сложный → план; архитектурный → ограничение сюда
 
-### Крупная фича
-
-```
-/preflight {задача} → план → реализация → /finalize
-```
-
-### UI экран или значительная переработка интерфейса
-
-```
-/frontend-design → Pencil макет → обсуждение → итерации → утвердили → код
-```
-
-Навык `/frontend-design` объединяет дизайн в Pencil и реализацию в код. Подробности: `.claude/rules/frontend.md`, ADR-001.
-
-### Быстрая доработка
-
-```
-Читать этот файл → реализация → проверить секцию "После реализации"
-```
-
-### Баг
-
-```
-Простой (1-2 файла) → исправить напрямую
-Сложный → план → реализация
-Архитектурный → добавить ограничение сюда
-```
+**При планировании** изучи: `docs/ARCHITECTURE.md`, `docs/architecture/`, `docs/decisions/`, `.claude/rules/`
 
 ---
 
