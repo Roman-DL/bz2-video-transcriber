@@ -95,6 +95,14 @@ Admin Panel (React) → Backend (FastAPI) → Rules Engine (SQLite)
 /preflight {задача} → план → реализация → /finalize
 ```
 
+### UI экран или значительная переработка интерфейса
+
+```
+/frontend-design → Pencil макет → обсуждение → итерации → утвердили → код
+```
+
+Навык `/frontend-design` объединяет дизайн в Pencil и реализацию в код. Подробности: `.claude/rules/frontend.md`, ADR-001.
+
 ### Быстрая доработка
 
 ```
@@ -141,6 +149,7 @@ backend/app/services/
   sync/                       # Sync Manager (polling)
 backend/app/utils/            # Shared utilities
 frontend/src/                 # React + Vite + Tailwind
+frontend/designs/             # Pencil макеты (.pen) — UI прототипы
 config/service-account.json   # Google API credentials (НЕ коммитить!)
 data/md2gdoc.db               # SQLite database
 ```

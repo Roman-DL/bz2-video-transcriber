@@ -65,6 +65,21 @@ services:
       - /mnt/source:/mnt/source:ro  # Исходные MD файлы
 ```
 
+## Инструменты разработки
+
+### Pencil (дизайн UI)
+
+Для проектирования интерфейса используется Pencil (pencil.dev) — визуальный редактор через MCP-сервер в Claude Code. См. [ADR-001](decisions/ADR-001-pencil-design-workflow.md).
+
+**Установка:**
+
+1. В VSCode: Extensions (Cmd+Shift+X) → поиск "Pencil" → Install
+2. MCP-сервер запускается автоматически при открытии `.pen` файла в Pencil
+
+**Проверка:** в Claude Code выполни `/mcp` — Pencil должен появиться в списке серверов. Инструменты `mcp__pencil__*` станут доступны.
+
+**Требования:** Claude Code CLI установлен и аутентифицирован (`claude --version`).
+
 ## Подробнее
 
 - Полный список настроек: [PROJECT-SPEC.md](PROJECT-SPEC.md) (Appendix)
