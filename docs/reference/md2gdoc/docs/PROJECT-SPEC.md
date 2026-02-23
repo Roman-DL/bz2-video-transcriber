@@ -380,9 +380,9 @@ GDoc → MD (обратная конвертация, two-way):
 
 | Файл | Что полезно |
 |------|-------------|
-| `docs/reference/Obsidian-Export/obsidian_to_gdocs.py` | Regex-паттерны каллаутов и тегов (Python, проверены на реальных документах) |
-| `docs/reference/Obsidian → Google Docs/Obsidian → Google Docs.json` | n8n workflow — логика конвертации в Code нодах |
-| `docs/reference/Obsidian → Google Docs/topaz_nord_constants.js` | 13 типов каллаутов + алиасы, helper-функции генерации HTML |
+| `docs/reference/obsidian_to_gdocs.py` | Regex-паттерны каллаутов и тегов (Python, проверены на реальных документах) |
+| `docs/reference/obsidian-to-gdocs-n8n-workflow.json` | n8n workflow — логика конвертации в Code нодах |
+| `docs/reference/topaz_nord_constants.js` | 13 типов каллаутов + алиасы, helper-функции генерации HTML |
 
 ### Что берём из референсного проекта
 

@@ -181,8 +181,8 @@ date: "2026-02-23"
 
 | Источник | Что использовать |
 |----------|-----------------|
-| `docs/reference/Obsidian-Export/obsidian_to_gdocs.py` | Regex для парсинга каллаутов и тегов (Python) |
-| `docs/reference/Obsidian → Google Docs/topaz_nord_constants.js` | 13 типов каллаутов + алиасы, helper-функции |
+| `docs/reference/obsidian_to_gdocs.py` | Regex для парсинга каллаутов и тегов (Python) |
+| `docs/reference/topaz_nord_constants.js` | 13 типов каллаутов + алиасы, helper-функции |
 
 ---
 
