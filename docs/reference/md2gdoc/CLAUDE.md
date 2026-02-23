@@ -188,6 +188,8 @@ data/md2gdoc.db               # SQLite database
 
 Source of truth: `VERSION` файл в корне. Синхронизация через `cz bump` (Commitizen).
 
+> **TODO:** При инициализации frontend создать `frontend/package.json` с `"version": "0.0.0"` — `pyproject.toml` ожидает этот файл для синхронизации версий.
+
 - **patch** (0.1.x) — баг-фиксы, мелкие правки
 - **minor** (0.x.0) — новые фичи, заметные улучшения
 - **major** (x.0.0) — ломающие изменения, крупные переработки

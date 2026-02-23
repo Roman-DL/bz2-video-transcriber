@@ -374,35 +374,6 @@ GDoc → MD (обратная конвертация, two-way):
 
 ## Приложения
 
-### Референсный проект (bz2-video-transcribe)
-
-Исходные материалы из предыдущих попыток автоматизации:
-
-| Файл | Что полезно |
-|------|-------------|
-| `docs/reference/obsidian_to_gdocs.py` | Regex-паттерны каллаутов и тегов (Python, проверены на реальных документах) |
-| `docs/reference/obsidian-to-gdocs-n8n-workflow.json` | n8n workflow — логика конвертации в Code нодах |
-| `docs/reference/topaz_nord_constants.js` | 13 типов каллаутов + алиасы, helper-функции генерации HTML |
-
-### Что берём из референсного проекта
-
-| Компонент | Источник | Что берём |
-|-----------|----------|-----------|
-| Парсинг каллаутов | `obsidian_to_gdocs.py`, n8n Code нода | Regex для `> [!type]`, конвертация в HTML-блоки |
-| Парсинг тегов | `topaz_nord_constants.js` | Regex для `#tag` → форматированный текст |
-| Типы каллаутов | `topaz_nord_constants.js` | 13 типов + алиасы (note, info, tip, warning и др.) |
-| Google Drive upload | n8n workflow (концепция) | Upload с `mimeType: application/vnd.google-apps.document` |
-
-### Что НЕ берём
-
-| Компонент | Причина |
-|-----------|---------|
-| n8n архитектура | Заменяется собственным сервисом |
-| CloudConvert | Заменяется бесплатной автоконвертацией Google Drive |
-| Topaz-Nord цвета | Устаревшая тема, используем нейтральные стили |
-| Pandoc | Заменяется Python-библиотекой для MD → HTML |
-| Hardcoded credentials | Заменяется конфигурацией через admin panel |
-
 ### UI макеты
 
 #### Главная страница (Dashboard)
@@ -532,26 +503,7 @@ GDoc → MD (обратная конвертация, two-way):
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### Детальное описание API и данных
-
-Базовое описание API endpoints и SQL схемы — см. [REQUIREMENT-md2gdoc-service.md](../Obsidian%20→%20Google%20Docs/REQUIREMENT-md2gdoc-service.md) (секции 5-6).
-
-> **Внимание:** REQUIREMENT-md2gdoc-service.md содержит API в терминологии `watched_folders`. При реализации заменить на `rules` с учётом изменений ниже.
-
-#### Ключевые изменения API (rules vs watched folders)
-
-```
-# Было (watched folders):
-GET/POST/PATCH/DELETE  /api/folders
-POST  /api/folders/:id/pause
-POST  /api/folders/:id/resume
-
-# Стало (rules):
-GET/POST/PATCH/DELETE  /api/rules
-POST  /api/rules/:id/pause
-POST  /api/rules/:id/resume
-POST  /api/rules/:id/trigger    # ← ручной запуск правила
-```
+### API и модель данных
 
 ```typescript
 // Rule — заменяет WatchedFolder
@@ -664,7 +616,7 @@ interface Settings {
 | 📌 | `abstract`, `summary` | `#E2E3E5` |
 | 💬 | `quote`, `cite` | `#E2E3E5` |
 
-> Полный список типов и алиасов — в `topaz_nord_constants.js` (референсный проект). Цвета — нейтральные (не Topaz-Nord).
+> Таблица выше — полный список типов и алиасов. Цвета нейтральные.
 
 ### Формат изображений в конвертации
 

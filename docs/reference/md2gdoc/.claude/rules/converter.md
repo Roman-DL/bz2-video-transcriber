@@ -45,4 +45,3 @@ paths:
 
 ## Документация
 - Подробная архитектура: `docs/architecture/01-converter.md`
-- Референсный код: `docs/reference/` (obsidian_to_gdocs.py, topaz_nord_constants.js)
