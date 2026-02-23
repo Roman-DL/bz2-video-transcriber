@@ -11,6 +11,7 @@
 | Preflight | Rules загружаются по globs; CLAUDE.md директива проверять архитектуру | `/preflight` — полный анализ совместимости |
 | Finalize | CLAUDE.md секция "После реализации" | `/finalize` — глубокая проверка + drift detection |
 | Sync docs | — | `/sync-docs` — полный аудит (всегда ручной) |
+| Refactor CLAUDE.md | — | `/refactor-claude` — вынос правил в rules (при > 250 строк) |
 
 **80% рутинных проверок автоматизированы** через rules и CLAUDE.md. Команды нужны для глубокого анализа сложных случаев.
 
@@ -167,6 +168,38 @@
 
 - [.claude/skills/frontend-design/SKILL.md](../.claude/skills/frontend-design/SKILL.md) — исходный код навыка
 - [decisions/ADR-001](decisions/ADR-001-pencil-design-workflow.md) — обоснование подхода
+
+---
+
+## /refactor-claude
+
+### Назначение
+
+Вынос модульных правил из CLAUDE.md в `.claude/rules/` когда файл превышает лимит.
+
+### Когда вызывать
+
+- CLAUDE.md > 250 строк (лимит 300)
+- Правила для конкретных модулей дублируются в CLAUDE.md и rules
+
+### Что делает
+
+1. Анализирует CLAUDE.md — размер, контент
+2. Классифицирует каждое правило по маршрутизации (CLAUDE.md / rules / docs)
+3. Выносит модульные правила в `.claude/rules/` (с globs)
+4. Обновляет CLAUDE.md — удаляет вынесенное
+5. Проверяет результат (< 300 строк, нет дублирования)
+
+### Что остаётся в CLAUDE.md
+
+- Описание проекта, Quick Start, Workflow
+- Навигация по документации
+- Общие ограничения (polling, Google API, Pydantic)
+- Структура проекта, маршрутизация правил
+
+### Связанные документы
+
+- [.claude/commands/refactor-claude.md](../.claude/commands/refactor-claude.md) — исходный код команды
 
 ---
 

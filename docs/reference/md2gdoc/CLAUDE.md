@@ -72,6 +72,7 @@ Admin Panel (React) → Backend (FastAPI) → Rules Engine (SQLite)
 | Конфигурация | [docs/configuration.md](docs/configuration.md) |
 | API сервисов | [docs/api-reference.md](docs/api-reference.md) |
 | Развёртывание | [docs/deployment.md](docs/deployment.md) |
+| Логирование | [docs/logging.md](docs/logging.md) |
 | Тестирование | [docs/testing.md](docs/testing.md) |
 | Требования | [docs/requirements/](docs/requirements/) |
 | ADR (решения) | [docs/decisions/](docs/decisions/) |
@@ -178,4 +179,4 @@ Source of truth: `VERSION` файл в корне. Синхронизация ч
 
 ---
 
-_Entry point для AI. При проблемах — добавь ограничение. Держи < 200 строк. Если > 180 — запусти `/refactor-claude`._
+_Entry point для AI. При проблемах — добавь ограничение. Держи < 300 строк. Если > 250 — запусти `/refactor-claude`._
