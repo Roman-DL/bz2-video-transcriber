@@ -505,6 +505,7 @@ class FileSaver:
                 "short_description": chunks.short_description,
                 "metadata": {
                     "video_id": metadata.video_id,
+                    "title": metadata.title,
                     "speaker": materials_speaker,
                     "event_type": metadata.event_type,
                     "stream": metadata.stream,
