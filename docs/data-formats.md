@@ -85,17 +85,17 @@ event_types:
 /archive/{год}/Выездные/{event_name}/{тема (спикер)}/
 ```
 
-**Файлы в директории:**
+**Файлы в директории (v0.82+):**
 ```
 ├── {оригинальное_название}.mp4
 ├── audio.mp3
 ├── transcript_chunks.json
-├── longread.md / story.md
-├── summary.md
+├── {title} ({speaker}) — лонгрид.md     # или — история.md
+├── {title} ({speaker}) — саммари.md      # только educational
 ├── transcript_raw.txt
 ├── transcript_cleaned.txt
 ├── pipeline_results.json
-└── .cache/                   # Версионированный кэш (v0.18+)
+└── .cache/                               # Версионированный кэш (v0.18+)
 ```
 
 ### Пример
@@ -109,12 +109,12 @@ event_types:
     │       │   ├── 2025.04.07 ПШ.SV. Группа поддержки (Светлана Дмитрук).mp4
     │       │   ├── audio.mp3
     │       │   ├── transcript_chunks.json
-    │       │   ├── longread.md
-    │       │   ├── summary.md
+    │       │   ├── Группа поддержки (Дмитрук С.) — лонгрид.md
+    │       │   ├── Группа поддержки (Дмитрук С.) — саммари.md
     │       │   └── pipeline_results.json
     │       │
     │       └── SV История (Антоновы Дмитрий и Юлия)/
-    │           └── ...  (story.md вместо longread.md)
+    │           └── ...  (— история.md вместо — лонгрид.md)
     │
     └── Выездные/
         └── Форум TABTeam/

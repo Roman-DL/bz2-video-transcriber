@@ -143,11 +143,13 @@ class FileSaver:
         created_files.append(chunks_path.name)
 
         # Save longread markdown
-        longread_path = self._save_longread_md(archive_path, longread)
+        longread_filename = self._build_md_filename(metadata, "лонгрид")
+        longread_path = self._save_longread_md(archive_path, longread, longread_filename)
         created_files.append(longread_path.name)
 
         # Save summary markdown (конспект)
-        summary_path = self._save_summary_md(archive_path, summary)
+        summary_filename = self._build_md_filename(metadata, "саммари")
+        summary_path = self._save_summary_md(archive_path, summary, summary_filename)
         created_files.append(summary_path.name)
 
         # Save raw transcript
@@ -222,7 +224,8 @@ class FileSaver:
         created_files.append(chunks_path.name)
 
         # Save story markdown
-        story_path = self._save_story_md(archive_path, story)
+        story_filename = self._build_md_filename(metadata, "история")
+        story_path = self._save_story_md(archive_path, story, story_filename)
         created_files.append(story_path.name)
 
         # Save raw transcript
@@ -536,6 +539,7 @@ class FileSaver:
         self,
         archive_path: Path,
         longread: Longread,
+        filename: str,
     ) -> Path:
         """
         Save longread document as Markdown.
@@ -545,11 +549,12 @@ class FileSaver:
         Args:
             archive_path: Archive directory path
             longread: Longread document
+            filename: Target filename (e.g. "Группа поддержки (Дмитрук С.) — лонгрид.md")
 
         Returns:
             Path to created file
         """
-        file_path = archive_path / "longread.md"
+        file_path = archive_path / filename
 
         content = longread.to_markdown()
 
@@ -564,6 +569,7 @@ class FileSaver:
         self,
         archive_path: Path,
         summary: Summary,
+        filename: str,
     ) -> Path:
         """
         Save summary (конспект) as Markdown with Obsidian callouts.
@@ -573,11 +579,12 @@ class FileSaver:
         Args:
             archive_path: Archive directory path
             summary: Condensed summary
+            filename: Target filename (e.g. "Группа поддержки (Дмитрук С.) — саммари.md")
 
         Returns:
             Path to created file
         """
-        file_path = archive_path / "summary.md"
+        file_path = archive_path / filename
 
         content = summary.to_markdown()
 
@@ -592,6 +599,7 @@ class FileSaver:
         self,
         archive_path: Path,
         story: Story,
+        filename: str,
     ) -> Path:
         """
         Save leadership story as Markdown.
@@ -601,11 +609,12 @@ class FileSaver:
         Args:
             archive_path: Archive directory path
             story: Leadership story (8 blocks)
+            filename: Target filename (e.g. "История (Иванов Д.) — история.md")
 
         Returns:
             Path to created file
         """
-        file_path = archive_path / "story.md"
+        file_path = archive_path / filename
 
         content = story.to_markdown()
 
@@ -737,6 +746,23 @@ class FileSaver:
         """
         return f"{d.day} {RUSSIAN_MONTHS[d.month]} {d.year}"
 
+    @staticmethod
+    def _build_md_filename(metadata: "VideoMetadata", suffix: str) -> str:
+        """Build human-readable MD filename from metadata.
+
+        Format: "{title} ({speaker_abbreviated}) — {suffix}.md"
+        Example: "Группа поддержки (Дмитрук С.) — лонгрид.md"
+
+        Args:
+            metadata: Video metadata with title and speaker
+            suffix: File type suffix (лонгрид, саммари, история)
+
+        Returns:
+            Formatted filename string
+        """
+        speaker_short = abbreviate_name(metadata.speaker) if metadata.speaker else "Unknown"
+        return f"{metadata.title} ({speaker_short}) — {suffix}.md"
+
 
 if __name__ == "__main__":
     """Run tests when executed directly."""
@@ -777,8 +803,34 @@ if __name__ == "__main__":
             print(f"FAILED: {e}")
             return 1
 
-        # Test 3: Full save cycle with temp directory
-        print("Test 3: Full save cycle...", end=" ")
+        # Test 3: Build MD filename
+        print("Test 3: Build MD filename...", end=" ")
+        try:
+            mock_meta = VideoMetadata(
+                date=date(2025, 4, 7),
+                event_type="ПШ",
+                stream="SV",
+                title="Группа поддержки",
+                speaker="Дмитрук Светлана",
+                original_filename="test.mp4",
+                video_id="test",
+                source_path=Path("/tmp/test.mp4"),
+                archive_path=Path("/tmp/archive"),
+                event_name="ПШ.SV",
+            )
+            fn = FileSaver._build_md_filename(mock_meta, "лонгрид")
+            assert fn == "Группа поддержки (Дмитрук С.) — лонгрид.md", f"Got: {fn}"
+            fn2 = FileSaver._build_md_filename(mock_meta, "саммари")
+            assert fn2 == "Группа поддержки (Дмитрук С.) — саммари.md", f"Got: {fn2}"
+            fn3 = FileSaver._build_md_filename(mock_meta, "история")
+            assert fn3 == "Группа поддержки (Дмитрук С.) — история.md", f"Got: {fn3}"
+            print("OK")
+        except Exception as e:
+            print(f"FAILED: {e}")
+            return 1
+
+        # Test 4: Full save cycle with temp directory
+        print("Test 4: Full save cycle...", end=" ")
         try:
             from app.models.schemas import (
                 CleanedTranscript,
@@ -888,12 +940,16 @@ if __name__ == "__main__":
                 )
                 files = result.files
 
+                # Expected dynamic filenames
+                expected_longread = "Test Video (Test S.) — лонгрид.md"
+                expected_summary = "Test Video (Test S.) — саммари.md"
+
                 # Verify results
                 assert len(files) == 7, f"Expected 7 files, got {len(files)}: {files}"
                 assert "pipeline_results.json" in files
                 assert "transcript_chunks.json" in files
-                assert "longread.md" in files
-                assert "summary.md" in files
+                assert expected_longread in files, f"Expected '{expected_longread}' in {files}"
+                assert expected_summary in files, f"Expected '{expected_summary}' in {files}"
                 assert "transcript_raw.txt" in files
                 assert "transcript_cleaned.txt" in files
                 assert video_file.name in files
@@ -901,8 +957,8 @@ if __name__ == "__main__":
                 # Verify files exist
                 assert (archive_dir / "pipeline_results.json").exists()
                 assert (archive_dir / "transcript_chunks.json").exists()
-                assert (archive_dir / "longread.md").exists()
-                assert (archive_dir / "summary.md").exists()
+                assert (archive_dir / expected_longread).exists()
+                assert (archive_dir / expected_summary).exists()
                 assert (archive_dir / "transcript_raw.txt").exists()
                 assert (archive_dir / "transcript_cleaned.txt").exists()
                 assert (archive_dir / video_file.name).exists()

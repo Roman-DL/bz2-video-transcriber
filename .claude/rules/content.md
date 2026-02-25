@@ -10,8 +10,9 @@ paths:
 # Rules: Content Types & Archive
 
 ## Content Types
-- `educational` → `longread.md` + `summary.md` (обучающие темы)
-- `leadership` → `story.md` (лидерские истории, 8 блоков)
+- `educational` → `{title} ({speaker}) — лонгрид.md` + `{title} ({speaker}) — саммари.md` (обучающие темы)
+- `leadership` → `{title} ({speaker}) — история.md` (лидерские истории, 8 блоков)
+- Имена MD-файлов формируются из `VideoMetadata.title` + `abbreviate_name(speaker)` через `_build_md_filename()`
 - Тип определяется по имени файла при парсинге — см. правила ниже
 
 ## Event Categories

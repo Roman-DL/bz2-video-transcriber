@@ -19,8 +19,10 @@ tags:
 Сохранение результатов обработки в структурированный архив.
 
 **Важно:** Сохраняемые файлы зависят от `content_type`:
-- **EDUCATIONAL** → `longread.md` + `summary.md`
-- **LEADERSHIP** → `story.md`
+- **EDUCATIONAL** → `{title} ({speaker}) — лонгрид.md` + `{title} ({speaker}) — саммари.md`
+- **LEADERSHIP** → `{title} ({speaker}) — история.md`
+
+> **v0.82+:** MD-файлы сохраняются с осмысленными именами вместо фиксированных (`longread.md`, `summary.md`, `story.md`). Имя формируется из `VideoMetadata.title` и `abbreviate_name(speaker)`.
 
 ## SaveStage (v0.23+)
 
@@ -48,14 +50,14 @@ class SaveStage(BaseStage):
 
 ```
 /archive/{год}/{месяц}/{тип}.{поток}/{тема} ({спикер})/
-├── {original_filename}.mp4      # Видео (перемещённое)
-├── audio.mp3                    # Извлечённое аудио
-├── transcript_chunks.json       # Для RAG
-├── longread.md                  # Развёрнутый текст
-├── summary.md                   # Конспект (File Search)
-├── transcript_raw.txt           # Backup оригинала
-├── transcript_cleaned.txt       # Очищенный текст
-└── pipeline_results.json        # Для просмотра в UI (camelCase, v0.58+)
+├── {original_filename}.mp4                    # Видео (перемещённое)
+├── audio.mp3                                  # Извлечённое аудио
+├── transcript_chunks.json                     # Для RAG
+├── {title} ({speaker}) — лонгрид.md           # Развёрнутый текст
+├── {title} ({speaker}) — саммари.md           # Конспект (File Search)
+├── transcript_raw.txt                         # Backup оригинала
+├── transcript_cleaned.txt                     # Очищенный текст
+└── pipeline_results.json                      # Для просмотра в UI (camelCase, v0.58+)
 ```
 
 ### LEADERSHIP контент (v0.23+)
@@ -65,7 +67,7 @@ class SaveStage(BaseStage):
 ├── {original_filename}.mp4
 ├── audio.mp3
 ├── transcript_chunks.json
-├── story.md                     # История 8 блоков (вместо longread + summary)
+├── {title} ({speaker}) — история.md           # История 8 блоков
 ├── transcript_raw.txt
 ├── transcript_cleaned.txt
 └── pipeline_results.json
@@ -78,9 +80,9 @@ class SaveStage(BaseStage):
 | `{название}.mp4` | Видео | Оба | Оригинальный файл |
 | `audio.mp3` | Аудио | Оба | Извлечённая дорожка |
 | `transcript_chunks.json` | RAG | Оба | Семантические чанки для индексации |
-| `longread.md` | БЗ 2.0 | EDUCATIONAL | Развёрнутый текст (5-10 страниц) |
-| `summary.md` | File Search | EDUCATIONAL | Конспект с callouts (2-4 страницы) |
-| `story.md` | БЗ 2.0 | LEADERSHIP | История 8 блоков (v0.23+) |
+| `{title} ({speaker}) — лонгрид.md` | БЗ 2.0 | EDUCATIONAL | Развёрнутый текст (5-10 страниц) |
+| `{title} ({speaker}) — саммари.md` | File Search | EDUCATIONAL | Конспект с callouts (2-4 страницы) |
+| `{title} ({speaker}) — история.md` | БЗ 2.0 | LEADERSHIP | История 8 блоков (v0.23+) |
 | `transcript_raw.txt` | Backup | Оба | Текст с таймкодами |
 | `transcript_cleaned.txt` | Чтение | Оба | Очищенный текст |
 | `pipeline_results.json` | UI | Оба | Полные результаты (camelCase, v0.58+) |
@@ -222,6 +224,7 @@ JSON для веб-интерфейса:
 
 | Метод | Описание |
 |-------|----------|
+| `_build_md_filename()` | Формирование имени MD-файла из метаданных (v0.82+) |
 | `_save_chunks_json()` | Генерация JSON в формате BZ2-Bot v1.0 (v0.60+) |
 | `_save_longread_md()` | Сохранение лонгрида |
 | `_save_summary_md()` | Сохранение конспекта |
@@ -289,6 +292,7 @@ python -m backend.app.services.saver
 
 ## История изменений
 
+- **v0.82:** Осмысленные имена MD-файлов: `{title} ({speaker}) — {тип}.md` вместо фиксированных `longread.md`, `summary.md`, `story.md`.
 - **v0.62:** Description generation перенесена в Chunk stage. Save — чистое сохранение файлов, без LLM. `SaveResult` вместо `list[str]`.
 - **v0.60:** BZ2-Bot v1.0 формат transcript_chunks.json. Контекстная шапка в каждом chunk. Разбиение >600 слов с суффиксом (N/M).
 - **v0.58:** camelCase сериализация в pipeline_results.json (`by_alias=True`).
