@@ -83,6 +83,7 @@ sshpass -p "$DEPLOY_PASSWORD" rsync -avz --delete \
     --exclude '.idea' \
     --exclude '*.pyc' \
     --exclude '.build_number' \
+    --exclude '.worktrees' \
     "$PROJECT_DIR/" "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
 
 # --- Step 2: Create .env on server ---
