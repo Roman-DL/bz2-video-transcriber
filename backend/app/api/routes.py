@@ -8,8 +8,9 @@ Provides endpoints for:
 
 import json
 import logging
+from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.config import get_settings
 from app.models.schemas import (
@@ -122,6 +123,43 @@ async def list_archive() -> ArchiveResponse:
                     published_total += 1
 
     return ArchiveResponse(tree=tree, total=total, published_total=published_total)
+
+
+def _resolve_archive_path(
+    archive_dir: Path, year: str, event_group: str, topic_folder: str
+) -> Path:
+    """Resolve and validate archive path, preventing path traversal."""
+    target = (archive_dir / year / event_group / topic_folder).resolve()
+    archive_resolved = archive_dir.resolve()
+    if not str(target).startswith(str(archive_resolved)):
+        raise HTTPException(status_code=400, detail="Invalid path")
+    if not target.is_dir():
+        raise HTTPException(status_code=404, detail="Folder not found")
+    return target
+
+
+@router.put("/archive/published")
+async def set_published(year: str, event_group: str, topic_folder: str):
+    """Mark archive material as published to knowledge base."""
+    settings = get_settings()
+    target = _resolve_archive_path(
+        Path(settings.archive_dir), year, event_group, topic_folder
+    )
+    (target / ".published").touch()
+    return {"status": "ok"}
+
+
+@router.delete("/archive/published")
+async def unset_published(year: str, event_group: str, topic_folder: str):
+    """Remove published marker from archive material."""
+    settings = get_settings()
+    target = _resolve_archive_path(
+        Path(settings.archive_dir), year, event_group, topic_folder
+    )
+    marker = target / ".published"
+    if marker.exists():
+        marker.unlink()
+    return {"status": "ok"}
 
 
 @router.get("/archive/results")
