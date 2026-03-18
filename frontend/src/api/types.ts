@@ -360,12 +360,14 @@ export interface ArchiveItem {
   speaker: string | null;
   eventType: string;
   topicFolder: string;
+  published: boolean;
 }
 
 // Tree structure: year -> event_group -> items[]
 export interface ArchiveResponse {
   tree: Record<string, Record<string, ArchiveItem[]>>;
   total: number;
+  publishedTotal: number;
 }
 
 // Extended archive item with path info for API call

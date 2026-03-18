@@ -1,6 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../client';
 import type { ArchiveResponse, PipelineResultsResponse } from '../types';
+
+interface PublishedParams {
+  year: string;
+  eventGroup: string;
+  topicFolder: string;
+}
 
 export function useArchive() {
   return useQuery({
@@ -38,5 +44,43 @@ export function useArchiveResults(
       return data;
     },
     enabled: !!(year && eventGroup && topicFolder),
+  });
+}
+
+export function useSetPublished() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: PublishedParams) => {
+      const { data } = await apiClient.put('/api/archive/published', null, {
+        params: {
+          year: params.year,
+          event_group: params.eventGroup,
+          topic_folder: params.topicFolder,
+        },
+      });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['archive'] });
+    },
+  });
+}
+
+export function useUnsetPublished() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: PublishedParams) => {
+      const { data } = await apiClient.delete('/api/archive/published', {
+        params: {
+          year: params.year,
+          event_group: params.eventGroup,
+          topic_folder: params.topicFolder,
+        },
+      });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['archive'] });
+    },
   });
 }
