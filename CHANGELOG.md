@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.82.0 (2026-03-18)
+
+### Feat
+
+- скрипт миграции ПШ и документация .published
+- переключатель статуса БЗ в модалке
+- бейдж В БЗ и счётчик в архиве
+- типы и хуки для published статуса
+- PUT/DELETE /api/archive/published эндпоинты
+- проверка .published при сканировании архива
+- поля published в ArchiveItem и ArchiveResponse
+- миграционный скрипт архива v1→v2 (4 уровня → 3)
+- фронтенд — 3-уровневая структура архива
+- API архива — 3-уровневое сканирование, убрана mid_folder
+- 3-уровневая структура архива и #История маркер в парсере
+- добавлено поле title в metadata transcript_chunks.json
+- осмысленные имена MD-файлов вместо фиксированных (REQ-KB-PUBLISHING 4.1)
+
+### Fix
+
+- StatusResponse вместо dict в PUT/DELETE published, безопасный path traversal
+- бейдж В БЗ перед названием, оптимистичное обновление в модалке
+- добавить published в metadataToArchiveItem
+- исключить .worktrees из rsync при деплое
+- v-префикс в заголовках CHANGELOG.md для совместимости с Commitizen
+- парсер changelog поддерживает опциональный v-префикс в заголовках
+
 ## v0.81.0 (2026-02-22)
 
 ### Feat
