@@ -105,6 +105,12 @@ export function ArchiveResultsModal({
   const [activeTab, setActiveTab] = useState<ResultTab>('metadata');
   const [showCleanedDiff, setShowCleanedDiff] = useState(false);
   const [showLongreadDiff, setShowLongreadDiff] = useState(false);
+  const [localPublished, setLocalPublished] = useState(false);
+
+  // Sync local state when item changes
+  useEffect(() => {
+    setLocalPublished(item?.published ?? false);
+  }, [item]);
 
   const setPublished = useSetPublished();
   const unsetPublished = useUnsetPublished();
@@ -145,14 +151,13 @@ export function ArchiveResultsModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="2xl">
       {item && (
-        item.published ? (
+        localPublished ? (
           <button
             onClick={() =>
-              unsetPublished.mutate({
-                year: item.year,
-                eventGroup: item.eventGroup,
-                topicFolder: item.topicFolder,
-              })
+              unsetPublished.mutate(
+                { year: item.year, eventGroup: item.eventGroup, topicFolder: item.topicFolder },
+                { onSuccess: () => setLocalPublished(false) }
+              )
             }
             disabled={unsetPublished.isPending}
             className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-700 transition-colors mb-3"
@@ -163,11 +168,10 @@ export function ArchiveResultsModal({
         ) : (
           <button
             onClick={() =>
-              setPublished.mutate({
-                year: item.year,
-                eventGroup: item.eventGroup,
-                topicFolder: item.topicFolder,
-              })
+              setPublished.mutate(
+                { year: item.year, eventGroup: item.eventGroup, topicFolder: item.topicFolder },
+                { onSuccess: () => setLocalPublished(true) }
+              )
             }
             disabled={setPublished.isPending}
             className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-500 hover:bg-green-100 hover:text-green-700 transition-colors mb-3"

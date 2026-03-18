@@ -218,17 +218,17 @@ function EventSection({
             >
               <div className="w-4" /> {/* Spacer for alignment */}
               <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              {item.published && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 flex-shrink-0">
+                  В БЗ
+                </span>
+              )}
               <span className="text-gray-600 hover:text-blue-600 truncate transition-colors">
                 {item.title}
               </span>
               {item.speaker && (
                 <span className="text-xs text-gray-400 ml-1 flex-shrink-0">
                   ({item.speaker})
-                </span>
-              )}
-              {item.published && (
-                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 flex-shrink-0">
-                  В БЗ
                 </span>
               )}
             </button>
