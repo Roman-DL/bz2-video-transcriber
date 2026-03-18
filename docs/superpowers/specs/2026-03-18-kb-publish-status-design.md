@@ -95,12 +95,25 @@ item = ArchiveItem(..., published=published)
 Архив  18 видео · 10 в БЗ
 ```
 
-#### Кнопка снятия метки (`ArchiveResultsModal`)
+#### Переключатель статуса БЗ (`ArchiveResultsModal`)
 
-Если материал опубликован — в модалке результатов показывать кнопку "Снять метку БЗ":
-- Вызов `DELETE /api/archive/published`
-- Инвалидация кеша архива (React Query refetch)
-- Бейдж исчезает из дерева
+В модалке результатов — универсальная кнопка-переключатель статуса публикации:
+
+- Если материал **опубликован** — кнопка "Снять метку БЗ" → вызов `DELETE /api/archive/published`
+- Если материал **не опубликован** — кнопка "Отметить как загружен" → вызов `PUT /api/archive/published`
+
+После действия — инвалидация кеша архива (React Query refetch), бейдж обновляется в дереве.
+
+## Миграция: начальная разметка существующих материалов
+
+Все материалы типа ПШ уже загружены в базу знаний. При деплое (или одноразовым скриптом) нужно создать `.published` во всех папках групп ПШ:
+
+```bash
+# Создать .published во всех папках материалов внутри групп ПШ
+find /mnt/main/work/bz2/video/archive/*/ПШ/ -mindepth 1 -maxdepth 1 -type d -exec touch {}/.published \;
+```
+
+Скрипт добавить в `scripts/` для воспроизводимости (например `scripts/mark_published.sh`).
 
 ## Изменения: bz2-bot (отдельная реализация)
 
@@ -153,7 +166,8 @@ if (topic_path / ".published").exists():
 | `frontend/src/api/types.ts` | Поле `published` в типе `ArchiveItem` |
 | `frontend/src/api/hooks/useArchive.ts` | Хук для `PUT/DELETE /api/archive/published` |
 | `frontend/src/components/archive/ArchiveCatalog.tsx` | Бейдж "В БЗ", счётчик |
-| `frontend/src/components/archive/ArchiveResultsModal.tsx` | Кнопка "Снять метку БЗ" |
+| `frontend/src/components/archive/ArchiveResultsModal.tsx` | Переключатель статуса БЗ (снять/поставить) |
+| `scripts/mark_published.sh` | Скрипт начальной разметки существующих ПШ материалов |
 
 ### bz2-bot
 
