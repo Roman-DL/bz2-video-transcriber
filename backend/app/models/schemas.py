@@ -1354,6 +1354,7 @@ class ArchiveItem(CamelCaseModel):
     speaker: str = Field(..., description="Speaker name")
     event_type: str = Field(..., description="Event group code")
     topic_folder: str = Field(..., description="Full topic folder name from disk")
+    published: bool = Field(default=False, description="Loaded into knowledge base")
 
 
 class ArchiveResponse(CamelCaseModel):
@@ -1364,6 +1365,7 @@ class ArchiveResponse(CamelCaseModel):
         description="Year -> event_folder -> items",
     )
     total: int = Field(default=0, ge=0, description="Total number of items")
+    published_total: int = Field(default=0, ge=0, description="Number of items published to KB")
 
 
 class PipelineResultsResponse(CamelCaseModel):
