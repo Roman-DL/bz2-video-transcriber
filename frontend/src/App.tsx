@@ -62,6 +62,7 @@ function metadataToArchiveItem(metadata: VideoMetadata): ArchiveItemWithPath {
     year,
     eventGroup,
     topicFolder,
+    published: false,
   };
 }
 
