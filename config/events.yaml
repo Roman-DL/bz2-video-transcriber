@@ -4,8 +4,8 @@
 #   {дата} {тип}[.{поток}]. {тема} ({спикер}).ext
 #
 # category: regular | offsite
-#   - regular: еженедельные школы → archive/{year}/{event_type}/{MM.DD}/{Title}/
-#   - offsite: выездные мероприятия → archive/{year}/Выездные/{event_name}/{Title}/
+#   - regular: еженедельные школы → archive/{year}/{event_type}/{MM.DD stream. title (speaker)}/
+#   - offsite: выездные мероприятия → archive/{year}/{MM event_type}/{title (speaker)}/
 
 event_types:
   # --- Регулярные ---

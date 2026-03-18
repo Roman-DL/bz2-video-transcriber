@@ -111,11 +111,11 @@ uvicorn app.main:app --reload --port 8801
 {
   "tree": {
     "2025": {
-      "01.22 ПШ": [
-        {"title": "SV Topic", "speaker": "Speaker", "event_type": "ПШ", "mid_folder": "01.22"}
+      "ПШ": [
+        {"title": "04.07 SV. Topic (Speaker)", "speaker": "Speaker", "event_group": "ПШ"}
       ],
-      "Форум Табтим": [
-        {"title": "Leadership Story", "speaker": "Name", "event_type": "Выездные", "mid_folder": "Форум Табтим"}
+      "05 Форум TABTeam": [
+        {"title": "История (Name)", "speaker": "Name", "event_group": "05 Форум TABTeam"}
       ]
     }
   },
@@ -129,9 +129,8 @@ uvicorn app.main:app --reload --port 8801
 
 **Query params:**
 - `year` — год (2025)
-- `event_type` — тип события (ПШ, Выездные)
-- `mid_folder` — папка даты/события (01.22, Форум Табтим)
-- `topic_folder` — папка темы (SV Topic (Speaker))
+- `event_group` — группа событий (ПШ, 05 Форум TABTeam)
+- `topic_folder` — папка темы (04.07 SV. Topic (Speaker), История (Name))
 
 **Response:**
 ```json

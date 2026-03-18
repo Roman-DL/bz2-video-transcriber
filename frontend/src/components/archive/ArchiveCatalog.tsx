@@ -30,14 +30,14 @@ export function ArchiveCatalog({ onItemClick }: ArchiveCatalogProps) {
     for (const [year, events] of Object.entries(data.tree)) {
       const filteredEvents: Record<string, ArchiveItem[]> = {};
 
-      for (const [eventFolder, items] of Object.entries(events)) {
+      for (const [eventGroup, items] of Object.entries(events)) {
         const filteredItems = items.filter(
           (item) =>
             item.title.toLowerCase().includes(query) ||
             item.speaker?.toLowerCase().includes(query)
         );
         if (filteredItems.length > 0) {
-          filteredEvents[eventFolder] = filteredItems;
+          filteredEvents[eventGroup] = filteredItems;
         }
       }
 
@@ -53,9 +53,8 @@ export function ArchiveCatalog({ onItemClick }: ArchiveCatalogProps) {
     return { tree: filteredTree, total };
   }, [data, searchQuery]);
 
-  const handleItemClick = (year: string, eventFolder: string, item: ArchiveItem) => {
-    const topicFolder = item.speaker ? `${item.title} (${item.speaker})` : item.title;
-    onItemClick?.({ ...item, year, eventFolder, topicFolder });
+  const handleItemClick = (year: string, eventGroup: string, item: ArchiveItem) => {
+    onItemClick?.({ ...item, year, eventGroup });
   };
 
   return (
@@ -132,7 +131,7 @@ export function ArchiveCatalog({ onItemClick }: ArchiveCatalogProps) {
 interface YearSectionProps {
   year: string;
   events: Record<string, ArchiveItem[]>;
-  onItemClick: (year: string, eventFolder: string, item: ArchiveItem) => void;
+  onItemClick: (year: string, eventGroup: string, item: ArchiveItem) => void;
   defaultExpanded?: boolean;
 }
 
@@ -159,11 +158,11 @@ function YearSection({ year, events, onItemClick, defaultExpanded = false }: Yea
       </button>
       {expanded && (
         <div className="ml-4">
-          {Object.entries(events).map(([eventFolder, items]) => (
+          {Object.entries(events).map(([eventGroup, items]) => (
             <EventSection
-              key={eventFolder}
+              key={eventGroup}
               year={year}
-              eventFolder={eventFolder}
+              eventGroup={eventGroup}
               items={items}
               onItemClick={onItemClick}
               defaultExpanded={defaultExpanded}
@@ -177,15 +176,15 @@ function YearSection({ year, events, onItemClick, defaultExpanded = false }: Yea
 
 interface EventSectionProps {
   year: string;
-  eventFolder: string;
+  eventGroup: string;
   items: ArchiveItem[];
-  onItemClick: (year: string, eventFolder: string, item: ArchiveItem) => void;
+  onItemClick: (year: string, eventGroup: string, item: ArchiveItem) => void;
   defaultExpanded?: boolean;
 }
 
 function EventSection({
   year,
-  eventFolder,
+  eventGroup,
   items,
   onItemClick,
   defaultExpanded = false,
@@ -206,7 +205,7 @@ function EventSection({
         ) : (
           <Folder className="w-4 h-4 text-amber-500" />
         )}
-        <span className="text-sm font-medium text-gray-700">{eventFolder}</span>
+        <span className="text-sm font-medium text-gray-700">{eventGroup}</span>
         <span className="text-xs text-gray-400 ml-1">({items.length})</span>
       </button>
       {expanded && (
@@ -214,7 +213,7 @@ function EventSection({
           {items.map((item, idx) => (
             <button
               key={idx}
-              onClick={() => onItemClick(year, eventFolder, item)}
+              onClick={() => onItemClick(year, eventGroup, item)}
               className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm hover:bg-blue-50 text-left transition-colors"
             >
               <div className="w-4" /> {/* Spacer for alignment */}

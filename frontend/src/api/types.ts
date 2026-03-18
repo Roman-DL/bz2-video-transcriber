@@ -359,10 +359,10 @@ export interface ArchiveItem {
   title: string;
   speaker: string | null;
   eventType: string;
-  midFolder: string;
+  topicFolder: string;
 }
 
-// Tree structure: year -> event_folder -> items[]
+// Tree structure: year -> event_group -> items[]
 export interface ArchiveResponse {
   tree: Record<string, Record<string, ArchiveItem[]>>;
   total: number;
@@ -371,8 +371,7 @@ export interface ArchiveResponse {
 // Extended archive item with path info for API call
 export interface ArchiveItemWithPath extends ArchiveItem {
   year: string;
-  eventFolder: string;
-  topicFolder: string;
+  eventGroup: string;
 }
 
 // Pipeline results stored in archive

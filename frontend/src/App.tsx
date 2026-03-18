@@ -27,40 +27,40 @@ interface SelectedVideo {
 /**
  * Convert VideoMetadata to ArchiveItemWithPath for ArchiveResultsModal.
  *
- * Archive structure:
- * - Regular: archive/{year}/{event_type}/{MM.DD}/{topic}/
- * - Offsite: archive/{year}/Выездные/{event_name}/{topic}/
+ * Archive structure (3 levels):
+ * - Regular: archive/{year}/{event_type}/{MM.DD topic (speaker)}/
+ * - Offsite: archive/{year}/{MM event_type}/{topic (speaker)}/
  */
 function metadataToArchiveItem(metadata: VideoMetadata): ArchiveItemWithPath {
   const year = metadata.date.split('-')[0];
   const isOffsite = metadata.eventCategory === 'offsite';
 
-  // midFolder: date "01.22" for regular, eventName for offsite
-  let midFolder: string;
+  let eventGroup: string;
+  let topicFolder: string;
+
   if (isOffsite) {
-    midFolder = metadata.eventName;
+    const month = metadata.date.split('-')[1];
+    eventGroup = `${month} ${metadata.eventType}`;
+    topicFolder = metadata.speaker
+      ? `${metadata.title} (${metadata.speaker})`
+      : metadata.title;
   } else {
+    eventGroup = metadata.eventType;
     const [, month, day] = metadata.date.split('-');
-    midFolder = `${month}.${day}`;
+    const datePrefix = `${month}.${day}`;
+    if (metadata.stream) {
+      topicFolder = `${datePrefix} ${metadata.stream}. ${metadata.title} (${metadata.speaker})`;
+    } else {
+      topicFolder = `${datePrefix} ${metadata.title} (${metadata.speaker})`;
+    }
   }
-
-  // topicFolder: "{stream} {title} ({speaker})" or "{title} ({speaker})"
-  const topicFolder = metadata.stream
-    ? `${metadata.stream} ${metadata.title} (${metadata.speaker})`
-    : `${metadata.title} (${metadata.speaker})`;
-
-  // eventFolder for display: "01.22 ПШ" for regular, eventName for offsite
-  const eventFolder = isOffsite
-    ? midFolder
-    : `${midFolder} ${metadata.eventType}`;
 
   return {
     title: metadata.title,
     speaker: metadata.speaker,
-    eventType: isOffsite ? 'Выездные' : metadata.eventType,
-    midFolder: midFolder,
+    eventType: eventGroup,
     year,
-    eventFolder,
+    eventGroup,
     topicFolder,
   };
 }
