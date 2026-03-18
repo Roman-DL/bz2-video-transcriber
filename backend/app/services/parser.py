@@ -264,9 +264,10 @@ def _parse_event(
     # Determine event category
     event_category = get_event_category(event_type)
 
-    # Leadership detection: "История" in title → LEADERSHIP
-    if title == "История":
+    # Leadership detection: "#История" marker → LEADERSHIP
+    if title.startswith("#История"):
         content_type = ContentType.LEADERSHIP
+        title = title[1:]  # Strip '#' — marker consumed by parser
     else:
         content_type = ContentType.EDUCATIONAL
 
@@ -276,27 +277,24 @@ def _parse_event(
     # Generate video ID
     video_id = generate_video_id(video_date, event_type, stream, title)
 
-    # Generate archive path based on event category
+    # Generate archive path based on event category (3-level structure)
     if event_category == EventCategory.REGULAR:
-        date_folder = f"{video_date.month:02d}.{video_date.day:02d}"
-        topic_folder = f"{stream} {title} ({speaker})" if stream else f"{title} ({speaker})"
-        archive_path = (
-            settings.archive_dir
-            / str(video_date.year)
-            / event_type
-            / date_folder
-            / topic_folder
-        )
+        event_group = event_type
+        date_prefix = f"{video_date.month:02d}.{video_date.day:02d}"
+        if stream:
+            topic_folder = f"{date_prefix} {stream}. {title} ({speaker})"
+        else:
+            topic_folder = f"{date_prefix} {title} ({speaker})"
     else:
-        # Offsite: archive/{year}/Выездные/{event_type}/{Title}/
-        topic_folder = f"{stream} {title} ({speaker})" if stream else f"{title} ({speaker})"
-        archive_path = (
-            settings.archive_dir
-            / str(video_date.year)
-            / "Выездные"
-            / event_type
-            / topic_folder
-        )
+        event_group = f"{video_date.month:02d} {event_type}"
+        topic_folder = f"{title} ({speaker})"
+
+    archive_path = (
+        settings.archive_dir
+        / str(video_date.year)
+        / event_group
+        / topic_folder
+    )
 
     return VideoMetadata(
         date=video_date,
@@ -356,10 +354,10 @@ if __name__ == "__main__":
         print("OK")
 
     def test_leadership_regular():
-        """Test 3: Leadership on regular event (История)."""
-        print("Test 3: Leadership regular (История)...", end=" ")
+        """Test 3: Leadership on regular event (#История)."""
+        print("Test 3: Leadership regular (#История)...", end=" ")
 
-        filename = "2025.04.07 ПШ.SV. История (Антоновы Дмитрий и Юлия).mp4"
+        filename = "2025.04.07 ПШ.SV. #История (Антоновы Дмитрий и Юлия).mp4"
         metadata = parse_filename(filename)
 
         assert metadata.content_type == ContentType.LEADERSHIP, f"Expected leadership, got {metadata.content_type}"
@@ -375,7 +373,7 @@ if __name__ == "__main__":
         """Test 4: Leadership with different surnames."""
         print("Test 4: Leadership different surnames...", end=" ")
 
-        filename = "2025.04.07 ПШ.SV. История (Иванов Дмитрий и Петрова Юлия).mp4"
+        filename = "2025.04.07 ПШ.SV. #История (Иванов Дмитрий и Петрова Юлия).mp4"
         metadata = parse_filename(filename)
 
         assert metadata.content_type == ContentType.LEADERSHIP, f"Expected leadership"
@@ -397,10 +395,10 @@ if __name__ == "__main__":
         assert metadata.event_category == EventCategory.OFFSITE, f"Category mismatch: {metadata.event_category}"
         assert metadata.event_name == "ШБМ", f"Event name mismatch: {metadata.event_name}"
 
-        # Check archive path has Выездные
+        # Check 3-level archive path: {year}/{MM event_type}/{topic}/
         path_str = str(metadata.archive_path)
-        assert "Выездные" in path_str, f"Выездные not in path: {path_str}"
-        assert "/ШБМ/" in path_str, f"ШБМ not in path: {path_str}"
+        assert "Выездные" not in path_str, f"Выездные should not be in path: {path_str}"
+        assert "/05 ШБМ/" in path_str, f"'05 ШБМ' not in path: {path_str}"
 
         print("OK")
 
@@ -408,7 +406,7 @@ if __name__ == "__main__":
         """Test 6: Offsite leadership event."""
         print("Test 6: Offsite leadership...", end=" ")
 
-        filename = "2025.05.02 ШБМ. История (Иванов Дмитрий).mp4"
+        filename = "2025.05.02 ШБМ. #История (Иванов Дмитрий).mp4"
         metadata = parse_filename(filename)
 
         assert metadata.content_type == ContentType.LEADERSHIP, f"Expected leadership"
@@ -494,7 +492,7 @@ if __name__ == "__main__":
         print("OK")
 
     def test_archive_path_regular():
-        """Test 13: Archive path for regular event."""
+        """Test 13: Archive path for regular event (3-level)."""
         print("Test 13: Archive path regular...", end=" ")
 
         filename = "2025.12.22 ПШ.SV. Тестовая запись (Тест).mp4"
@@ -503,21 +501,20 @@ if __name__ == "__main__":
         path_str = str(metadata.archive_path)
         assert "2025" in path_str, f"Year not in path: {path_str}"
         assert "/ПШ/" in path_str, f"Event type not in path: {path_str}"
-        assert "12.22" in path_str, f"Date folder not in path: {path_str}"
-        assert "SV Тестовая запись (Тест)" in path_str, f"Topic folder not in path: {path_str}"
+        assert "12.22 SV. Тестовая запись (Тест)" in path_str, f"Topic folder not in path: {path_str}"
 
         print("OK")
 
     def test_archive_path_no_stream():
-        """Test 14: Archive path without stream."""
+        """Test 14: Archive path without stream (3-level)."""
         print("Test 14: Archive path no stream...", end=" ")
 
-        filename = "2025.12.22 ВВК. Тестовая запись (Тест).mp4"
+        filename = "2025.12.22 ПШ. Тестовая запись (Тест).mp4"
         metadata = parse_filename(filename)
 
         path_str = str(metadata.archive_path)
-        assert "/ВВК/" in path_str, f"Event type not in path: {path_str}"
-        assert "Тестовая запись (Тест)" in path_str, f"Topic folder not in path: {path_str}"
+        assert "/ПШ/" in path_str, f"Event type not in path: {path_str}"
+        assert "12.22 Тестовая запись (Тест)" in path_str, f"Topic folder not in path: {path_str}"
         assert "SV " not in path_str, f"Should not have stream prefix: {path_str}"
 
         print("OK")
@@ -544,11 +541,12 @@ if __name__ == "__main__":
         """Test 16: Multi-word event type with leadership."""
         print("Test 16: Multi-word event leadership...", end=" ")
 
-        filename = "2025.05.02 Форум TABTeam. История (Иванов Дмитрий).mp4"
+        filename = "2025.05.02 Форум TABTeam. #История (Иванов Дмитрий).mp4"
         metadata = parse_filename(filename)
 
         assert metadata.event_type == "Форум TABTeam", f"Event type mismatch: {metadata.event_type}"
         assert metadata.content_type == ContentType.LEADERSHIP, f"Expected leadership"
+        assert metadata.title == "История", f"Title mismatch: {metadata.title}"
         assert metadata.event_name == "Форум TABTeam", f"Event name mismatch: {metadata.event_name}"
 
         print("OK")
@@ -577,7 +575,9 @@ if __name__ == "__main__":
         assert metadata.speaker == "Дмитрук Светлана", f"Speaker mismatch: {metadata.speaker}"
         assert metadata.content_type == ContentType.EDUCATIONAL, f"Content type mismatch"
         assert metadata.event_category == EventCategory.OFFSITE, f"Category mismatch"
-        assert "Выездные" in str(metadata.archive_path), f"Выездные not in path"
+        path_str = str(metadata.archive_path)
+        assert "/02 ФСТ/" in path_str, f"'02 ФСТ' not in path: {path_str}"
+        assert "Выездные" not in path_str, f"Выездные should not be in path: {path_str}"
 
         print("OK")
 
@@ -585,12 +585,47 @@ if __name__ == "__main__":
         """Test 19: Offsite leadership without day in date."""
         print("Test 19: Date without day (leadership)...", end=" ")
 
-        filename = "2026.02 ШБМ. История (Иванов Дмитрий).mp4"
+        filename = "2026.02 ШБМ. #История (Иванов Дмитрий).mp4"
         metadata = parse_filename(filename)
 
         assert metadata.date == date(2026, 2, 1), f"Date mismatch: {metadata.date}"
         assert metadata.content_type == ContentType.LEADERSHIP, f"Expected leadership"
         assert metadata.event_category == EventCategory.OFFSITE, f"Expected offsite"
+
+        print("OK")
+
+    def test_leadership_hash_marker():
+        """Test 20: #История marker is consumed by parser."""
+        print("Test 20: Leadership hash marker...", end=" ")
+
+        filename = "2026.03.16 ПШ.НП. #История AWT (Прохорова Светлана).mp4"
+        metadata = parse_filename(filename)
+        assert metadata.content_type == ContentType.LEADERSHIP
+        assert metadata.title == "История AWT"  # # stripped
+        assert "#" not in str(metadata.archive_path)
+
+        print("OK")
+
+    def test_educational_with_история_in_title():
+        """Test 21: История without # is EDUCATIONAL."""
+        print("Test 21: Educational with История in title...", end=" ")
+
+        filename = "2026.02 ФСТ. История Herbalife и истоки (Руцман Ида).md"
+        metadata = parse_filename(filename)
+        assert metadata.content_type == ContentType.EDUCATIONAL
+        assert metadata.title == "История Herbalife и истоки"
+
+        print("OK")
+
+    def test_archive_path_regular_with_stream_separator():
+        """Test 22: Regular archive path uses '. ' separator between stream and title."""
+        print("Test 22: Archive path regular with stream separator...", end=" ")
+
+        filename = "2025.08.04 ПШ.НП. Контент (Пепелина Инга).mp4"
+        metadata = parse_filename(filename)
+        path_str = str(metadata.archive_path)
+        assert "/ПШ/" in path_str
+        assert "08.04 НП. Контент (Пепелина Инга)" in path_str
 
         print("OK")
 
@@ -617,6 +652,9 @@ if __name__ == "__main__":
         test_md_extension,
         test_date_without_day_offsite,
         test_date_without_day_leadership,
+        test_leadership_hash_marker,
+        test_educational_with_история_in_title,
+        test_archive_path_regular_with_stream_separator,
     ]
 
     failed = 0
