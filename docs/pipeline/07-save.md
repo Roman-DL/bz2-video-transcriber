@@ -49,7 +49,7 @@ class SaveStage(BaseStage):
 ### EDUCATIONAL контент
 
 ```
-/archive/{год}/{месяц}/{тип}.{поток}/{тема} ({спикер})/
+/archive/{год}/{тип}/{MM.DD поток. тема (спикер)}/
 ├── {original_filename}.mp4                    # Видео (перемещённое)
 ├── audio.mp3                                  # Извлечённое аудио
 ├── transcript_chunks.json                     # Для RAG
@@ -63,7 +63,7 @@ class SaveStage(BaseStage):
 ### LEADERSHIP контент (v0.23+)
 
 ```
-/archive/{год}/Выездные/{event_name}/{Title}/
+/archive/{год}/{MM event_type}/{тема (спикер)}/
 ├── {original_filename}.mp4
 ├── audio.mp3
 ├── transcript_chunks.json

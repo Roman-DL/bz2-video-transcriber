@@ -16,13 +16,13 @@ paths:
 - Тип определяется по имени файла при парсинге — см. правила ниже
 
 ## Event Categories
-- `regular`: `archive/{year}/{event_type}/{MM.DD}/{Title}/`
-- `offsite`: `archive/{year}/Выездные/{event_name}/{Title}/`
+- `regular`: `archive/{year}/{event_type}/{MM.DD stream. title (speaker)}/`
+- `offsite`: `archive/{year}/{MM event_type}/{title (speaker)}/`
 
 ## Определение типа по имени файла (v0.69+, день опционален с v0.71)
 - Единый формат: `{ГГГГ.ММ[.ДД]} {тип}[.{поток}]. {тема} ({спикер}).ext`
 - День опционален — при отсутствии `day=1` (удобно для выездных мероприятий)
-- Тема = `"История"` → `content_type=LEADERSHIP` (на любом типе события)
+- Тема начинается с `#История` → `content_type=LEADERSHIP` (маркер `#` убирается парсером, на любом типе события)
 - Иначе → `content_type=EDUCATIONAL`
 - `event_category` определяется через `events.yaml` → поле `category` у типа события
 - ВСЕГДА использовать `config/events.yaml` для типов событий при парсинге
