@@ -95,6 +95,7 @@ event_types:
 ├── transcript_raw.txt
 ├── transcript_cleaned.txt
 ├── pipeline_results.json
+├── .published                            # Маркер: материал загружен в базу знаний (пустой файл)
 └── .cache/                               # Версионированный кэш (v0.18+)
 ```
 
