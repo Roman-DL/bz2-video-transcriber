@@ -69,10 +69,11 @@ async def list_archive() -> ArchiveResponse:
     archive_dir = settings.archive_dir
 
     if not archive_dir.exists():
-        return ArchiveResponse(tree={}, total=0)
+        return ArchiveResponse(tree={}, total=0, published_total=0)
 
     tree: dict[str, dict[str, list[ArchiveItem]]] = {}
     total = 0
+    published_total = 0
 
     # Scan 3 levels: archive/{year}/{event_group}/{topic_folder}/
     for year_dir in sorted(archive_dir.iterdir(), reverse=True):
@@ -105,17 +106,22 @@ async def list_archive() -> ArchiveResponse:
                     speaker = folder_name[idx + 1 : -1]
                     title = folder_name[:idx].strip()
 
+                published = (topic_dir / ".published").exists()
+
                 tree[year][event_group].append(
                     ArchiveItem(
                         title=title,
                         speaker=speaker,
                         event_type=event_group,
                         topic_folder=folder_name,
+                        published=published,
                     )
                 )
                 total += 1
+                if published:
+                    published_total += 1
 
-    return ArchiveResponse(tree=tree, total=total)
+    return ArchiveResponse(tree=tree, total=total, published_total=published_total)
 
 
 @router.get("/archive/results")
