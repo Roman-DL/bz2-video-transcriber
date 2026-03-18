@@ -65,3 +65,6 @@ credentials.json
 .claude/*
 !.claude/commands/
 !.claude/rules/
+
+# Worktrees
+.worktrees/
