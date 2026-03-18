@@ -50,7 +50,7 @@ export function ArchiveCatalog({ onItemClick }: ArchiveCatalogProps) {
       .flatMap((events) => Object.values(events))
       .flat().length;
 
-    return { tree: filteredTree, total };
+    return { tree: filteredTree, total, publishedTotal: data.publishedTotal };
   }, [data, searchQuery]);
 
   const handleItemClick = (year: string, eventGroup: string, item: ArchiveItem) => {
@@ -67,7 +67,7 @@ export function ArchiveCatalog({ onItemClick }: ArchiveCatalogProps) {
             <h2 className="font-medium text-gray-900">Архив</h2>
             {data && (
               <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                {filteredData?.total ?? data.total} видео
+                {filteredData?.total ?? data.total} видео{data.publishedTotal > 0 && ` · ${data.publishedTotal} в БЗ`}
               </span>
             )}
           </div>
@@ -224,6 +224,11 @@ function EventSection({
               {item.speaker && (
                 <span className="text-xs text-gray-400 ml-1 flex-shrink-0">
                   ({item.speaker})
+                </span>
+              )}
+              {item.published && (
+                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 flex-shrink-0">
+                  В БЗ
                 </span>
               )}
             </button>
