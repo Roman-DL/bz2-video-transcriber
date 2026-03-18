@@ -209,10 +209,13 @@ bz2-bot               →  "Опубликуй в БЗ"    →  Material + embed
 
 **Обратная совместимость:** md2gdoc правило для лонгридов (если используется polling) нужно обновить: паттерн `longread.md` → `*— лонгрид.md`. Либо перейти полностью на API-вызов из bz2-bot.
 
-### 4.2 md2gdoc — без изменений
+### 4.2 md2gdoc — доработка API и Docker-сети
 
-API endpoint `POST /api/convert` уже существует и полностью подходит:
+API endpoint `POST /api/convert` существует, но требует доработки для надёжной работы при вызове из bz2-bot.
 
+**Контракт API:**
+
+Запрос:
 ```
 POST /api/convert
 {
@@ -221,8 +224,11 @@ POST /api/convert
   "targetFolderId": "1abc...",
   "frontmatterMode": "strip"
 }
+```
 
-→ 201 {
+Успех (201):
+```json
+{
   "documentId": "1xyz...",
   "documentUrl": "https://docs.google.com/document/d/1xyz.../edit",
   "status": "success",
@@ -230,9 +236,56 @@ POST /api/convert
 }
 ```
 
-md2gdoc остаётся универсальным конвертером. Не знает ни про bz2-video-transcribe, ни про bz2-bot.
+Ошибка (4xx/5xx):
+```json
+{
+  "status": "error",
+  "errorCode": "AUTH_ERROR",
+  "errorMessage": "OAuth2 token expired",
+  "durationMs": 45
+}
+```
 
-> **Примечание:** Polling-правило для автоматического сканирования архива можно оставить как альтернативный путь, если нужна автоконвертация без участия bz2-bot. Но основной flow — через API-вызов из bz2-bot.
+Коды ошибок:
+
+| HTTP | errorCode | Причина |
+|------|-----------|---------|
+| 401 | AUTH_ERROR | OAuth2 токен истёк или недействителен |
+| 403 | PERMISSION_ERROR | Нет доступа к папке на Google Drive |
+| 404 | NOT_FOUND | Папка не найдена на Google Drive |
+| 422 | CONVERSION_ERROR | Ошибка конвертации Markdown |
+| 422 | (Pydantic) | Невалидный запрос (стандартный FastAPI формат) |
+| 429 | RATE_LIMIT | Rate limit Google API |
+| 500 | CONFIG_ERROR | Google OAuth2 не настроен |
+| 502 | GOOGLE_API_ERROR | Google API недоступен |
+
+**Проблемы, обнаруженные при интеграции:**
+
+1. **502 Bad Gateway на `POST /api/convert`.** Nginx-фронтенд (md2gdoc-frontend) возвращает 502 при проксировании POST-запроса к бэкенду. Healthcheck (`GET /health`) работает — бэкенд жив, но конвертация недоступна. Нужно проверить и исправить nginx-конфигурацию проксирования API-эндпоинтов.
+
+2. **Docker-сеть.** bz2-admin-api и md2gdoc работают в разных Docker-сетях (`bz2-bot_default` и `md2gdoc_default`). Для вызова по Docker DNS (`http://md2gdoc-frontend:80`) контейнеры должны быть в одной сети. Сейчас подключение настроено вручную (`docker network connect`), но при `docker compose up` это сбрасывается.
+
+**Что нужно сделать:**
+
+| # | Задача | Описание |
+|---|--------|----------|
+| 1 | Исправить nginx проксирование | `POST /api/convert` должен корректно проксироваться к бэкенду. Проверить upstream, таймауты, `proxy_pass` для `/api/` |
+| 2 | Общая Docker-сеть | Создать external network `bz2-shared` и подключить оба compose-проекта. Либо использовать `docker-compose` `networks.external` |
+| 3 | Обновить `md2gdoc_url` | После настройки сети — указать правильный адрес: `http://md2gdoc-frontend:80` (внутренний порт) или `http://md2gdoc-backend:8000` (напрямую, без nginx) |
+
+**Вариант с общей Docker-сетью (рекомендуемый):**
+
+```yaml
+# docker-compose.yml в каждом проекте
+networks:
+  bz2-shared:
+    external: true
+
+# Создать один раз на сервере:
+# docker network create bz2-shared
+```
+
+> md2gdoc остаётся универсальным конвертером. Не знает ни про bz2-video-transcribe, ни про bz2-bot. Polling-правило можно удалить после реализации — основной flow через API-вызов из bz2-bot.
 
 ### 4.3 bz2-bot — импорт лонгридов из архива
 
@@ -401,27 +454,40 @@ archive/{year}/{category}/{event_type}/{date}/{folder_name}/
 
 ## 7. План реализации
 
-### Этап 1: Именование файлов (bz2-video-transcribe)
+### Этап 1: Именование файлов (bz2-video-transcribe) ✅
 
 Минимальные изменения, сразу улучшают работу с Obsidian.
 
-- [ ] Обновить `FileSaver` — формирование имён MD-файлов из метаданных
-- [ ] Обновить тесты сохранения
-- [ ] Проверить, что Web UI корректно работает с новыми именами
-- [ ] Обновить документацию (`docs/pipeline/save.md`, `docs/data-formats.md`)
+- [x] Обновить `FileSaver` — формирование имён MD-файлов из метаданных
+- [x] Обновить тесты сохранения
+- [x] Проверить, что Web UI корректно работает с новыми именами
+- [x] Обновить документацию (`docs/pipeline/save.md`, `docs/data-formats.md`)
 
-### Этап 2: Загрузка лонгридов из архива (bz2-bot)
+### Этап 2: Загрузка лонгридов из архива (bz2-bot) ✅
 
 Кнопка "Загрузить из папки" на существующей форме добавления материала. Автозаполнение формы — не замена процесса.
 
-- [ ] Создать сервис работы с архивом (browse папок, парсинг структуры, поиск файлов)
-- [ ] Создать endpoint `GET /api/archive/browse` (навигация по дереву)
-- [ ] Создать endpoint `POST /api/archive/load-from-folder` (конвертация + данные для формы)
-- [ ] Интеграция с md2gdoc API (`POST /api/convert`)
-- [ ] Добавить настройки: базовый путь архива, URL md2gdoc, target folder ID
-- [ ] UI: кнопка "Загрузить из папки" на форме (при типе `topic_longread`)
-- [ ] UI: browse-диалог для выбора папки из дерева архива
-- [ ] Тестирование полного flow (загрузка → автозаполнение → AI Анализ → создание)
+- [x] Создать сервис работы с архивом (browse папок, парсинг структуры, поиск файлов)
+- [x] Создать endpoint `GET /api/archive/browse` (навигация по дереву)
+- [x] Создать endpoint `POST /api/archive/load-from-folder` (конвертация + данные для формы)
+- [x] Интеграция с md2gdoc API (`POST /api/convert`)
+- [x] Добавить настройки: базовый путь архива, URL md2gdoc, target folder ID
+- [x] UI: кнопка "Загрузить из папки" на форме (при типе `topic_longread`)
+- [x] UI: browse-диалог для выбора папки из дерева архива
+- [x] Docker: volume mount архива для контейнера `bz2-admin-api`
+- [ ] Тестирование полного flow (загрузка → автозаполнение → AI Анализ → создание) — **блокирован Этапом 3**
+
+### Этап 3: Доработка md2gdoc и Docker-сеть (md2gdoc)
+
+Устранение проблем, обнаруженных при интеграции. Без этого этапа кнопка "Загрузить из папки" не может конвертировать MD → GDoc.
+
+- [x] Исправить nginx: HTTP/1.1, таймауты, `client_max_body_size 50m`, `proxy_buffering off`
+- [x] Контракт ошибок: `ConvertErrorResponse` с `errorCode`, убран `errorMessage` из `ConvertResponse`
+- [x] Создать общую Docker-сеть `bz2-shared` (идемпотентно в `deploy.sh`)
+- [x] Подключить md2gdoc к `bz2-shared` (`docker-compose.yml`: `networks: [default, bz2-shared]`)
+- [ ] Подключить bz2-bot к `bz2-shared` (добавить `networks.bz2-shared.external: true` в docker-compose bz2-bot) — **выполняется отдельно**
+- [ ] Обновить настройку `md2gdoc_url` в bz2-bot на адрес в общей сети
+- [ ] Тестирование: полный flow из Этапа 2 (browse → конвертация → создание материала)
 
 ---
 
@@ -455,14 +521,14 @@ archive/{year}/{category}/{event_type}/{date}/{folder_name}/
 | Вопрос | Решение | Обоснование |
 |--------|---------|-------------|
 | Пакетный импорт? | Нет | Материалы добавляются нечасто, нужен осмысленный контроль |
-| Доступ к архиву? | Настройка пути в bz2-bot | Аналогично md2gdoc — указать папку с архивом в настройках |
+| Доступ к архиву? | Docker volume mount (read-only) | `bz2-admin-api` → `/mnt/main/work/bz2/video/archive:ro` в docker-compose |
 | Polling-правило md2gdoc? | Удалить вручную после реализации | Основной flow — API-вызов из bz2-bot |
 | Для каких типов автоматизировать? | Только `topic_longread` | `topic_video` требует ручной загрузки на стриминговый сервис |
 | Секция при импорте? | Выбирать вручную | Администратор контролирует размещение |
 
 ## Открытые вопросы
 
-- [ ] Как bz2-bot получит доступ к файловой системе архива — Docker volume или сетевой путь?
+*Нет открытых вопросов.*
 
 ---
 
@@ -473,6 +539,8 @@ archive/{year}/{category}/{event_type}/{date}/{folder_name}/
 | 2026-02-25 | 1.0 | Первоначальная версия |
 | 2026-02-25 | 1.1 | Два типа материалов (topic_longread / topic_video), импорт из архива только для лонгридов, убран пакетный импорт, решённые вопросы |
 | 2026-02-25 | 1.2 | UI: кнопка "Загрузить из папки" вместо отдельной страницы — автозаполнение существующей формы. Backend: browse + load-from-folder вместо scan + import-from-archive. Создание материала через существующий endpoint |
+| 2026-02-25 | 1.3 | Этап 2 реализован (bz2-bot). Добавлен Этап 3 (md2gdoc): исправление nginx 502, общая Docker-сеть `bz2-shared`. Обновлена секция 4.2 с проблемами интеграции. Закрыт вопрос доступа к архиву (Docker volume mount) |
+| 2026-02-25 | 1.4 | Этап 3 реализован (md2gdoc): nginx HTTP/1.1 + таймауты, `ConvertErrorResponse` с `errorCode`, Docker-сеть `bz2-shared` в compose + deploy.sh. Обновлён контракт API в секции 4.2 |
 
 ---
 
