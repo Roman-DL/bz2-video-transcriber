@@ -90,8 +90,8 @@ class ContentType(str, Enum):
 class EventCategory(str, Enum):
     """Category of event for archive structure.
 
-    - regular: weekly schools (ПШ) → archive/{year}/ПШ/{MM.DD}/{Title}/
-    - offsite: events (выездные) → archive/{year}/Выездные/{Event}/{Title}/
+    - regular: weekly schools (ПШ) → archive/{year}/{event_type}/{MM.DD topic (speaker)}/
+    - offsite: events → archive/{year}/{MM event_type}/{topic (speaker)}/
     """
     REGULAR = "regular"
     OFFSITE = "offsite"
@@ -1352,8 +1352,8 @@ class ArchiveItem(CamelCaseModel):
 
     title: str = Field(..., description="Topic title")
     speaker: str = Field(..., description="Speaker name")
-    event_type: str = Field(..., description="Event type code")
-    mid_folder: str = Field(..., description="Date or event folder name")
+    event_type: str = Field(..., description="Event group code")
+    topic_folder: str = Field(..., description="Full topic folder name from disk")
 
 
 class ArchiveResponse(CamelCaseModel):

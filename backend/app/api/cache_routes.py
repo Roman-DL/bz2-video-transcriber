@@ -66,7 +66,7 @@ def resolve_archive_path(video_id: str) -> Path | None:
     archive_dir = settings.archive_dir
 
     # video_id format: YYYY-MM-DD_TYPE-STREAM_title
-    # Archive path: archive/YYYY/MM.DD TYPE.STREAM/Title
+    # Archive path (3-level): archive/YYYY/{event_group}/{topic_folder}/
 
     # Search in archive directory
     for year_dir in archive_dir.iterdir():

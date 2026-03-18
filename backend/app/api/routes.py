@@ -58,13 +58,12 @@ async def list_archive() -> ArchiveResponse:
     """
     List archive folder structure.
 
-    Archive structure (4 levels):
-    - Regular: archive/{year}/{event_type}/{MM.DD}/{topic_folder}/
-    - Offsite: archive/{year}/Выездные/{event_name}/{topic_folder}/
+    Archive structure (3 levels):
+    - Regular: archive/{year}/{event_type}/{date_prefix topic (speaker)}/
+    - Offsite: archive/{year}/{MM event_type}/{topic (speaker)}/
 
     Returns:
-        ArchiveResponse with tree structure: year -> event_folder -> items
-        Each item contains: title, speaker, event_type, mid_folder
+        ArchiveResponse with tree structure: year -> event_group -> items
     """
     settings = get_settings()
     archive_dir = settings.archive_dir
@@ -75,7 +74,7 @@ async def list_archive() -> ArchiveResponse:
     tree: dict[str, dict[str, list[ArchiveItem]]] = {}
     total = 0
 
-    # Scan 4 levels: archive/{year}/{event_type}/{mid_folder}/{topic_folder}/
+    # Scan 3 levels: archive/{year}/{event_group}/{topic_folder}/
     for year_dir in sorted(archive_dir.iterdir(), reverse=True):
         if not year_dir.is_dir() or not year_dir.name.isdigit():
             continue
@@ -83,45 +82,38 @@ async def list_archive() -> ArchiveResponse:
         year = year_dir.name
         tree[year] = {}
 
-        for event_type_dir in sorted(year_dir.iterdir(), reverse=True):
-            if not event_type_dir.is_dir():
+        for event_group_dir in sorted(year_dir.iterdir(), reverse=True):
+            if not event_group_dir.is_dir():
                 continue
 
-            event_type = event_type_dir.name  # "ПШ", "Выездные"
+            event_group = event_group_dir.name  # "ПШ" or "02 ФСТ"
 
-            for mid_dir in sorted(event_type_dir.iterdir(), reverse=True):
-                if not mid_dir.is_dir():
+            tree[year][event_group] = []
+
+            for topic_dir in sorted(event_group_dir.iterdir()):
+                if not topic_dir.is_dir():
                     continue
 
-                mid_folder = mid_dir.name  # "01.22" or "Форум Табтим"
-                # Display key: "01.22 ПШ" or "Форум Табтим"
-                event_folder = f"{mid_folder} {event_type}" if event_type != "Выездные" else mid_folder
-                tree[year][event_folder] = []
+                # Parse topic folder: "title (speaker)" or "08.04 SV. title (speaker)"
+                folder_name = topic_dir.name
+                speaker = ""
+                title = folder_name
 
-                for topic_dir in sorted(mid_dir.iterdir()):
-                    if not topic_dir.is_dir():
-                        continue
+                # Extract speaker from parentheses at the end
+                if "(" in folder_name and folder_name.endswith(")"):
+                    idx = folder_name.rfind("(")
+                    speaker = folder_name[idx + 1 : -1]
+                    title = folder_name[:idx].strip()
 
-                    # Parse topic folder: "[stream] title (speaker)" or "title (speaker)"
-                    folder_name = topic_dir.name
-                    speaker = ""
-                    title = folder_name
-
-                    # Extract speaker from parentheses at the end
-                    if "(" in folder_name and folder_name.endswith(")"):
-                        idx = folder_name.rfind("(")
-                        speaker = folder_name[idx + 1 : -1]
-                        title = folder_name[:idx].strip()
-
-                    tree[year][event_folder].append(
-                        ArchiveItem(
-                            title=title,
-                            speaker=speaker,
-                            event_type=event_type,
-                            mid_folder=mid_folder,
-                        )
+                tree[year][event_group].append(
+                    ArchiveItem(
+                        title=title,
+                        speaker=speaker,
+                        event_type=event_group,
+                        topic_folder=folder_name,
                     )
-                    total += 1
+                )
+                total += 1
 
     return ArchiveResponse(tree=tree, total=total)
 
@@ -129,26 +121,22 @@ async def list_archive() -> ArchiveResponse:
 @router.get("/archive/results")
 async def get_archive_results(
     year: str,
-    event_type: str,
-    mid_folder: str,
+    event_group: str,
     topic_folder: str,
 ) -> PipelineResultsResponse:
     """
     Get pipeline results for archived video.
 
-    Reads pipeline_results.json from the archive folder if it exists.
-
     Args:
         year: Year folder (e.g., "2026")
-        event_type: Event type folder (e.g., "ПШ", "Выездные")
-        mid_folder: Date or event name folder (e.g., "01.22", "Форум Табтим")
-        topic_folder: Topic folder (e.g., "SV Тестовая запись (Тест)")
+        event_group: Event group folder (e.g., "ПШ", "02 ФСТ")
+        topic_folder: Topic folder (e.g., "08.04 НП. Контент (Пепелина Инга)")
 
     Returns:
         PipelineResultsResponse with available flag and data/message
     """
     settings = get_settings()
-    archive_path = settings.archive_dir / year / event_type / mid_folder / topic_folder
+    archive_path = settings.archive_dir / year / event_group / topic_folder
     results_file = archive_path / "pipeline_results.json"
 
     if not results_file.exists():
