@@ -1411,3 +1411,9 @@ class ChangelogResponse(CamelCaseModel):
     """Response for GET /api/changelog."""
 
     versions: list[ChangelogVersion]
+
+
+class StatusResponse(CamelCaseModel):
+    """Generic status response for simple operations."""
+
+    status: str = Field(default="ok", description="Operation status")

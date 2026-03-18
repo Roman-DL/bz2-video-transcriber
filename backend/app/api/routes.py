@@ -18,6 +18,7 @@ from app.models.schemas import (
     ArchiveResponse,
     PipelineResults,
     PipelineResultsResponse,
+    StatusResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -131,14 +132,14 @@ def _resolve_archive_path(
     """Resolve and validate archive path, preventing path traversal."""
     target = (archive_dir / year / event_group / topic_folder).resolve()
     archive_resolved = archive_dir.resolve()
-    if not str(target).startswith(str(archive_resolved)):
+    if not target.is_relative_to(archive_resolved):
         raise HTTPException(status_code=400, detail="Invalid path")
     if not target.is_dir():
         raise HTTPException(status_code=404, detail="Folder not found")
     return target
 
 
-@router.put("/archive/published")
+@router.put("/archive/published", response_model=StatusResponse)
 async def set_published(year: str, event_group: str, topic_folder: str):
     """Mark archive material as published to knowledge base."""
     settings = get_settings()
@@ -146,10 +147,10 @@ async def set_published(year: str, event_group: str, topic_folder: str):
         Path(settings.archive_dir), year, event_group, topic_folder
     )
     (target / ".published").touch()
-    return {"status": "ok"}
+    return StatusResponse()
 
 
-@router.delete("/archive/published")
+@router.delete("/archive/published", response_model=StatusResponse)
 async def unset_published(year: str, event_group: str, topic_folder: str):
     """Remove published marker from archive material."""
     settings = get_settings()
@@ -159,7 +160,7 @@ async def unset_published(year: str, event_group: str, topic_folder: str):
     marker = target / ".published"
     if marker.exists():
         marker.unlink()
-    return {"status": "ok"}
+    return StatusResponse()
 
 
 @router.get("/archive/results")
