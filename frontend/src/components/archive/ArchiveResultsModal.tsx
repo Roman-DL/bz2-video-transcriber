@@ -108,8 +108,7 @@ export function ArchiveResultsModal({
 
   const { data, isLoading, isError } = useArchiveResults(
     item?.year ?? null,
-    item?.eventType ?? null,
-    item?.midFolder ?? null,
+    item?.eventGroup ?? null,
     item?.topicFolder ?? null
   );
 
