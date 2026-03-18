@@ -13,7 +13,7 @@ import { LongreadView } from '@/components/results/LongreadView';
 import { SummaryView } from '@/components/results/SummaryView';
 import { SlidesResultView } from '@/components/results/SlidesResultView';
 import { StatisticsView } from '@/components/results/StatisticsView';
-import { useArchiveResults } from '@/api/hooks/useArchive';
+import { useArchiveResults, useSetPublished, useUnsetPublished } from '@/api/hooks/useArchive';
 import { formatTime } from '@/utils/formatUtils';
 import {
   AlertCircle,
@@ -106,6 +106,9 @@ export function ArchiveResultsModal({
   const [showCleanedDiff, setShowCleanedDiff] = useState(false);
   const [showLongreadDiff, setShowLongreadDiff] = useState(false);
 
+  const setPublished = useSetPublished();
+  const unsetPublished = useUnsetPublished();
+
   const { data, isLoading, isError } = useArchiveResults(
     item?.year ?? null,
     item?.eventGroup ?? null,
@@ -141,6 +144,40 @@ export function ArchiveResultsModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="2xl">
+      {item && (
+        item.published ? (
+          <button
+            onClick={() =>
+              unsetPublished.mutate({
+                year: item.year,
+                eventGroup: item.eventGroup,
+                topicFolder: item.topicFolder,
+              })
+            }
+            disabled={unsetPublished.isPending}
+            className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-700 transition-colors mb-3"
+            title="Снять метку загрузки в БЗ"
+          >
+            {unsetPublished.isPending ? "..." : "\u2713 В БЗ"}
+          </button>
+        ) : (
+          <button
+            onClick={() =>
+              setPublished.mutate({
+                year: item.year,
+                eventGroup: item.eventGroup,
+                topicFolder: item.topicFolder,
+              })
+            }
+            disabled={setPublished.isPending}
+            className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-500 hover:bg-green-100 hover:text-green-700 transition-colors mb-3"
+            title="Отметить как загружен в БЗ"
+          >
+            {setPublished.isPending ? "..." : "Отметить в БЗ"}
+          </button>
+        )
+      )}
+
       {isLoading && (
         <div className="flex items-center justify-center py-12">
           <Spinner />
