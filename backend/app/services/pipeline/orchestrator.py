@@ -24,6 +24,7 @@ from app.models.schemas import (
     SlidesExtractionResult,
     Story,
     Summary,
+    TokensUsed,
     TranscriptChunks,
     TranscriptSegment,
     VideoMetadata,
@@ -600,6 +601,20 @@ class PipelineOrchestrator:
         callback: ProgressCallback | None,
     ) -> CleanedTranscript:
         """Execute cleaning stage with progress ticker."""
+        # Foreign transcripts: skip glossary cleaning, pass-through original text
+        if metadata.language == "foreign":
+            logger.info("skip_clean_foreign", language=metadata.language)
+            result = CleanedTranscript(
+                text=raw_transcript.text,
+                tokens_used=TokensUsed(input=0, output=0),
+            )
+            if callback:
+                await self.progress_manager.update_progress(
+                    callback, ProcessingStatus.CLEANING, 100,
+                    "Skipped: foreign transcript (pass-through)",
+                )
+            return result
+
         input_chars = len(raw_transcript.full_text)
         estimate = self.estimator.estimate_clean(input_chars)
 
