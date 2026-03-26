@@ -69,7 +69,7 @@ paths:
 - `VideoMetadata.language`: `"ru"` (default) или `"foreign"`
 - Clean stage: pass-through для `language == "foreign"` (глоссарий не применим)
 - `build_language_context(language)` → `list[str]` для unpacking в prompt_parts (аналог `build_speaker_context`)
-- Инжектируется во ВСЕ prompt builder методы Longread и Story генераторов
+- Инжектируется во ВСЕ prompt builder методы Longread, Summary и Story генераторов
 - Перевод + коррекция ошибок происходят неявно при генерации LLM
 
 ## Longread — Auto-selection (v0.67+)
