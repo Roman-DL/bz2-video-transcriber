@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.83.0 (2026-03-26)
+
+### Feat
+
+- инжекция language_context в промпт Story генератора
+- инжекция language_context в промпты Longread генератора
+- пропуск Clean stage для иностранных транскриптов (pass-through)
+- определение языка транскрипта при парсинге MD файла
+- поле language в VideoMetadata для маршрутизации pipeline
+- утилита detect_language и build_language_context для иностранных транскриптов
+
 ## v0.82.0 (2026-03-18)
 
 ### Feat
