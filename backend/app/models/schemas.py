@@ -132,6 +132,7 @@ class VideoMetadata(CamelCaseModel):
     event_category: EventCategory = EventCategory.REGULAR
     event_name: str = ""  # Display name: "ПШ.SV", "Форум TABTeam", etc.
     speaker_info: SpeakerInfo | None = None  # v0.64+: from MD transcript
+    language: str = "ru"  # v0.83+: "ru" or "foreign", for pipeline routing
 
     @computed_field
     @property
