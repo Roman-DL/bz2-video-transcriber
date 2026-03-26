@@ -12,15 +12,17 @@
 
 Auto-pipeline (`orchestrator.process()`) вызывает сервисы напрямую, минуя stage абстракцию (`BaseStage`). Stage абстракция существует и используется в step-by-step режиме, но orchestrator её игнорирует.
 
-**Текущая ситуация:**
-- `_do_clean()` вызывает `cleaner.clean()` напрямую
-- `_do_educational_pipeline()` создаёт `LongreadGenerator` / `SummaryGenerator` и вызывает `.generate()` напрямую
-- `_do_leadership_pipeline()` аналогично для `StoryGenerator`
-- Stages (`CleanStage`, `LongreadStage`, `StoryStage`, etc.) используются только в step-by-step API endpoints
+**Текущая ситуация (три пути выполнения Clean):**
+- `CleanStage.execute()` — stage абстракция, имеет pass-through для foreign. **Не используется ничем**
+- `orchestrator._do_clean()` — метод для `process()` (full auto). **`process()` не вызывается** — фронтенд использует step endpoints
+- `orchestrator.clean()` (строка 335) — step-by-step API endpoint. **Единственный реальный путь** — вызывает `cleaner.clean()` напрямую без проверки language
+
+**Критично:** Фронтенд даже в auto-режиме вызывает step endpoints последовательно (через `usePipelineProcessor` hook), а не `orchestrator.process()`. Поэтому `_do_clean()` — мёртвый код.
 
 **Почему это проблема:**
-- Логика дублируется: Clean pass-through для foreign transcripts написан и в `clean_stage.py`, и в `orchestrator.py`
-- При добавлении новой логики в stage (условный пропуск, валидация, контекст) нужно менять два места
+- Clean pass-through для foreign transcripts написан в `clean_stage.py` и `_do_clean()`, но **не в `orchestrator.clean()`** — единственном реальном пути
+- При добавлении логики в stage нужно менять ТРИ места (stage, _do_clean, clean)
+- `_do_clean()` и `process()` — мёртвый код, создаёт ложное впечатление работоспособности
 - Нарушается ADR-001: "Фаза 1 мигрирует orchestrator на использование Stage абстракции" — так и не выполнена
 - ADR-001 обещает "новые шаги добавляются без изменения orchestrator" — сейчас это неправда
 
