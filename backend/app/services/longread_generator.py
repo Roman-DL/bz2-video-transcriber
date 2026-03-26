@@ -61,8 +61,9 @@ DEFAULT_MAX_PARALLEL_SECTIONS = 2
 DEFAULT_LARGE_TEXT_THRESHOLD = 10000  # Extract outline for texts > 10K chars
 DEFAULT_CONTEXT_TOKENS = 8192
 
-# Context budget: Russian text ~2.0 tokens/char (calibrated for Claude tokenizer)
-TOKENS_PER_CHAR = 2.0
+# Context budget: Russian text ~2.0 tokens/char, English ~1.0 (calibrated for Claude tokenizer)
+TOKENS_PER_CHAR_RU = 2.0
+TOKENS_PER_CHAR_FOREIGN = 1.0
 # Reserve for system prompt, instructions, template (~15K tokens)
 PROMPT_OVERHEAD_TOKENS = 15_000
 # Reserve for output (~20K tokens, SINGLE_PASS_MAX_TOKENS=16K + margin)
@@ -182,7 +183,7 @@ class LongreadGenerator:
         input_chars = len(full_text)
 
         # Auto-select generation path
-        if self._fits_in_context(full_text):
+        if self._fits_in_context(full_text, metadata.language):
             logger.info(
                 f"Single-pass: {input_chars} chars fits in "
                 f"{self.context_tokens} context tokens"
@@ -219,9 +220,10 @@ class LongreadGenerator:
     # Strategy selection
     # -------------------------------------------------------------------------
 
-    def _fits_in_context(self, text: str) -> bool:
+    def _fits_in_context(self, text: str, language: str = "ru") -> bool:
         """Check if text fits in model's context window for single-pass."""
-        estimated_tokens = len(text) * TOKENS_PER_CHAR
+        tokens_per_char = TOKENS_PER_CHAR_FOREIGN if language == "foreign" else TOKENS_PER_CHAR_RU
+        estimated_tokens = len(text) * tokens_per_char
         available = (
             self.context_tokens * CONTEXT_UTILIZATION
             - PROMPT_OVERHEAD_TOKENS
@@ -494,7 +496,9 @@ class LongreadGenerator:
         )
 
         response, usage = await self.ai_client.generate(
-            prompt, model=self.settings.longread_model
+            prompt,
+            model=self.settings.longread_model,
+            num_predict=SINGLE_PASS_MAX_TOKENS,
         )
         async with self._tokens_lock:
             self._total_input_tokens += usage.input_tokens
@@ -583,7 +587,9 @@ class LongreadGenerator:
         prompt = self._build_frame_prompt(sections_summary, metadata, date_formatted)
 
         response, usage = await self.ai_client.generate(
-            prompt, model=self.settings.longread_model
+            prompt,
+            model=self.settings.longread_model,
+            num_predict=SINGLE_PASS_MAX_TOKENS,
         )
         async with self._tokens_lock:
             self._total_input_tokens += usage.input_tokens
