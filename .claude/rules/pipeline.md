@@ -64,6 +64,14 @@ paths:
 - `SpeakerInfo` в `VideoMetadata.speaker_info` — парсится из текста MD
 - `speaker_utils.parse_speakers()` — обнаружение спикеров по паттерну `Фамилия Имя` / `SpeakerN`
 
+## Foreign Transcripts (v0.83+)
+- Язык определяется в parse step по доле кириллицы (`detect_language()`)
+- `VideoMetadata.language`: `"ru"` (default) или `"foreign"`
+- Clean stage: pass-through для `language == "foreign"` (глоссарий не применим)
+- `build_language_context(language)` → `list[str]` для unpacking в prompt_parts (аналог `build_speaker_context`)
+- Инжектируется во ВСЕ prompt builder методы Longread и Story генераторов
+- Перевод + коррекция ошибок происходят неявно при генерации LLM
+
 ## Longread — Auto-selection (v0.67+)
 - `LongreadGenerator` авто-выбирает путь по `context_tokens` модели vs размер текста
 - **Single-pass** (1 LLM вызов) — когда текст помещается в контекст (Claude 200K)

@@ -91,6 +91,7 @@ Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longr
 - **Chunk** — детерминистический H2 парсинг + опциональная генерация описаний через Claude (v0.62+)
 - **Save** — чистое сохранение файлов, без LLM (v0.62+)
 - **Slides** — опционально, между clean и longread/story
+- **Foreign transcripts** (v0.83+) — автодетекция языка в Parse, Clean пропускается (pass-through), перевод на русский встроен в Longread/Story промпты
 
 > Детали: [pipeline/](pipeline/) (14 документов) | [pipeline/stages.md](pipeline/stages.md) — stage абстракция
 
