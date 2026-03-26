@@ -5,7 +5,11 @@ Applies terminology corrections and improves transcript readability.
 """
 
 from app.config import Settings
-from app.models.schemas import CleanedTranscript, ProcessingStatus, RawTranscript, VideoMetadata
+import logging
+
+from app.models.schemas import CleanedTranscript, ProcessingStatus, RawTranscript, TokensUsed, VideoMetadata
+
+logger = logging.getLogger(__name__)
 from app.services.ai_clients import BaseAIClient
 from app.services.cleaner import TranscriptCleaner
 from app.services.stages.base import BaseStage, StageContext, StageError
@@ -58,6 +62,14 @@ class CleanStage(BaseStage):
 
         metadata: VideoMetadata = context.get_result("parse")
         raw_transcript, _ = context.get_result("transcribe")
+
+        # Foreign transcripts: skip glossary cleaning, pass-through original text
+        if metadata.language == "foreign":
+            logger.info("skip_clean_foreign", language=metadata.language)
+            return CleanedTranscript(
+                text=raw_transcript.text,
+                tokens_used=TokensUsed(input=0, output=0),
+            )
 
         try:
             return await self.cleaner.clean(raw_transcript, metadata)
