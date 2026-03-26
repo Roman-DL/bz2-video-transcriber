@@ -15,7 +15,7 @@ Usage:
 
     # Get default registry with all stages
     registry = get_registry()
-    create_default_stages(ai_client, settings)
+    create_default_stages(settings)
 
     # Build and run pipeline
     stages = registry.build_pipeline(["parse", "transcribe", "clean", ...])
@@ -60,6 +60,7 @@ from app.services.stages.longread_stage import LongreadStage
 from app.services.stages.summarize_stage import SummarizeStage
 from app.services.stages.story_stage import StoryStage
 from app.services.stages.save_stage import SaveStage
+from app.services.stages.slides_stage import SlidesStage
 
 
 __all__ = [
@@ -79,42 +80,45 @@ __all__ = [
     "SummarizeStage",
     "StoryStage",
     "SaveStage",
+    "SlidesStage",
     # Factory function
     "create_default_stages",
 ]
 
 
 def create_default_stages(
-    ai_client,
     settings,
+    config_resolver=None,
+    processing_strategy=None,
     registry: StageRegistry | None = None,
 ) -> StageRegistry:
     """Create and register all default pipeline stages.
 
     Args:
-        ai_client: AI client for LLM/Whisper calls
         settings: Application settings
+        config_resolver: ConfigResolver for model overrides (created if None)
+        processing_strategy: ProcessingStrategy for AI client creation (created if None)
         registry: Optional registry to use (creates new if None)
 
     Returns:
         Registry with all stages registered
 
     Example:
-        async with OllamaClient(settings) as ai_client:
-            registry = create_default_stages(ai_client, settings)
-            stages = registry.build_pipeline(["parse", "transcribe", ...])
+        registry = create_default_stages(settings)
+        stages = registry.build_pipeline(["parse", "transcribe", ...])
     """
     if registry is None:
         registry = StageRegistry()
 
     # Register stages in dependency order
     registry.register(ParseStage(settings))
-    registry.register(TranscribeStage(ai_client, settings))
-    registry.register(CleanStage(ai_client, settings))
-    registry.register(ChunkStage(settings))  # v0.26+: no AI client needed
-    registry.register(LongreadStage(ai_client, settings))
-    registry.register(SummarizeStage(ai_client, settings))
-    registry.register(StoryStage(ai_client, settings))
+    registry.register(TranscribeStage(settings))
+    registry.register(CleanStage(settings, config_resolver, processing_strategy))
+    registry.register(SlidesStage(settings, config_resolver, processing_strategy))
+    registry.register(ChunkStage(settings))
+    registry.register(LongreadStage(settings, config_resolver, processing_strategy))
+    registry.register(SummarizeStage(settings, config_resolver, processing_strategy))
+    registry.register(StoryStage(settings, config_resolver, processing_strategy))
     registry.register(SaveStage(settings))
 
     return registry
@@ -127,6 +131,7 @@ DEFAULT_PIPELINE_STAGES = [
     "parse",
     "transcribe",
     "clean",
+    "slides",      # v0.84+: Optional, skipped when no slides
     "longread",    # Skipped for LEADERSHIP
     "summarize",   # Skipped for LEADERSHIP
     "story",       # Skipped for EDUCATIONAL

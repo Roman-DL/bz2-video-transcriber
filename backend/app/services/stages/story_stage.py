@@ -6,7 +6,6 @@ Only executes for content_type=LEADERSHIP, skipped for EDUCATIONAL.
 """
 
 import logging
-from typing import Any
 
 from app.config import Settings
 from app.models.schemas import (
@@ -15,7 +14,6 @@ from app.models.schemas import (
     Story,
     VideoMetadata,
 )
-from app.services.ai_clients import BaseAIClient
 from app.services.stages.base import BaseStage, StageContext, StageError
 from app.services.story_generator import StoryGenerator
 
@@ -37,7 +35,7 @@ class StoryStage(BaseStage):
         - content_type != LEADERSHIP
 
     Example:
-        stage = StoryStage(ai_client, settings)
+        stage = StoryStage(settings, config_resolver, processing_strategy)
         context = context.with_result("clean", cleaned_transcript)
         context = context.with_result("parse", metadata)
 
@@ -49,16 +47,18 @@ class StoryStage(BaseStage):
     depends_on = ["clean", "parse"]
     optional = False
 
-    def __init__(self, ai_client: BaseAIClient, settings: Settings):
+    def __init__(self, settings: Settings, config_resolver=None, processing_strategy=None):
         """
         Initialize story stage.
 
         Args:
-            ai_client: AI client for LLM calls
             settings: Application settings
+            config_resolver: ConfigResolver for model overrides
+            processing_strategy: ProcessingStrategy for AI client creation
         """
-        self.generator = StoryGenerator(ai_client, settings)
         self.settings = settings
+        self.config_resolver = config_resolver
+        self.processing_strategy = processing_strategy
 
     def should_skip(self, context: StageContext) -> bool:
         """
@@ -100,10 +100,22 @@ class StoryStage(BaseStage):
                 "Missing required results: clean and parse",
             )
 
+        # Get slides text if available
+        slides_text = None
+        if context.has_result("slides"):
+            slides_result = context.get_result("slides")
+            slides_text = slides_result.extracted_text if slides_result else None
+
         logger.info(f"Generating story for: {metadata.speaker}")
 
         try:
-            story = await self.generator.generate(cleaned, metadata)
+            model = context.get_metadata("model_overrides", {}).get("story")
+            prompt_overrides = context.get_metadata("prompt_overrides", {}).get("story")
+            settings = self.config_resolver.with_model(model, "summarizer") if self.config_resolver else self.settings
+            actual_model = model or settings.summarizer_model
+            async with self.processing_strategy.create_client(actual_model) as ai_client:
+                generator = StoryGenerator(ai_client, settings, prompt_overrides)
+                story = await generator.generate(cleaned, metadata, slides_text)
 
             logger.info(
                 f"Story generated: {story.total_blocks} blocks, "

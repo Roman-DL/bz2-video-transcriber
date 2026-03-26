@@ -3,6 +3,8 @@ Parse stage for media filename parsing.
 
 Extracts metadata from media filename: date, event type, stream, title, speaker.
 Supports both video and audio files.
+
+v0.84+: MD file enrichment (duration, speaker_info, language) consolidated here.
 """
 
 from pathlib import Path
@@ -11,11 +13,21 @@ from app.config import Settings
 from app.models.schemas import ProcessingStatus, VideoMetadata
 from app.services.parser import FilenameParseError, parse_filename
 from app.services.stages.base import BaseStage, StageContext, StageError
-from app.utils import estimate_duration_from_size, get_media_duration
+from app.utils import (
+    detect_language,
+    estimate_duration_from_size,
+    estimate_duration_from_text,
+    get_media_duration,
+    is_transcript_file,
+)
+from app.utils.speaker_utils import parse_speakers
 
 
 class ParseStage(BaseStage):
     """Parse video filename to extract metadata.
+
+    v0.84+: Consolidates MD file enrichment (duration, speaker_info, language)
+    that was previously duplicated in orchestrator.process() and step_routes.py.
 
     Input (from context.metadata):
         - video_path: Path to video file
@@ -66,11 +78,16 @@ class ParseStage(BaseStage):
         except FilenameParseError as e:
             raise StageError(self.name, str(e), e)
 
-        # Get media duration
-        metadata.duration_seconds = get_media_duration(video_path)
-        if metadata.duration_seconds is None:
-            # Fallback: estimate from file size (different rates for audio/video)
-            metadata.duration_seconds = estimate_duration_from_size(video_path)
+        # v0.84+: Enrichment consolidated from orchestrator/step_routes
+        if is_transcript_file(video_path):
+            text = video_path.read_text(encoding="utf-8")
+            metadata.duration_seconds = estimate_duration_from_text(text)
+            metadata.speaker_info = parse_speakers(text)
+            metadata.language = detect_language(text)
+        else:
+            metadata.duration_seconds = get_media_duration(video_path)
+            if metadata.duration_seconds is None:
+                metadata.duration_seconds = estimate_duration_from_size(video_path)
 
         return metadata
 

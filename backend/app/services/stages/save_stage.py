@@ -15,6 +15,7 @@ from app.models.schemas import (
     ProcessingStatus,
     RawTranscript,
     SaveResult,
+    SlidesExtractionResult,
     Story,
     Summary,
     TranscriptChunks,
@@ -79,6 +80,11 @@ class SaveStage(BaseStage):
         cleaned: CleanedTranscript = context.get_result("clean")
         chunks, _, _ = context.get_result("chunk")
 
+        # Get slides extraction result if available
+        slides_extraction: SlidesExtractionResult | None = None
+        if context.has_result("slides"):
+            slides_extraction = context.get_result("slides")
+
         try:
             if metadata.content_type == ContentType.LEADERSHIP:
                 # Leadership: story instead of longread + summary
@@ -90,6 +96,7 @@ class SaveStage(BaseStage):
                     chunks,
                     story,
                     audio_path,
+                    slides_extraction,
                 )
             else:
                 # Educational: longread + summary
@@ -103,6 +110,7 @@ class SaveStage(BaseStage):
                     longread,
                     summary,
                     audio_path,
+                    slides_extraction,
                 )
         except Exception as e:
             raise StageError(self.name, f"Save failed: {e}", e)

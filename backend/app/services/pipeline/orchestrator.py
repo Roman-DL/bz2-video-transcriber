@@ -3,9 +3,10 @@ Pipeline orchestrator for video processing.
 
 Coordinates all pipeline stages from parsing to saving.
 Supports both full pipeline execution and step-by-step mode for testing.
+
+v0.84+: Uses BaseStage.execute() instead of direct service calls (ADR-001 Phase 1).
 """
 
-import asyncio
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -14,7 +15,6 @@ from app.config import Settings, get_settings
 from app.services.progress_estimator import ProgressEstimator
 from app.models.schemas import (
     CleanedTranscript,
-    ContentType,
     Longread,
     ProcessingResult,
     ProcessingStatus,
@@ -24,30 +24,23 @@ from app.models.schemas import (
     SlidesExtractionResult,
     Story,
     Summary,
-    TokensUsed,
     TranscriptChunks,
-    TranscriptSegment,
     VideoMetadata,
-    VideoSummary,
 )
-from app.services.ai_clients import OllamaClient, WhisperClient
-from app.services.cleaner import TranscriptCleaner
-from app.services.longread_generator import LongreadGenerator
-from app.services.story_generator import StoryGenerator
-from app.services.summary_generator import SummaryGenerator
-from app.services.parser import FilenameParseError, parse_filename
-from app.services.saver import FileSaver
-from app.services.summarizer import VideoSummarizer
-from app.services.transcriber import WhisperTranscriber
-from app.utils import (
-    detect_language,
-    estimate_duration_from_size,
-    estimate_duration_from_text,
-    get_media_duration,
-    is_transcript_file,
+from app.services.stages import (
+    StageContext,
+    CleanStage,
+    ChunkStage,
+    LongreadStage,
+    ParseStage,
+    SaveStage,
+    SlidesStage,
+    SummarizeStage,
+    StoryStage,
+    TranscribeStage,
 )
+from app.services.stages.base import BaseStage, StageError
 from app.utils.h2_chunker import chunk_by_h2
-from app.utils.speaker_utils import parse_speakers
 
 from .config_resolver import ConfigResolver
 from .processing_strategy import ProcessingStrategy
@@ -82,6 +75,8 @@ class PipelineOrchestrator:
     """
     Pipeline orchestrator for video processing.
 
+    v0.84+: All execution paths go through BaseStage.execute().
+
     Supports two modes:
     1. Full pipeline: process() runs all stages automatically
     2. Step-by-step: individual methods for testing prompts/glossaries
@@ -92,12 +87,9 @@ class PipelineOrchestrator:
 
     Example (step-by-step):
         orchestrator = PipelineOrchestrator()
-        metadata = orchestrator.parse(Path("inbox/video.mp4"))
+        metadata = await orchestrator.parse(Path("inbox/video.mp4"))
         raw = await orchestrator.transcribe(Path("inbox/video.mp4"))
         cleaned = await orchestrator.clean(raw, metadata)
-        chunks = await orchestrator.chunk(cleaned, metadata)
-        summary = await orchestrator.summarize(cleaned, metadata, "summarizer_v2")
-        files = await orchestrator.save(metadata, raw, chunks, summary)
     """
 
     def __init__(self, settings: Settings | None = None):
@@ -123,14 +115,9 @@ class PipelineOrchestrator:
         progress_callback: ProgressCallback | None = None,
     ) -> ProcessingResult:
         """
-        Process video through complete pipeline.
+        Process video through complete pipeline using stage loop.
 
-        Stages:
-        1. Parse filename -> VideoMetadata
-        2. Transcribe video -> RawTranscript
-        3. Clean transcript -> CleanedTranscript
-        4. Chunk + Summarize (parallel) -> TranscriptChunks, VideoSummary
-        5. Save all results -> files in archive
+        v0.84+: Uses BaseStage.execute() for all stages (ADR-001 Phase 1).
 
         Args:
             video_path: Path to video file
@@ -149,114 +136,115 @@ class PipelineOrchestrator:
 
         started_at = datetime.now()
 
-        # Stage 1: Parse filename
-        await self.progress_manager.update_progress(
-            progress_callback,
-            ProcessingStatus.PARSING,
-            0,
-            f"Parsing: {video_path.name}",
-        )
+        stages = self._build_pipeline()
+        context = StageContext(metadata={"video_path": str(video_path)})
 
-        try:
-            metadata = parse_filename(video_path.name, video_path)
-        except FilenameParseError as e:
-            raise PipelineError(ProcessingStatus.PARSING, str(e), e)
-
-        # Get duration for progress estimation
-        # v0.64+: MD transcripts — duration from text word count
-        if is_transcript_file(video_path):
-            text = video_path.read_text(encoding="utf-8")
-            metadata.duration_seconds = estimate_duration_from_text(text)
-            metadata.speaker_info = parse_speakers(text)
-            metadata.language = detect_language(text)
-        else:
-            metadata.duration_seconds = get_media_duration(video_path)
-            if metadata.duration_seconds is None:
-                # Fallback: estimate from file size (different rates for audio/video)
-                metadata.duration_seconds = estimate_duration_from_size(video_path)
-                logger.info(
-                    f"Using estimated duration: {metadata.duration_seconds:.0f}s "
-                    f"(from file size {video_path.stat().st_size / 1024 / 1024:.1f}MB)"
-                )
-
-        await self.progress_manager.update_progress(
-            progress_callback,
-            ProcessingStatus.PARSING,
-            100,
-            f"Parsed: {metadata.video_id} ({metadata.duration_seconds:.0f}s)",
-        )
-
-        # Stage 2: Transcribe
-        # v0.64+: MD files load text directly, media files use Whisper
-        if is_transcript_file(video_path):
-            raw_transcript = self._load_md_transcript(video_path)
-            audio_path = None
-        else:
-            async with WhisperClient.from_settings(self.settings) as whisper_client:
-                transcriber = WhisperTranscriber(whisper_client, self.settings)
-
-                raw_transcript, audio_path = await self._do_transcribe(
-                    transcriber, video_path, metadata.duration_seconds, progress_callback
-                )
-
-        # Stages 3-6: Require LLM client (OllamaClient for local models)
-        async with OllamaClient.from_settings(self.settings) as ai_client:
-            # Initialize LLM services
-            cleaner = TranscriptCleaner(ai_client, self.settings)
-            longread_gen = LongreadGenerator(ai_client, self.settings)
-            summary_gen = SummaryGenerator(ai_client, self.settings)
-            story_gen = StoryGenerator(ai_client, self.settings)
-            saver = FileSaver(self.settings)
-
-            # Stage 3: Clean
-            cleaned_transcript = await self._do_clean(
-                cleaner, raw_transcript, metadata, progress_callback
-            )
-
-            # Stage 4-6: Content-type specific pipeline
-            # v0.25+: New order - Longread/Story first, then deterministic chunking
-            if metadata.content_type == ContentType.LEADERSHIP:
-                # Leadership: Story -> Chunk (deterministic from story markdown)
-                chunks, story = await self._do_leadership_pipeline(
-                    story_gen,
-                    cleaned_transcript,
-                    metadata,
-                    progress_callback,
-                )
-                # Stage 7: Save leadership content
-                files_created = await self._do_save_leadership(
-                    saver,
-                    metadata,
-                    raw_transcript,
-                    cleaned_transcript,
-                    chunks,
-                    story,
-                    audio_path,
-                    progress_callback,
-                )
-            else:
-                # Educational: Longread -> Summary -> Chunk (deterministic from longread markdown)
-                chunks, longread, summary = await self._do_educational_pipeline(
-                    longread_gen,
-                    summary_gen,
-                    cleaned_transcript,
-                    metadata,
-                    progress_callback,
-                )
-                # Stage 7: Save educational content
-                files_created = await self._do_save_educational(
-                    saver,
-                    metadata,
-                    raw_transcript,
-                    cleaned_transcript,
-                    chunks,
-                    longread,
-                    summary,
-                    audio_path,
-                    progress_callback,
-                )
+        for stage in stages:
+            if stage.should_skip(context):
+                logger.info(f"Skipping stage: {stage.name}")
+                continue
+            result = await self._execute_with_progress(stage, context, progress_callback)
+            context = context.with_result(stage.name, result)
 
         processing_time = (datetime.now() - started_at).total_seconds()
+
+        return self._build_processing_result(context, processing_time)
+
+    def _build_pipeline(self) -> list[BaseStage]:
+        """Build ordered list of pipeline stages."""
+        return [
+            ParseStage(self.settings),
+            TranscribeStage(self.settings),
+            CleanStage(self.settings, self.config_resolver, self.processing_strategy),
+            SlidesStage(self.settings, self.config_resolver, self.processing_strategy),
+            LongreadStage(self.settings, self.config_resolver, self.processing_strategy),
+            SummarizeStage(self.settings, self.config_resolver, self.processing_strategy),
+            StoryStage(self.settings, self.config_resolver, self.processing_strategy),
+            ChunkStage(self.settings),
+            SaveStage(self.settings),
+        ]
+
+    async def _execute_with_progress(
+        self,
+        stage: BaseStage,
+        context: StageContext,
+        callback: ProgressCallback | None,
+    ):
+        """Execute a stage with progress ticker."""
+        status = stage.status
+        if not status:
+            # No progress tracking for this stage
+            try:
+                return await stage.execute(context)
+            except StageError as e:
+                raise PipelineError(
+                    ProcessingStatus.FAILED, e.message, e.cause
+                )
+
+        # Start progress ticker
+        ticker = None
+        if callback:
+            estimated = self._estimate_stage_time(stage, context)
+            ticker = await self.estimator.start_ticker(
+                stage=status,
+                estimated_seconds=estimated,
+                message=f"Processing: {stage.name}",
+                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
+            )
+
+        try:
+            result = await stage.execute(context)
+        except StageError as e:
+            if ticker:
+                ticker.cancel()
+            raise PipelineError(status, e.message, e.cause)
+        except Exception as e:
+            if ticker:
+                ticker.cancel()
+            raise PipelineError(status, f"{stage.name} failed: {e}", e)
+
+        # Stop ticker
+        if callback and ticker:
+            await self.estimator.stop_ticker(
+                ticker,
+                status,
+                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
+                f"Completed: {stage.name}",
+            )
+
+        return result
+
+    def _estimate_stage_time(self, stage: BaseStage, context: StageContext) -> float:
+        """Estimate execution time for a stage."""
+        if stage.name == "transcribe" and context.has_result("parse"):
+            metadata = context.get_result("parse")
+            return self.estimator.estimate_transcribe(metadata.duration_seconds).estimated_seconds
+
+        if stage.name == "clean" and context.has_result("transcribe"):
+            raw_transcript, _ = context.get_result("transcribe")
+            return self.estimator.estimate_clean(len(raw_transcript.full_text)).estimated_seconds
+
+        if stage.name in ("longread", "story") and context.has_result("clean"):
+            cleaned = context.get_result("clean")
+            return self.estimator.estimate_longread(len(cleaned.text)).estimated_seconds
+
+        if stage.name == "summarize" and context.has_result("clean"):
+            cleaned = context.get_result("clean")
+            return self.estimator.estimate_summarize(len(cleaned.text)).estimated_seconds
+
+        if stage.name == "save":
+            return self.estimator.get_fixed_stage_time("save")
+
+        return stage.estimate_time(0)
+
+    def _build_processing_result(
+        self, context: StageContext, processing_time: float
+    ) -> ProcessingResult:
+        """Build ProcessingResult from completed context."""
+        metadata: VideoMetadata = context.get_result("parse")
+        raw_transcript: RawTranscript = context.get_result("transcribe")[0]
+        chunks: TranscriptChunks = context.get_result("chunk")[0]
+        save_result: SaveResult = context.get_result("save")
 
         logger.info(
             f"Pipeline complete: {metadata.video_id}, "
@@ -268,34 +256,35 @@ class PipelineOrchestrator:
             archive_path=metadata.archive_path,
             chunks_count=chunks.total_chunks,
             duration_seconds=raw_transcript.duration_seconds,
-            files_created=files_created,
+            files_created=save_result.files,
         )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Step-by-Step Mode (for testing prompts/glossaries)
     # ═══════════════════════════════════════════════════════════════════════════
 
-    def parse(self, video_path: Path) -> VideoMetadata:
+    async def parse(self, video_path: Path) -> VideoMetadata:
         """
-        Parse video filename.
+        Parse video filename and enrich metadata.
+
+        v0.84+: Delegates to ParseStage (includes MD enrichment).
 
         Args:
             video_path: Path to video file
 
         Returns:
             VideoMetadata with parsed information
-
-        Raises:
-            FilenameParseError: If filename doesn't match pattern
         """
         video_path = Path(video_path)
-        return parse_filename(video_path.name, video_path)
+        context = StageContext(metadata={"video_path": str(video_path)})
+        stage = ParseStage(self.settings)
+        return await stage.execute(context)
 
     async def transcribe(self, video_path: Path) -> tuple[RawTranscript, Path | None]:
         """
         Transcribe video via Whisper API, or load MD transcript.
 
-        v0.64+: For .md files, loads text directly instead of calling Whisper.
+        v0.84+: Delegates to TranscribeStage.
 
         Args:
             video_path: Path to video/audio/md file
@@ -304,33 +293,13 @@ class PipelineOrchestrator:
             Tuple of (RawTranscript, audio_path or None for MD)
         """
         video_path = Path(video_path)
-
-        if is_transcript_file(video_path):
-            return self._load_md_transcript(video_path), None
-
-        async with WhisperClient.from_settings(self.settings) as whisper_client:
-            transcriber = WhisperTranscriber(whisper_client, self.settings)
-            return await transcriber.transcribe(video_path)
-
-    def _load_md_transcript(self, md_path: Path) -> RawTranscript:
-        """Load pre-made transcript from MD file.
-
-        Args:
-            md_path: Path to .md transcript file
-
-        Returns:
-            RawTranscript with single segment containing full text
-        """
-        text = md_path.read_text(encoding="utf-8")
-        estimated_duration = estimate_duration_from_text(text)
-
-        return RawTranscript(
-            segments=[TranscriptSegment(start=0, end=estimated_duration, text=text)],
-            language="ru",
-            duration_seconds=estimated_duration,
-            whisper_model="macwhisper-large-v2",
-            processing_time_sec=0,
+        metadata = await self.parse(video_path)
+        context = StageContext(
+            results={"parse": metadata},
+            metadata={"video_path": str(video_path)},
         )
+        stage = TranscribeStage(self.settings)
+        return await stage.execute(context)
 
     async def clean(
         self,
@@ -342,20 +311,26 @@ class PipelineOrchestrator:
         """
         Clean raw transcript using glossary and LLM.
 
+        v0.84+: Delegates to CleanStage.
+
         Args:
             raw_transcript: Raw transcript from Whisper
             metadata: Video metadata
             model: Optional model override for cleaning
-            prompt_overrides: Optional prompt file overrides (v0.32+)
+            prompt_overrides: Optional prompt file overrides
 
         Returns:
             CleanedTranscript with cleaned text
         """
-        settings = self.config_resolver.with_model(model, "cleaner")
-        actual_model = model or settings.cleaner_model
-        async with self.processing_strategy.create_client(actual_model) as ai_client:
-            cleaner = TranscriptCleaner(ai_client, settings, prompt_overrides)
-            return await cleaner.clean(raw_transcript, metadata)
+        context = StageContext(
+            results={"parse": metadata, "transcribe": (raw_transcript, None)},
+            metadata={
+                "model_overrides": {"clean": model} if model else {},
+                "prompt_overrides": {"clean": prompt_overrides} if prompt_overrides else {},
+            },
+        )
+        stage = CleanStage(self.settings, self.config_resolver, self.processing_strategy)
+        return await stage.execute(context)
 
     def chunk(
         self,
@@ -387,24 +362,38 @@ class PipelineOrchestrator:
         """
         Generate longread document from cleaned transcript.
 
-        v0.25+: Now takes CleanedTranscript instead of chunks.
-        v0.50+: Added slides_text parameter for slides integration.
+        v0.84+: Delegates to LongreadStage.
 
         Args:
             cleaned_transcript: Cleaned transcript
             metadata: Video metadata
             model: Optional model override for generation
-            prompt_overrides: Optional prompt file overrides (v0.32+)
-            slides_text: Optional extracted text from slides (v0.50+)
+            prompt_overrides: Optional prompt file overrides
+            slides_text: Optional extracted text from slides
 
         Returns:
             Longread document with sections
         """
-        settings = self.config_resolver.with_model(model, "longread")
-        actual_model = model or settings.longread_model
-        async with self.processing_strategy.create_client(actual_model) as ai_client:
-            generator = LongreadGenerator(ai_client, settings, prompt_overrides)
-            return await generator.generate(cleaned_transcript, metadata, slides_text)
+        results = {"parse": metadata, "clean": cleaned_transcript}
+        meta = {
+            "model_overrides": {"longread": model} if model else {},
+            "prompt_overrides": {"longread": prompt_overrides} if prompt_overrides else {},
+        }
+
+        # Inject slides as a fake result if slides_text provided
+        if slides_text:
+            results["slides"] = SlidesExtractionResult(
+                extracted_text=slides_text,
+                slides_count=0,
+                chars_count=len(slides_text),
+                words_count=len(slides_text.split()),
+                tables_count=0,
+                model="step-by-step",
+            )
+
+        context = StageContext(results=results, metadata=meta)
+        stage = LongreadStage(self.settings, self.config_resolver, self.processing_strategy)
+        return await stage.execute(context)
 
     async def summarize_from_cleaned(
         self,
@@ -417,25 +406,37 @@ class PipelineOrchestrator:
         """
         Generate summary (конспект) from cleaned transcript.
 
-        v0.24+: Summary is now generated directly from cleaned transcript,
-        allowing it to see all original details.
-        v0.68+: Added slides_text parameter for slides integration.
+        v0.84+: Delegates to SummarizeStage.
 
         Args:
             cleaned_transcript: Cleaned transcript
             metadata: Video metadata
             model: Optional model override for generation
-            prompt_overrides: Optional prompt file overrides (v0.32+)
-            slides_text: Optional extracted text from slides (v0.68+)
+            prompt_overrides: Optional prompt file overrides
+            slides_text: Optional extracted text from slides
 
         Returns:
             Summary with essence, concepts, tools, quotes, topic_area, access_level
         """
-        settings = self.config_resolver.with_model(model, "summarizer")
-        actual_model = model or settings.summarizer_model
-        async with self.processing_strategy.create_client(actual_model) as ai_client:
-            generator = SummaryGenerator(ai_client, settings, prompt_overrides)
-            return await generator.generate(cleaned_transcript, metadata, slides_text)
+        results = {"parse": metadata, "clean": cleaned_transcript}
+        meta = {
+            "model_overrides": {"summarize": model} if model else {},
+            "prompt_overrides": {"summarize": prompt_overrides} if prompt_overrides else {},
+        }
+
+        if slides_text:
+            results["slides"] = SlidesExtractionResult(
+                extracted_text=slides_text,
+                slides_count=0,
+                chars_count=len(slides_text),
+                words_count=len(slides_text.split()),
+                tables_count=0,
+                model="step-by-step",
+            )
+
+        context = StageContext(results=results, metadata=meta)
+        stage = SummarizeStage(self.settings, self.config_resolver, self.processing_strategy)
+        return await stage.execute(context)
 
     async def story(
         self,
@@ -448,59 +449,37 @@ class PipelineOrchestrator:
         """
         Generate leadership story (8 blocks) from cleaned transcript.
 
-        For leadership content only (content_type=LEADERSHIP).
-
-        v0.53+: Added slides_text parameter for slides integration.
+        v0.84+: Delegates to StoryStage.
 
         Args:
             cleaned_transcript: Cleaned transcript
             metadata: Video metadata
             model: Optional model override for generation
-            prompt_overrides: Optional prompt file overrides (v0.32+)
-            slides_text: Optional extracted text from slides (v0.53+)
+            prompt_overrides: Optional prompt file overrides
+            slides_text: Optional extracted text from slides
 
         Returns:
             Story with 8 blocks
         """
-        settings = self.config_resolver.with_model(model, "summarizer")
-        actual_model = model or settings.summarizer_model
-        async with self.processing_strategy.create_client(actual_model) as ai_client:
-            generator = StoryGenerator(ai_client, settings, prompt_overrides)
-            return await generator.generate(cleaned_transcript, metadata, slides_text)
+        results = {"parse": metadata, "clean": cleaned_transcript}
+        meta = {
+            "model_overrides": {"story": model} if model else {},
+            "prompt_overrides": {"story": prompt_overrides} if prompt_overrides else {},
+        }
 
-    async def summarize(
-        self,
-        cleaned_transcript: CleanedTranscript,
-        metadata: VideoMetadata,
-        prompt_name: str = "summarizer",
-        model: str | None = None,
-    ) -> VideoSummary:
-        """
-        Create structured summary from cleaned transcript.
+        if slides_text:
+            results["slides"] = SlidesExtractionResult(
+                extracted_text=slides_text,
+                slides_count=0,
+                chars_count=len(slides_text),
+                words_count=len(slides_text.split()),
+                tables_count=0,
+                model="step-by-step",
+            )
 
-        For step-by-step mode: automatically extracts outline for large texts.
-        Uses full transcript for small texts (<10K chars).
-
-        Args:
-            cleaned_transcript: Cleaned transcript
-            metadata: Video metadata
-            prompt_name: Name of prompt file (without .md) from config/prompts/
-            model: Optional model override for summarization
-
-        Returns:
-            VideoSummary with structured content
-        """
-        settings = self.config_resolver.with_model(model, "summarizer")
-        actual_model = model or settings.summarizer_model
-        async with self.processing_strategy.create_client(actual_model) as ai_client:
-            # Extract outline for large texts (step-by-step mode)
-            _, outline = await self._extract_outline(cleaned_transcript, ai_client)
-
-            summarizer = VideoSummarizer(ai_client, settings)
-            if prompt_name != "summarizer":
-                summarizer.set_prompt(prompt_name)
-
-            return await summarizer.summarize(outline, metadata, cleaned_transcript)
+        context = StageContext(results=results, metadata=meta)
+        stage = StoryStage(self.settings, self.config_resolver, self.processing_strategy)
+        return await stage.execute(context)
 
     async def save(
         self,
@@ -517,7 +496,7 @@ class PipelineOrchestrator:
         """
         Save all processing results to archive.
 
-        Supports both educational (longread+summary) and leadership (story) content.
+        v0.84+: Delegates to SaveStage.
 
         Args:
             metadata: Video metadata
@@ -528,374 +507,27 @@ class PipelineOrchestrator:
             summary: Summary (for educational content)
             story: Story document (for leadership content)
             audio_path: Path to extracted audio file (optional)
-            slides_extraction: Slides extraction result (optional, v0.55+)
+            slides_extraction: Slides extraction result (optional)
 
         Returns:
             SaveResult with created files and description metrics
         """
-        saver = FileSaver(self.settings)
+        results = {
+            "parse": metadata,
+            "transcribe": (raw_transcript, audio_path),
+            "clean": cleaned_transcript,
+            "chunk": (chunks, None, None),
+        }
 
-        # Choose save method based on content type
         if story is not None:
-            return await saver.save_leadership(
-                metadata, raw_transcript, cleaned_transcript, chunks,
-                story, audio_path, slides_extraction
-            )
-        elif longread is not None and summary is not None:
-            return await saver.save_educational(
-                metadata, raw_transcript, cleaned_transcript, chunks,
-                longread, summary, audio_path, slides_extraction
-            )
-        else:
-            raise ValueError("Either story or longread+summary must be provided")
+            results["story"] = story
+        if longread is not None:
+            results["longread"] = longread
+        if summary is not None:
+            results["summarize"] = summary
+        if slides_extraction is not None:
+            results["slides"] = slides_extraction
 
-    # ═══════════════════════════════════════════════════════════════════════════
-    # Internal: Stage Execution with Progress
-    # ═══════════════════════════════════════════════════════════════════════════
-
-    async def _do_transcribe(
-        self,
-        transcriber: WhisperTranscriber,
-        video_path: Path,
-        video_duration: float,
-        callback: ProgressCallback | None,
-    ) -> tuple[RawTranscript, Path]:
-        """Execute transcription stage with progress ticker."""
-        estimate = self.estimator.estimate_transcribe(video_duration)
-
-        # Start progress ticker
-        ticker = None
-        if callback:
-            ticker = await self.estimator.start_ticker(
-                stage=ProcessingStatus.TRANSCRIBING,
-                estimated_seconds=estimate.estimated_seconds,
-                message=f"Transcribing: {video_path.name}",
-                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-            )
-
-        try:
-            transcript, audio_path = await transcriber.transcribe(video_path)
-        except Exception as e:
-            if ticker:
-                ticker.cancel()
-            raise PipelineError(
-                ProcessingStatus.TRANSCRIBING, f"Transcription failed: {e}", e
-            )
-
-        # Stop ticker and send 100%
-        if callback:
-            await self.estimator.stop_ticker(
-                ticker,
-                ProcessingStatus.TRANSCRIBING,
-                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-                f"Transcribed: {len(transcript.segments)} segments, {transcript.duration_seconds:.0f}s",
-            )
-
-        return transcript, audio_path
-
-    async def _do_clean(
-        self,
-        cleaner: TranscriptCleaner,
-        raw_transcript: RawTranscript,
-        metadata: VideoMetadata,
-        callback: ProgressCallback | None,
-    ) -> CleanedTranscript:
-        """Execute cleaning stage with progress ticker."""
-        # Foreign transcripts: skip glossary cleaning, pass-through original text
-        if metadata.language == "foreign":
-            logger.info("skip_clean_foreign", language=metadata.language)
-            result = CleanedTranscript(
-                text=raw_transcript.text,
-                tokens_used=TokensUsed(input=0, output=0),
-            )
-            if callback:
-                await self.progress_manager.update_progress(
-                    callback, ProcessingStatus.CLEANING, 100,
-                    "Skipped: foreign transcript (pass-through)",
-                )
-            return result
-
-        input_chars = len(raw_transcript.full_text)
-        estimate = self.estimator.estimate_clean(input_chars)
-
-        # Start progress ticker
-        ticker = None
-        if callback:
-            ticker = await self.estimator.start_ticker(
-                stage=ProcessingStatus.CLEANING,
-                estimated_seconds=estimate.estimated_seconds,
-                message="Cleaning transcript with glossary and LLM",
-                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-            )
-
-        try:
-            result = await cleaner.clean(raw_transcript, metadata)
-        except Exception as e:
-            if ticker:
-                ticker.cancel()
-            raise PipelineError(
-                ProcessingStatus.CLEANING, f"Cleaning failed: {e}", e
-            )
-
-        # Stop ticker and send 100%
-        if callback:
-            await self.estimator.stop_ticker(
-                ticker,
-                ProcessingStatus.CLEANING,
-                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-                f"Cleaned: {result.original_length} -> {result.cleaned_length} chars",
-            )
-
-        return result
-
-    async def _do_educational_pipeline(
-        self,
-        longread_gen: LongreadGenerator,
-        summary_gen: SummaryGenerator,
-        cleaned_transcript: CleanedTranscript,
-        metadata: VideoMetadata,
-        callback: ProgressCallback | None,
-    ) -> tuple[TranscriptChunks, Longread, Summary]:
-        """
-        Execute educational content pipeline.
-
-        v0.25+: New pipeline order - Longread -> Summary -> Chunk (deterministic)
-
-        For content_type=EDUCATIONAL only.
-        Chunking is now deterministic from longread markdown (H2 headers).
-        """
-        input_chars = len(cleaned_transcript.text)
-
-        # Phase 1: Longread generation (includes internal outline extraction)
-        longread_estimate = self.estimator.estimate_longread(input_chars)
-        ticker = None
-        if callback:
-            ticker = await self.estimator.start_ticker(
-                stage=ProcessingStatus.LONGREAD,
-                estimated_seconds=longread_estimate.estimated_seconds,
-                message="Generating longread",
-                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-            )
-
-        try:
-            longread = await longread_gen.generate(cleaned_transcript, metadata)
-        except Exception as e:
-            if ticker:
-                ticker.cancel()
-            raise PipelineError(
-                ProcessingStatus.LONGREAD, f"Longread generation failed: {e}", e
-            )
-
-        if callback and ticker:
-            await self.estimator.stop_ticker(
-                ticker,
-                ProcessingStatus.LONGREAD,
-                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-                f"Longread: {longread.total_sections} sections, {longread.total_word_count} words",
-            )
-
-        # Phase 2: Summary generation from cleaned transcript
-        summary_estimate = self.estimator.estimate_summarize(input_chars)
-        if callback:
-            ticker = await self.estimator.start_ticker(
-                stage=ProcessingStatus.SUMMARIZING,
-                estimated_seconds=summary_estimate.estimated_seconds,
-                message="Generating summary from transcript",
-                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-            )
-
-        try:
-            summary = await summary_gen.generate(cleaned_transcript, metadata)
-        except Exception as e:
-            if ticker:
-                ticker.cancel()
-            raise PipelineError(
-                ProcessingStatus.SUMMARIZING, f"Summary generation failed: {e}", e
-            )
-
-        if callback and ticker:
-            await self.estimator.stop_ticker(
-                ticker,
-                ProcessingStatus.SUMMARIZING,
-                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-                f"Summary: {len(summary.key_concepts)} concepts, {len(summary.quotes)} quotes",
-            )
-
-        # Phase 3: Deterministic chunking from longread markdown
-        if callback:
-            await self.progress_manager.update_progress(
-                callback,
-                ProcessingStatus.CHUNKING,
-                0,
-                "Chunking by H2 headers",
-            )
-
-        chunks = chunk_by_h2(longread.to_markdown(), metadata.video_id)
-
-        if callback:
-            await self.progress_manager.update_progress(
-                callback,
-                ProcessingStatus.CHUNKING,
-                100,
-                f"Chunked: {chunks.total_chunks} chunks (deterministic)",
-            )
-
-        return chunks, longread, summary
-
-    async def _do_leadership_pipeline(
-        self,
-        story_gen: StoryGenerator,
-        cleaned_transcript: CleanedTranscript,
-        metadata: VideoMetadata,
-        callback: ProgressCallback | None,
-    ) -> tuple[TranscriptChunks, Story]:
-        """
-        Execute leadership content pipeline.
-
-        v0.25+: New pipeline order - Story -> Chunk (deterministic)
-
-        For content_type=LEADERSHIP only.
-        Generates 8-block story, then chunks by H2 headers.
-        """
-        input_chars = len(cleaned_transcript.text)
-
-        # Phase 1: Story generation (uses longread estimate — similar complexity)
-        story_estimate = self.estimator.estimate_longread(input_chars)
-        ticker = None
-        if callback:
-            ticker = await self.estimator.start_ticker(
-                stage=ProcessingStatus.LONGREAD,  # Reuse LONGREAD status for story
-                estimated_seconds=story_estimate.estimated_seconds,
-                message="Generating leadership story",
-                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-            )
-
-        try:
-            story = await story_gen.generate(cleaned_transcript, metadata)
-        except Exception as e:
-            if ticker:
-                ticker.cancel()
-            logger.error(f"Story generation failed: {e}")
-            raise PipelineError(
-                ProcessingStatus.LONGREAD, f"Story generation failed: {e}", e
-            )
-
-        if callback and ticker:
-            await self.estimator.stop_ticker(
-                ticker,
-                ProcessingStatus.LONGREAD,
-                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-                f"Story: {story.total_blocks} blocks, speed={story.speed}",
-            )
-
-        # Phase 2: Deterministic chunking from story markdown
-        if callback:
-            await self.progress_manager.update_progress(
-                callback,
-                ProcessingStatus.CHUNKING,
-                0,
-                "Chunking by H2 headers",
-            )
-
-        chunks = chunk_by_h2(story.to_markdown(), metadata.video_id)
-
-        if callback:
-            await self.progress_manager.update_progress(
-                callback,
-                ProcessingStatus.CHUNKING,
-                100,
-                f"Chunked: {chunks.total_chunks} chunks (deterministic)",
-            )
-
-        return chunks, story
-
-    async def _do_save_educational(
-        self,
-        saver: FileSaver,
-        metadata: VideoMetadata,
-        raw_transcript: RawTranscript,
-        cleaned_transcript: CleanedTranscript,
-        chunks: TranscriptChunks,
-        longread: Longread,
-        summary: Summary,
-        audio_path: Path | None,
-        callback: ProgressCallback | None,
-    ) -> list[str]:
-        """Execute save stage for educational content."""
-        estimated = self.estimator.get_fixed_stage_time("save")
-
-        # Start progress ticker
-        ticker = None
-        if callback:
-            ticker = await self.estimator.start_ticker(
-                stage=ProcessingStatus.SAVING,
-                estimated_seconds=estimated,
-                message=f"Saving to: {metadata.archive_path}",
-                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-            )
-
-        try:
-            save_result = await saver.save_educational(
-                metadata, raw_transcript, cleaned_transcript, chunks,
-                longread, summary, audio_path
-            )
-        except Exception as e:
-            if ticker:
-                ticker.cancel()
-            raise PipelineError(ProcessingStatus.SAVING, f"Save failed: {e}", e)
-
-        # Stop ticker and send 100%
-        if callback:
-            await self.estimator.stop_ticker(
-                ticker,
-                ProcessingStatus.SAVING,
-                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-                f"Saved {len(save_result.files)} files",
-            )
-
-        return save_result.files
-
-    async def _do_save_leadership(
-        self,
-        saver: FileSaver,
-        metadata: VideoMetadata,
-        raw_transcript: RawTranscript,
-        cleaned_transcript: CleanedTranscript,
-        chunks: TranscriptChunks,
-        story: Story,
-        audio_path: Path | None,
-        callback: ProgressCallback | None,
-    ) -> list[str]:
-        """Execute save stage for leadership content."""
-        estimated = self.estimator.get_fixed_stage_time("save")
-
-        # Start progress ticker
-        ticker = None
-        if callback:
-            ticker = await self.estimator.start_ticker(
-                stage=ProcessingStatus.SAVING,
-                estimated_seconds=estimated,
-                message=f"Saving to: {metadata.archive_path}",
-                callback=lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-            )
-
-        try:
-            save_result = await saver.save_leadership(
-                metadata, raw_transcript, cleaned_transcript, chunks,
-                story, audio_path
-            )
-        except Exception as e:
-            if ticker:
-                ticker.cancel()
-            raise PipelineError(ProcessingStatus.SAVING, f"Save failed: {e}", e)
-
-        # Stop ticker and send 100%
-        if callback:
-            await self.estimator.stop_ticker(
-                ticker,
-                ProcessingStatus.SAVING,
-                lambda s, p, m: self.progress_manager.update_progress(callback, s, p, m),
-                f"Saved {len(save_result.files)} files",
-            )
-
-        return save_result.files
+        context = StageContext(results=results)
+        stage = SaveStage(self.settings)
+        return await stage.execute(context)

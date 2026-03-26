@@ -17,7 +17,6 @@ from app.models.schemas import (
     Summary,
     VideoMetadata,
 )
-from app.services.ai_clients import BaseAIClient
 from app.services.stages.base import BaseStage, StageContext, StageError
 from app.services.summary_generator import SummaryGenerator
 
@@ -42,7 +41,7 @@ class SummarizeStage(BaseStage):
         Summary with essence, concepts, tools, quotes, topic_area, access_level
 
     Example:
-        stage = SummarizeStage(ai_client, settings)
+        stage = SummarizeStage(settings, config_resolver, processing_strategy)
         summary = await stage.execute(context)
     """
 
@@ -50,16 +49,17 @@ class SummarizeStage(BaseStage):
     depends_on = ["parse", "clean"]  # v0.24: Changed from ["parse", "longread"]
     status = ProcessingStatus.SUMMARIZING
 
-    def __init__(self, ai_client: BaseAIClient, settings: Settings):
+    def __init__(self, settings: Settings, config_resolver=None, processing_strategy=None):
         """Initialize summarize stage.
 
         Args:
-            ai_client: AI client for LLM calls
             settings: Application settings
+            config_resolver: ConfigResolver for model overrides
+            processing_strategy: ProcessingStrategy for AI client creation
         """
-        self.ai_client = ai_client
         self.settings = settings
-        self.generator = SummaryGenerator(ai_client, settings)
+        self.config_resolver = config_resolver
+        self.processing_strategy = processing_strategy
 
     def should_skip(self, context: StageContext) -> bool:
         """Check if stage should be skipped.
@@ -97,7 +97,22 @@ class SummarizeStage(BaseStage):
         metadata: VideoMetadata = context.get_result("parse")
         cleaned_transcript: CleanedTranscript = context.get_result("clean")
 
-        return await self.generator.generate(cleaned_transcript, metadata)
+        # Get slides text if available
+        slides_text = None
+        if context.has_result("slides"):
+            slides_result = context.get_result("slides")
+            slides_text = slides_result.extracted_text if slides_result else None
+
+        try:
+            model = context.get_metadata("model_overrides", {}).get("summarize")
+            prompt_overrides = context.get_metadata("prompt_overrides", {}).get("summarize")
+            settings = self.config_resolver.with_model(model, "summarizer") if self.config_resolver else self.settings
+            actual_model = model or settings.summarizer_model
+            async with self.processing_strategy.create_client(actual_model) as ai_client:
+                generator = SummaryGenerator(ai_client, settings, prompt_overrides)
+                return await generator.generate(cleaned_transcript, metadata, slides_text)
+        except Exception as e:
+            raise StageError(self.name, f"Summary generation failed: {e}", e)
 
     def estimate_time(self, input_size: int) -> float:
         """Estimate summary generation time.

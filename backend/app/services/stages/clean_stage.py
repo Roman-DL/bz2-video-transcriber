@@ -4,15 +4,14 @@ Clean stage for transcript cleaning using glossary and LLM.
 Applies terminology corrections and improves transcript readability.
 """
 
-from app.config import Settings
 import logging
 
+from app.config import Settings
 from app.models.schemas import CleanedTranscript, ProcessingStatus, RawTranscript, TokensUsed, VideoMetadata
-
-logger = logging.getLogger(__name__)
-from app.services.ai_clients import BaseAIClient
 from app.services.cleaner import TranscriptCleaner
 from app.services.stages.base import BaseStage, StageContext, StageError
+
+logger = logging.getLogger(__name__)
 
 
 class CleanStage(BaseStage):
@@ -26,7 +25,7 @@ class CleanStage(BaseStage):
         CleanedTranscript with corrections applied
 
     Example:
-        stage = CleanStage(ai_client, settings)
+        stage = CleanStage(settings, config_resolver, processing_strategy)
         context = context.with_result("transcribe", (raw_transcript, audio_path))
         cleaned = await stage.execute(context)
     """
@@ -35,16 +34,17 @@ class CleanStage(BaseStage):
     depends_on = ["parse", "transcribe"]
     status = ProcessingStatus.CLEANING
 
-    def __init__(self, ai_client: BaseAIClient, settings: Settings):
+    def __init__(self, settings: Settings, config_resolver=None, processing_strategy=None):
         """Initialize clean stage.
 
         Args:
-            ai_client: AI client for LLM calls
             settings: Application settings
+            config_resolver: ConfigResolver for model overrides
+            processing_strategy: ProcessingStrategy for AI client creation
         """
-        self.ai_client = ai_client
         self.settings = settings
-        self.cleaner = TranscriptCleaner(ai_client, settings)
+        self.config_resolver = config_resolver
+        self.processing_strategy = processing_strategy
 
     async def execute(self, context: StageContext) -> CleanedTranscript:
         """Clean raw transcript.
@@ -72,7 +72,13 @@ class CleanStage(BaseStage):
             )
 
         try:
-            return await self.cleaner.clean(raw_transcript, metadata)
+            model = context.get_metadata("model_overrides", {}).get("clean")
+            prompt_overrides = context.get_metadata("prompt_overrides", {}).get("clean")
+            settings = self.config_resolver.with_model(model, "cleaner") if self.config_resolver else self.settings
+            actual_model = model or settings.cleaner_model
+            async with self.processing_strategy.create_client(actual_model) as ai_client:
+                cleaner = TranscriptCleaner(ai_client, settings, prompt_overrides)
+                return await cleaner.clean(raw_transcript, metadata)
         except Exception as e:
             raise StageError(self.name, f"Cleaning failed: {e}", e)
 

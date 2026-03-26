@@ -17,7 +17,6 @@ from app.models.schemas import (
     ProcessingStatus,
     VideoMetadata,
 )
-from app.services.ai_clients import BaseAIClient
 from app.services.longread_generator import LongreadGenerator
 from app.services.stages.base import BaseStage, StageContext, StageError
 
@@ -41,7 +40,7 @@ class LongreadStage(BaseStage):
         Longread document with sections
 
     Example:
-        stage = LongreadStage(ai_client, settings)
+        stage = LongreadStage(settings, config_resolver, processing_strategy)
         longread = await stage.execute(context)
     """
 
@@ -49,16 +48,17 @@ class LongreadStage(BaseStage):
     depends_on = ["parse", "clean"]
     status = ProcessingStatus.LONGREAD
 
-    def __init__(self, ai_client: BaseAIClient, settings: Settings):
+    def __init__(self, settings: Settings, config_resolver=None, processing_strategy=None):
         """Initialize longread stage.
 
         Args:
-            ai_client: AI client for LLM calls
             settings: Application settings
+            config_resolver: ConfigResolver for model overrides
+            processing_strategy: ProcessingStrategy for AI client creation
         """
-        self.ai_client = ai_client
         self.settings = settings
-        self.generator = LongreadGenerator(ai_client, settings)
+        self.config_resolver = config_resolver
+        self.processing_strategy = processing_strategy
 
     def should_skip(self, context: StageContext) -> bool:
         """Check if stage should be skipped.
@@ -97,7 +97,22 @@ class LongreadStage(BaseStage):
         metadata: VideoMetadata = context.get_result("parse")
         cleaned: CleanedTranscript = context.get_result("clean")
 
-        return await self.generator.generate(cleaned, metadata)
+        # Get slides text if available
+        slides_text = None
+        if context.has_result("slides"):
+            slides_result = context.get_result("slides")
+            slides_text = slides_result.extracted_text if slides_result else None
+
+        try:
+            model = context.get_metadata("model_overrides", {}).get("longread")
+            prompt_overrides = context.get_metadata("prompt_overrides", {}).get("longread")
+            settings = self.config_resolver.with_model(model, "longread") if self.config_resolver else self.settings
+            actual_model = model or settings.longread_model
+            async with self.processing_strategy.create_client(actual_model) as ai_client:
+                generator = LongreadGenerator(ai_client, settings, prompt_overrides)
+                return await generator.generate(cleaned, metadata, slides_text)
+        except Exception as e:
+            raise StageError(self.name, f"Longread generation failed: {e}", e)
 
     def estimate_time(self, input_size: int) -> float:
         """Estimate longread generation time.

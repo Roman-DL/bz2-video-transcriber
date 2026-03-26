@@ -156,7 +156,12 @@ backend/app/services/stages/
 
 ## Миграция
 
-Фаза 0 создаёт абстракцию параллельно с существующим кодом. Фаза 1 мигрирует orchestrator на использование Stage абстракции.
+- **Фаза 0** (v0.14+): Абстракция создана параллельно с существующим кодом. ✅ Выполнена.
+- **Фаза 1** (v0.84+): Orchestrator мигрирован на `BaseStage.execute()`. ✅ Выполнена.
+  - `process()` — единый stage loop, удалены `_do_*` методы
+  - Step-by-step методы делегируют stages через `StageContext`
+  - LLM stages используют `(settings, config_resolver, processing_strategy)` вместо `(ai_client, settings)`
+  - `SlidesStage` добавлен как optional stage между clean и longread
 
 ## Связанные документы
 

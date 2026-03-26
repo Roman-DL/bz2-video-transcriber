@@ -44,8 +44,7 @@ from app.models.schemas import (
 from app.services.ai_clients import ClaudeClient
 from app.services.pipeline import PipelineOrchestrator
 from app.services.slides_extractor import SlidesExtractor
-from app.utils import detect_language, estimate_duration_from_text, get_media_duration, is_transcript_file
-from app.utils.speaker_utils import parse_speakers
+from app.utils import estimate_duration_from_text, get_media_duration, is_transcript_file
 from app.services.progress_estimator import ProgressEstimator
 
 logger = logging.getLogger(__name__)
@@ -234,19 +233,8 @@ async def step_parse(request: StepParseRequest) -> VideoMetadata:
     orchestrator = get_orchestrator()
 
     try:
-        metadata = orchestrator.parse(video_path)
-        # v0.64+: MD transcripts — duration from text, speaker detection
-        if is_transcript_file(video_path):
-            text = video_path.read_text(encoding="utf-8")
-            metadata.duration_seconds = estimate_duration_from_text(text)
-            metadata.speaker_info = parse_speakers(text)
-            metadata.language = detect_language(text)
-        else:
-            metadata.duration_seconds = get_media_duration(video_path)
-            if metadata.duration_seconds is None:
-                # Fallback: estimate from file size (~5MB per minute)
-                metadata.duration_seconds = video_path.stat().st_size / 83333
-        return metadata
+        # v0.84+: ParseStage handles all enrichment (MD + media)
+        return await orchestrator.parse(video_path)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

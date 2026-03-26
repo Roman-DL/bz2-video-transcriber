@@ -60,7 +60,7 @@ Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longr
 4. **API endpoints — ВСЕГДА Pydantic модели** (`CamelCaseModel`), не `dict` — Python `snake_case` → JSON `camelCase`
 5. **Chunk детерминистический** — парсинг H2 заголовков, без LLM. Выполняется ПОСЛЕ longread/story
 6. **sshpass для серверных команд** — credentials из `.env.local`, НЕ интерактивный ssh
-7. **Slides — отдельный API endpoint** (`/api/step/slides`), не часть stage абстракции
+7. **Slides — SlidesStage** (`optional=True`) + API endpoint `/api/step/slides`
 8. **Foreign transcripts** — Clean пропускается, перевод в Longread/Story промптах. Язык определяется автоматически
 
 ---

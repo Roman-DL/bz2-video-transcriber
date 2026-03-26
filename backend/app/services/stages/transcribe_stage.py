@@ -25,7 +25,7 @@ class TranscribeStage(BaseStage):
         Tuple of (RawTranscript, audio_path)
 
     Example:
-        stage = TranscribeStage(whisper_client, settings)
+        stage = TranscribeStage(settings)
         context = context.with_result("parse", metadata)
         raw_transcript, audio_path = await stage.execute(context)
     """
@@ -34,16 +34,13 @@ class TranscribeStage(BaseStage):
     depends_on = ["parse"]
     status = ProcessingStatus.TRANSCRIBING
 
-    def __init__(self, whisper_client: WhisperClient, settings: Settings):
+    def __init__(self, settings: Settings):
         """Initialize transcribe stage.
 
         Args:
-            whisper_client: Whisper client for transcription API calls
             settings: Application settings
         """
-        self.whisper_client = whisper_client
         self.settings = settings
-        self.transcriber = WhisperTranscriber(whisper_client, settings)
 
     async def execute(self, context: StageContext) -> tuple[RawTranscript, Path | None]:
         """Transcribe video file or load MD transcript.
@@ -81,8 +78,10 @@ class TranscribeStage(BaseStage):
             return transcript, None
 
         try:
-            transcript, audio_path = await self.transcriber.transcribe(video_path)
-            return transcript, audio_path
+            async with WhisperClient.from_settings(self.settings) as whisper_client:
+                transcriber = WhisperTranscriber(whisper_client, self.settings)
+                transcript, audio_path = await transcriber.transcribe(video_path)
+                return transcript, audio_path
         except Exception as e:
             raise StageError(self.name, f"Transcription failed: {e}", e)
 

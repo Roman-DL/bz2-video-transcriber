@@ -42,11 +42,12 @@ class ProgressManager:
     """
 
     # Progress weights for each stage (must sum to 100)
-    # v6: Calibrated for Claude single-pass pipeline (200+340+220+84 ≈ 844s)
+    # v7: Added SLIDES (optional, 0 when skipped). Calibrated for Claude pipeline.
     STAGE_WEIGHTS = {
         ProcessingStatus.PARSING: 1,        # 0-1%: instant
         ProcessingStatus.TRANSCRIBING: 23,  # 1-24%: Whisper (~200s)
         ProcessingStatus.CLEANING: 38,      # 24-62%: Claude haiku (~340s)
+        ProcessingStatus.SLIDES: 0,         # Optional: 0 when skipped
         ProcessingStatus.LONGREAD: 25,      # 62-87%: Claude sonnet single-pass (~220s)
         ProcessingStatus.SUMMARIZING: 9,    # 87-96%: Claude sonnet (~84s)
         ProcessingStatus.CHUNKING: 2,       # 96-98%: instant (H2 parsing)
@@ -54,11 +55,12 @@ class ProgressManager:
     }
 
     # Define stage order for progress calculation
-    # v0.25+: Longread/Summary before Chunk
+    # v0.84+: Added SLIDES between CLEANING and LONGREAD
     STAGE_ORDER = [
         ProcessingStatus.PARSING,
         ProcessingStatus.TRANSCRIBING,
         ProcessingStatus.CLEANING,
+        ProcessingStatus.SLIDES,
         ProcessingStatus.LONGREAD,
         ProcessingStatus.SUMMARIZING,
         ProcessingStatus.CHUNKING,

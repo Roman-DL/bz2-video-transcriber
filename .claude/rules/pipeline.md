@@ -13,18 +13,15 @@ paths:
 - Fallback механизмы удалены (v0.29+) — при ошибках LLM выбрасывается `PipelineError`
 - `progress_manager.py` содержит `STAGE_WEIGHTS` для расчёта прогресса
 
-## BaseStage Pattern
+## BaseStage Pattern (v0.84+)
 - ВСЕГДА наследовать от `BaseStage` при создании нового этапа
 - Указывать `name` и `depends_on` — оркестратор определяет порядок автоматически
 - Условный пропуск: переопределить `should_skip(context: StageContext) -> bool`
 - НЕ менять оркестратор для добавления нового этапа — только создать новый stage
-- Пример нового этапа:
-  ```python
-  class MyStage(BaseStage):
-      name = "my_stage"
-      depends_on = ["clean"]
-      async def execute(self, context: StageContext) -> MyResult: ...
-  ```
+- LLM stages: конструктор `(settings, config_resolver, processing_strategy)` — AI client создаётся в `execute()`
+- Non-LLM stages: конструктор `(settings)` — ParseStage, TranscribeStage, ChunkStage, SaveStage
+- Orchestrator step методы делегируют stages через `StageContext`
+- `process()` — единый stage loop через `_build_pipeline()` + `_execute_with_progress()`
 
 ## StageResultCache
 - Кэш версионирован: `archive_path/.cache/{stage}/v{N}.json`
@@ -51,8 +48,9 @@ paths:
 - `transcript_chunks.json` — формат BZ2-Bot v1.0 (snake_case, НЕ camelCase)
 - Описания читаются из `TranscriptChunks`, НЕ генерируются в saver
 
-## Slides
-- Slides — отдельный API endpoint (`/api/step/slides`), НЕ часть stage абстракции
+## Slides (v0.84+)
+- `SlidesStage` — часть stage абстракции, `optional=True`, `should_skip()` проверяет `slides_input`
+- Отдельный step API endpoint (`/api/step/slides`) по-прежнему работает
 - Появляется условно между `clean` и `longread/story` при наличии слайдов
 - batch_size: 5 слайдов за вызов Claude Vision API
 
