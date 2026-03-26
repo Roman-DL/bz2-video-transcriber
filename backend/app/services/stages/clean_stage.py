@@ -66,8 +66,12 @@ class CleanStage(BaseStage):
         # Foreign transcripts: skip glossary cleaning, pass-through original text
         if metadata.language == "foreign":
             logger.info(f"Skip clean: foreign transcript (language={metadata.language})")
+            text = raw_transcript.full_text
             return CleanedTranscript(
-                text=raw_transcript.full_text,
+                text=text,
+                original_length=len(text),
+                cleaned_length=len(text),
+                model_name="pass-through",
                 tokens_used=TokensUsed(input=0, output=0),
             )
 
