@@ -62,8 +62,10 @@ DEFAULT_LARGE_TEXT_THRESHOLD = 10000  # Extract outline for texts > 10K chars
 DEFAULT_CONTEXT_TOKENS = 8192
 
 # Context budget: Russian text ~2.0 tokens/char, English ~1.0 (calibrated for Claude tokenizer)
+# v0.84+: Foreign uses 2.0 (same as Russian) to force map-reduce earlier —
+# single-pass with translation is 3x slower and hits timeout on large texts
 TOKENS_PER_CHAR_RU = 2.0
-TOKENS_PER_CHAR_FOREIGN = 1.0
+TOKENS_PER_CHAR_FOREIGN = 2.0
 # Reserve for system prompt, instructions, template (~15K tokens)
 PROMPT_OVERHEAD_TOKENS = 15_000
 # Reserve for output (~20K tokens, SINGLE_PASS_MAX_TOKENS=16K + margin)
