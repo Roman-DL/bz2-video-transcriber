@@ -25,6 +25,7 @@ from app.models.schemas import (
     VideoMetadata,
 )
 from app.services.ai_clients import BaseAIClient
+from app.utils.language_utils import build_language_context
 from app.utils.speaker_utils import build_speaker_context
 
 logger = logging.getLogger(__name__)
@@ -209,6 +210,7 @@ class StoryGenerator:
             f"**Событие:** {metadata.event_name}",
             f"**Дата:** {metadata.date.isoformat()}",
             *build_speaker_context(metadata.speaker_info, metadata.speaker),
+            *build_language_context(metadata.language),
             "",
             "### Транскрипт",
             "",
