@@ -21,6 +21,7 @@ from app.utils.chunk_utils import (
 )
 from app.utils.h2_chunker import chunk_by_h2
 from app.utils.json_utils import extract_and_parse_json, extract_json, parse_json_safe
+from app.utils.language_utils import build_language_context, detect_language
 from app.utils.media_utils import (
     TRANSCRIPT_EXTENSIONS,
     estimate_duration_from_size,
@@ -73,4 +74,7 @@ __all__ = [
     # pdf_utils
     "pdf_to_images",
     "pdf_page_count",
+    # language_utils
+    "detect_language",
+    "build_language_context",
 ]
