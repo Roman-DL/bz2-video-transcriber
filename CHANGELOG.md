@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.84.0 (2026-03-26)
+
+### Fix
+
+- pass-through Clean в orchestrator для иностранных транскриптов
+- auto-pipeline не ставил language/speaker_info для MD + таймаут 900с для Opus
+- map-reduce лонгрид обрезался на 4096 токенов + коррекция tokens/char для иностранных текстов
+- добавлен build_language_context в Summary генератор (пропущен в плане)
+
+### Refactor
+
+- миграция orchestrator на stage абстракцию (ADR-001 Phase 1)
+
 ## v0.83.0 (2026-03-26)
 
 ### Feat
