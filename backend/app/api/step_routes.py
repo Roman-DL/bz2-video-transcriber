@@ -44,7 +44,7 @@ from app.models.schemas import (
 from app.services.ai_clients import ClaudeClient
 from app.services.pipeline import PipelineOrchestrator
 from app.services.slides_extractor import SlidesExtractor
-from app.utils import estimate_duration_from_text, get_media_duration, is_transcript_file
+from app.utils import detect_language, estimate_duration_from_text, get_media_duration, is_transcript_file
 from app.utils.speaker_utils import parse_speakers
 from app.services.progress_estimator import ProgressEstimator
 
@@ -240,6 +240,7 @@ async def step_parse(request: StepParseRequest) -> VideoMetadata:
             text = video_path.read_text(encoding="utf-8")
             metadata.duration_seconds = estimate_duration_from_text(text)
             metadata.speaker_info = parse_speakers(text)
+            metadata.language = detect_language(text)
         else:
             metadata.duration_seconds = get_media_duration(video_path)
             if metadata.duration_seconds is None:
