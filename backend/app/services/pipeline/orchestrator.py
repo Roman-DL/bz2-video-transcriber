@@ -243,7 +243,7 @@ class PipelineOrchestrator:
         """Build ProcessingResult from completed context."""
         metadata: VideoMetadata = context.get_result("parse")
         raw_transcript: RawTranscript = context.get_result("transcribe")[0]
-        chunks: TranscriptChunks = context.get_result("chunk")[0]
+        chunks: TranscriptChunks = context.get_result("chunk")
         save_result: SaveResult = context.get_result("save")
 
         logger.info(
@@ -516,7 +516,7 @@ class PipelineOrchestrator:
             "parse": metadata,
             "transcribe": (raw_transcript, audio_path),
             "clean": cleaned_transcript,
-            "chunk": (chunks, None, None),
+            "chunk": chunks,
         }
 
         if story is not None:

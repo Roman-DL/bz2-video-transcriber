@@ -78,7 +78,7 @@ class SaveStage(BaseStage):
         metadata: VideoMetadata = context.get_result("parse")
         raw_transcript, audio_path = context.get_result("transcribe")
         cleaned: CleanedTranscript = context.get_result("clean")
-        chunks, _, _ = context.get_result("chunk")
+        chunks = context.get_result("chunk")
 
         # Get slides extraction result if available
         slides_extraction: SlidesExtractionResult | None = None

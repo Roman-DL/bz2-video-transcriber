@@ -50,7 +50,7 @@ class ChunkStage(BaseStage):
     """
 
     name = "chunk"
-    depends_on = ["parse", "longread", "story"]
+    depends_on = ["parse"]
     status = ProcessingStatus.CHUNKING
 
     def __init__(self, settings: Settings):
@@ -83,7 +83,7 @@ class ChunkStage(BaseStage):
         markdown = self._get_source_markdown(context, metadata)
 
         if not markdown:
-            raise StageError("No longread or story found for chunking")
+            raise StageError(self.name, "No longread or story found for chunking")
 
         # Deterministic H2 chunking
         chunks = chunk_by_h2(markdown, metadata.video_id)
