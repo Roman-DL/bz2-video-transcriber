@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     whisper_model: str = "large-v3-turbo"  # Display name for Whisper model
     whisper_language: str = "ru"
     whisper_include_timestamps: bool = False  # Include [HH:MM:SS] in transcript_raw.txt
-    llm_timeout: int = 300
+    llm_timeout: int = 900  # v0.83+: 15min for Opus large single-pass (was 300)
 
     # Paths
     data_root: Path = Path("/data")
