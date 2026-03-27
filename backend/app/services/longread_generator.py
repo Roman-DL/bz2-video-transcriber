@@ -367,12 +367,15 @@ class LongreadGenerator:
                 min_part_size=self.text_splitter.min_part_size // 3,
             )
             text_parts = foreign_splitter.split(full_text)
+            # Each part = separate section (translation is slow, don't regroup)
+            parts_per_section = 1
         else:
             text_parts = self.text_splitter.split(full_text)
+            parts_per_section = self.parts_per_section
 
         logger.info(
             f"Generating longread (map-reduce): {len(full_text)} chars, "
-            f"{len(text_parts)} parts, parts_per_section={self.parts_per_section}"
+            f"{len(text_parts)} parts, parts_per_section={parts_per_section}"
         )
 
         # Extract outline for large texts
@@ -382,7 +385,10 @@ class LongreadGenerator:
         outline_context = outline.to_context() if outline else "Контекст не предоставлен."
 
         # MAP: Generate sections in parallel
+        saved = self.parts_per_section
+        self.parts_per_section = parts_per_section
         sections = await self._generate_sections(text_parts, metadata, outline_context)
+        self.parts_per_section = saved
 
         # REDUCE: Generate intro and conclusion
         intro, conclusion, classification = await self._generate_frame(
