@@ -292,7 +292,7 @@ export interface StepSummarizeRequest {
   metadata: VideoMetadata;
   model?: string;
   promptOverrides?: PromptOverrides;
-  languageOverride?: string;
+  longreadText?: string;
 }
 
 export interface StepStoryRequest {

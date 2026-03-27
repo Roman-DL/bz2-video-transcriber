@@ -463,19 +463,12 @@ export function usePipelineProcessor({
 
         case 'summarize': {
           if (!data.cleanedTranscript || !data.metadata) return;
-
-          // For foreign transcripts, use already-translated longread instead of raw transcript
-          const isForeign = data.metadata.language === 'foreign' && data.longread;
-          const transcript = isForeign
-            ? { ...data.cleanedTranscript, text: longreadToText(data.longread!) }
-            : data.cleanedTranscript;
-
           const summary = await stepSummarize.mutate({
-            cleanedTranscript: transcript,
+            cleanedTranscript: data.cleanedTranscript,
             metadata: data.metadata,
             model: getModelForStage('summarize'),
             promptOverrides: getPromptOverridesForApi('summarize'),
-            languageOverride: isForeign ? 'ru' : undefined,
+            longreadText: data.longread ? longreadToText(data.longread) : undefined,
           });
           const newData = { ...data, summary };
           setData(newData);

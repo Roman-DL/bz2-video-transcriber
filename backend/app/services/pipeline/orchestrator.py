@@ -143,6 +143,27 @@ class PipelineOrchestrator:
             if stage.should_skip(context):
                 logger.info(f"Skipping stage: {stage.name}")
                 continue
+
+            # v0.85+: For foreign transcripts, feed longread into summarize
+            if stage.name == "summarize" and context.has_result("longread"):
+                metadata = context.get_result("parse")
+                if metadata.language == "foreign":
+                    longread = context.get_result("longread")
+                    longread_text = longread.to_markdown()
+                    clean = context.get_result("clean")
+                    logger.info(
+                        "foreign_summary_from_longread",
+                        longread_chars=len(longread_text),
+                        transcript_chars=len(clean.text),
+                    )
+                    context = context.with_result("clean", CleanedTranscript(
+                        text=longread_text,
+                        original_length=clean.original_length,
+                        cleaned_length=len(longread_text),
+                        model_name=clean.model_name,
+                    ))
+                    context = context.with_metadata("language_override", "ru")
+
             result = await self._execute_with_progress(stage, context, progress_callback)
             context = context.with_result(stage.name, result)
 
@@ -402,14 +423,14 @@ class PipelineOrchestrator:
         model: str | None = None,
         prompt_overrides: PromptOverrides | None = None,
         slides_text: str | None = None,
-        language_override: str | None = None,
+        longread_text: str | None = None,
     ) -> Summary:
         """
         Generate summary (конспект) from cleaned transcript.
 
         v0.84+: Delegates to SummarizeStage.
-        v0.85+: language_override controls prompt language context
-                (e.g. "ru" when orchestration passes pre-translated longread).
+        v0.85+: For foreign transcripts, uses longread_text (already translated)
+                instead of raw transcript to avoid double translation and truncation.
 
         Args:
             cleaned_transcript: Cleaned transcript
@@ -417,11 +438,27 @@ class PipelineOrchestrator:
             model: Optional model override for generation
             prompt_overrides: Optional prompt file overrides
             slides_text: Optional extracted text from slides
-            language_override: Override language for prompt (v0.85+)
+            longread_text: Pre-translated longread text (v0.85+)
 
         Returns:
             Summary with essence, concepts, tools, quotes, topic_area, access_level
         """
+        # Orchestration decision: for foreign transcripts, use longread as input
+        language_override = None
+        if metadata.language == "foreign" and longread_text:
+            logger.info(
+                "foreign_summary_from_longread",
+                longread_chars=len(longread_text),
+                transcript_chars=len(cleaned_transcript.text),
+            )
+            cleaned_transcript = CleanedTranscript(
+                text=longread_text,
+                original_length=cleaned_transcript.original_length,
+                cleaned_length=len(longread_text),
+                model_name=cleaned_transcript.model_name,
+            )
+            language_override = "ru"
+
         results = {"parse": metadata, "clean": cleaned_transcript}
         meta = {
             "model_overrides": {"summarize": model} if model else {},
