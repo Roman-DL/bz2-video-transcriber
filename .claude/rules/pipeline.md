@@ -69,6 +69,7 @@ paths:
 - `build_language_context(language)` → `list[str]` для unpacking в prompt_parts (аналог `build_speaker_context`)
 - Инжектируется во ВСЕ prompt builder методы Longread, Summary и Story генераторов
 - Перевод + коррекция ошибок происходят неявно при генерации LLM
+- **Summary из longread (v0.85+):** orchestrator подменяет вход для foreign — longread text вместо raw transcript, `language_override="ru"` убирает инструкции перевода. Решение на бэкенде, stage агностичен
 
 ## Longread — Auto-selection (v0.67+)
 - `LongreadGenerator` авто-выбирает путь по `context_tokens` модели vs размер текста

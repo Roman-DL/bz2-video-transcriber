@@ -46,6 +46,7 @@ Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longr
 > **v0.67+:** Longread авто-выбор single-pass (1 LLM вызов) или map-reduce по размеру контекста модели.
 > **v0.72+:** Clean — только глоссарная подстановка терминов (без удаления паразитов, без overlap).
 > **v0.83+:** Поддержка иностранных транскриптов: автодетекция языка, пропуск Clean, перевод в Longread/Story.
+> **v0.85+:** Foreign summary из longread — orchestrator подменяет вход, stage агностичен.
 
 ## Ключевые ограничения
 
@@ -61,7 +62,7 @@ Video + [Slides] → Parse → Whisper → Clean ─┬─→ [Slides] → Longr
 5. **Chunk детерминистический** — парсинг H2 заголовков, без LLM. Выполняется ПОСЛЕ longread/story
 6. **sshpass для серверных команд** — credentials из `.env.local`, НЕ интерактивный ssh
 7. **Slides — SlidesStage** (`optional=True`) + API endpoint `/api/step/slides`
-8. **Foreign transcripts** — Clean пропускается, перевод в Longread/Story промптах. Язык определяется автоматически
+8. **Foreign transcripts** — Clean пропускается, перевод в Longread/Story промптах. Summary из longread (orchestrator решает). Язык определяется автоматически
 
 ---
 

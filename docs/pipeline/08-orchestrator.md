@@ -352,6 +352,7 @@ files = await orchestrator.save(
 
 ## История изменений
 
+- **v0.85:** Foreign orchestration — `summarize_from_cleaned()` подменяет вход для foreign (longread вместо transcript). `language_override` в context metadata.
 - **v0.55:** Поддержка `slides_extraction` в методе `save()`.
 - **v0.53:** Добавлен `slides_text` параметр в метод `story()`.
 - **v0.50:** Добавлен `slides_text` параметр в метод `longread()`.

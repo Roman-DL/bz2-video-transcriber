@@ -50,6 +50,13 @@ CleanedTranscript (~50K chars)
 - LLM сама классифицирует тему (topic_area, access_level)
 - Не ограничен редактурой лонгрида
 
+**Исключение — foreign transcripts (v0.85+):**
+- Для иностранных транскриптов orchestrator подменяет вход: longread text вместо raw transcript
+- Решение принимает **бэкенд** (`orchestrator.summarize_from_cleaned` / `orchestrator.process`)
+- Фронтенд передаёт `longread_text`, orchestrator проверяет `metadata.language == "foreign"`
+- `language_override="ru"` убирает инструкции перевода из промпта
+- Причина: raw transcript на чужом языке → двойной перевод + truncation (84K→48K)
+
 **3-компонентная архитектура промптов:**
 - `summary_system.md` — роль и назначение
 - `summary_instructions.md` — правила извлечения по типам тем
@@ -210,6 +217,7 @@ def should_skip(self, context: StageContext) -> bool:
 
 ## История изменений
 
+- **v0.85:** Foreign transcripts — summary из longread (orchestrator решает). `language_override` механизм.
 - **v0.42:** Добавлены метрики tokens_used, cost, processing_time_sec.
 - **v0.30:** Иерархическая структура промптов (`config/prompts/summary/`).
 - **v0.29:** Удалён fallback механизм — при ошибке выбрасывается StageError.
