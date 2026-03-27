@@ -152,9 +152,7 @@ class PipelineOrchestrator:
                     longread_text = longread.to_markdown()
                     clean = context.get_result("clean")
                     logger.info(
-                        "foreign_summary_from_longread",
-                        longread_chars=len(longread_text),
-                        transcript_chars=len(clean.text),
+                        f"foreign_summary_from_longread: longread_chars={len(longread_text)}, transcript_chars={len(clean.text)}"
                     )
                     context = context.with_result("clean", CleanedTranscript(
                         text=longread_text,
@@ -447,9 +445,7 @@ class PipelineOrchestrator:
         language_override = None
         if metadata.language == "foreign" and longread_text:
             logger.info(
-                "foreign_summary_from_longread",
-                longread_chars=len(longread_text),
-                transcript_chars=len(cleaned_transcript.text),
+                f"foreign_summary_from_longread: longread_chars={len(longread_text)}, transcript_chars={len(cleaned_transcript.text)}"
             )
             cleaned_transcript = CleanedTranscript(
                 text=longread_text,
