@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.85.0 (2026-03-27)
+
+### Feat
+
+- foreign summary из longread вместо сырого транскрипта
+
+### Fix
+
+- foreign map-reduce parts_per_section=1 — группировка сводила на нет разделение
+- outline_extractor не распаковывал tuple от generate() → outline всегда fallback
+- foreign map-reduce part_size / 3 — перевод 80K части не укладывался в таймаут
+- foreign longread timeout — TOKENS_PER_CHAR_FOREIGN 1.0→2.0 для раннего map-reduce
+- 5 багов из старого мёртвого кода — chunk depends_on, StageError args, tuple unpacking
+- CleanedTranscript требует original_length/cleaned_length/model_name в foreign pass-through
+- RawTranscript.text → .full_text в CleanStage foreign pass-through
+- logger.info() с keyword arg language= ломал clean для foreign транскриптов
+
+### Refactor
+
+- оркестрация foreign summary на бэкенде, не на фронтенде
+- оркестрация foreign summary — stage агностичен, логика на фронтенде
+
 ## v0.84.0 (2026-03-26)
 
 ### Fix
