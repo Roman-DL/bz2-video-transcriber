@@ -48,6 +48,7 @@ export interface VideoMetadata {
   eventCategory: EventCategory;
   eventName: string;
   speakerInfo?: SpeakerInfo | null; // v0.64+: from MD transcript
+  language?: string; // v0.83+: "ru" or "foreign"
 }
 
 export interface TranscriptSegment {
@@ -291,6 +292,7 @@ export interface StepSummarizeRequest {
   metadata: VideoMetadata;
   model?: string;
   promptOverrides?: PromptOverrides;
+  languageOverride?: string;
 }
 
 export interface StepStoryRequest {

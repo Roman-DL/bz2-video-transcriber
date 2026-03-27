@@ -402,11 +402,14 @@ class PipelineOrchestrator:
         model: str | None = None,
         prompt_overrides: PromptOverrides | None = None,
         slides_text: str | None = None,
+        language_override: str | None = None,
     ) -> Summary:
         """
         Generate summary (конспект) from cleaned transcript.
 
         v0.84+: Delegates to SummarizeStage.
+        v0.85+: language_override controls prompt language context
+                (e.g. "ru" when orchestration passes pre-translated longread).
 
         Args:
             cleaned_transcript: Cleaned transcript
@@ -414,6 +417,7 @@ class PipelineOrchestrator:
             model: Optional model override for generation
             prompt_overrides: Optional prompt file overrides
             slides_text: Optional extracted text from slides
+            language_override: Override language for prompt (v0.85+)
 
         Returns:
             Summary with essence, concepts, tools, quotes, topic_area, access_level
@@ -422,6 +426,7 @@ class PipelineOrchestrator:
         meta = {
             "model_overrides": {"summarize": model} if model else {},
             "prompt_overrides": {"summarize": prompt_overrides} if prompt_overrides else {},
+            "language_override": language_override,
         }
 
         if slides_text:

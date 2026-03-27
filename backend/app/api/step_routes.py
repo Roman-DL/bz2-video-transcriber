@@ -534,6 +534,7 @@ async def step_summarize(request: StepSummarizeRequest) -> StreamingResponse:
                 model=request.model,
                 prompt_overrides=request.prompt_overrides,
                 slides_text=request.slides_text,
+                language_override=request.language_override,
             ),
         )
     )

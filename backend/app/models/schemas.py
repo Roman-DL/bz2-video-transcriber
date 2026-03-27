@@ -1168,6 +1168,10 @@ class StepSummarizeRequest(CamelCaseModel):
         default=None,
         description="Extracted text from slides (v0.68+)",
     )
+    language_override: str | None = Field(
+        default=None,
+        description="Override language for prompt, e.g. 'ru' when input is pre-translated (v0.85+)",
+    )
 
 
 class StepStoryRequest(CamelCaseModel):

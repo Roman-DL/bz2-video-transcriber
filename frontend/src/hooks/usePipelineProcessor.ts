@@ -463,11 +463,19 @@ export function usePipelineProcessor({
 
         case 'summarize': {
           if (!data.cleanedTranscript || !data.metadata) return;
+
+          // For foreign transcripts, use already-translated longread instead of raw transcript
+          const isForeign = data.metadata.language === 'foreign' && data.longread;
+          const transcript = isForeign
+            ? { ...data.cleanedTranscript, text: longreadToText(data.longread!) }
+            : data.cleanedTranscript;
+
           const summary = await stepSummarize.mutate({
-            cleanedTranscript: data.cleanedTranscript,
+            cleanedTranscript: transcript,
             metadata: data.metadata,
             model: getModelForStage('summarize'),
             promptOverrides: getPromptOverridesForApi('summarize'),
+            languageOverride: isForeign ? 'ru' : undefined,
           });
           const newData = { ...data, summary };
           setData(newData);
@@ -756,6 +764,25 @@ function fileToBase64(file: File): Promise<string> {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * Convert Longread object to plain text for use as summary input.
+ * Produces section-based markdown without YAML frontmatter.
+ */
+function longreadToText(longread: Longread): string {
+  const parts: string[] = [];
+  parts.push(`# ${longread.title}`);
+  if (longread.introduction) {
+    parts.push('', longread.introduction);
+  }
+  for (const section of longread.sections) {
+    parts.push('', `## ${section.title}`, '', section.content);
+  }
+  if (longread.conclusion) {
+    parts.push('', '---', '', longread.conclusion);
+  }
+  return parts.join('\n');
 }
 
 /**
