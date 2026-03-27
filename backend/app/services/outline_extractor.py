@@ -124,7 +124,7 @@ class OutlineExtractor:
         prompt = self._build_prompt(part, total_parts)
 
         try:
-            response = await self.ai_client.generate(prompt)
+            response, _usage = await self.ai_client.generate(prompt)
             outline = self._parse_outline(response, part.index)
 
             logger.debug(
