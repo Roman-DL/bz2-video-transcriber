@@ -357,7 +357,18 @@ class LongreadGenerator:
         start_time = time.time()
 
         # Split text into parts
-        text_parts = self.text_splitter.split(full_text)
+        # v0.84+: Foreign texts use smaller parts — translation makes each section
+        # ~3x slower, so we split more aggressively to avoid timeout
+        if metadata.language == "foreign":
+            from app.services.text_splitter import TextSplitter
+            foreign_splitter = TextSplitter(
+                part_size=self.text_splitter.part_size // 3,
+                overlap_size=self.text_splitter.overlap_size // 3,
+                min_part_size=self.text_splitter.min_part_size // 3,
+            )
+            text_parts = foreign_splitter.split(full_text)
+        else:
+            text_parts = self.text_splitter.split(full_text)
 
         logger.info(
             f"Generating longread (map-reduce): {len(full_text)} chars, "
