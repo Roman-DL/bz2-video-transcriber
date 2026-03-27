@@ -5,6 +5,8 @@ Creates a condensed summary (конспект) for navigation and quick referenc
 
 v0.24+: Generates from CleanedTranscript (not Longread).
 v0.29+: Removed fallback - raises StageError on failure.
+v0.85+: Foreign transcripts use longread text instead of raw transcript
+         to avoid double translation and truncation.
 """
 
 import logging
@@ -13,6 +15,7 @@ from app.config import Settings
 from app.models.schemas import (
     CleanedTranscript,
     ContentType,
+    Longread,
     ProcessingStatus,
     Summary,
     VideoMetadata,
@@ -46,7 +49,7 @@ class SummarizeStage(BaseStage):
     """
 
     name = "summarize"
-    depends_on = ["parse", "clean"]  # v0.24: Changed from ["parse", "longread"]
+    depends_on = ["parse", "clean", "longread"]  # v0.85: Added longread for foreign transcripts
     status = ProcessingStatus.SUMMARIZING
 
     def __init__(self, settings: Settings, config_resolver=None, processing_strategy=None):
@@ -97,6 +100,23 @@ class SummarizeStage(BaseStage):
         metadata: VideoMetadata = context.get_result("parse")
         cleaned_transcript: CleanedTranscript = context.get_result("clean")
 
+        # v0.85+: For foreign transcripts, use longread text instead of raw transcript
+        # to avoid double translation and truncation losses
+        if metadata.language == "foreign" and context.has_result("longread"):
+            longread: Longread = context.get_result("longread")
+            longread_text = longread.to_markdown()
+            logger.info(
+                "foreign_summary_from_longread",
+                longread_chars=len(longread_text),
+                transcript_chars=len(cleaned_transcript.text),
+            )
+            cleaned_transcript = CleanedTranscript(
+                text=longread_text,
+                original_length=cleaned_transcript.original_length,
+                cleaned_length=len(longread_text),
+                model_name=cleaned_transcript.model_name,
+            )
+
         # Get slides text if available
         slides_text = None
         if context.has_result("slides"):
@@ -110,7 +130,11 @@ class SummarizeStage(BaseStage):
             actual_model = model or settings.summarizer_model
             async with self.processing_strategy.create_client(actual_model) as ai_client:
                 generator = SummaryGenerator(ai_client, settings, prompt_overrides)
-                return await generator.generate(cleaned_transcript, metadata, slides_text)
+                # v0.85+: Skip translation instructions when using pre-translated longread
+                language_override = "ru" if metadata.language == "foreign" else None
+                return await generator.generate(
+                    cleaned_transcript, metadata, slides_text, language_override
+                )
         except Exception as e:
             raise StageError(self.name, f"Summary generation failed: {e}", e)
 

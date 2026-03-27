@@ -103,6 +103,7 @@ class SummaryGenerator:
         cleaned_transcript: CleanedTranscript,
         metadata: VideoMetadata,
         slides_text: str | None = None,
+        language_override: str | None = None,
     ) -> Summary:
         """
         Generate summary from cleaned transcript.
@@ -126,8 +127,8 @@ class SummaryGenerator:
             f"Generating summary from cleaned transcript: {input_chars} chars"
         )
 
-        # Build prompt
-        prompt = self._build_prompt(transcript_text, metadata)
+        # Build prompt (language_override skips translation instructions for pre-translated text)
+        prompt = self._build_prompt(transcript_text, metadata, language_override)
 
         # v0.43+: Unified interface - all clients return (response, usage)
         response, usage = await self.ai_client.generate(
@@ -283,18 +284,26 @@ class SummaryGenerator:
         # Fall back to hard cut
         return text[:cut_point] + "...\n\n[... сокращено для обработки ...]"
 
-    def _build_prompt(self, transcript_text: str, metadata: VideoMetadata) -> str:
+    def _build_prompt(
+        self,
+        transcript_text: str,
+        metadata: VideoMetadata,
+        language_override: str | None = None,
+    ) -> str:
         """
         Build summary prompt from 3 components.
 
         Args:
             transcript_text: Prepared transcript text
             metadata: Video metadata
+            language_override: Override language for prompt (e.g. "ru" when using
+                pre-translated longread for foreign transcripts)
 
         Returns:
             Complete prompt for LLM
         """
         date_formatted = f"{metadata.date.day} {RUSSIAN_MONTHS[metadata.date.month]} {metadata.date.year}"
+        language = language_override or metadata.language
 
         prompt_parts = [
             self.system_prompt,
@@ -314,7 +323,7 @@ class SummaryGenerator:
             f"**Дата:** {date_formatted}",
             f"**Событие:** {metadata.event_type}",
             *build_speaker_context(metadata.speaker_info, metadata.speaker),
-            *build_language_context(metadata.language),
+            *build_language_context(language),
             "",
             "### Транскрипт",
             "",
